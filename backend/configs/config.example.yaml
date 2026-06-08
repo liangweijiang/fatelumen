@@ -1,0 +1,9 @@
+app_env: "development"
+app_port: 8080
+
+database:
+  host: "127.0.0.1"
+  port: 3306
+  user: "fatelumen"
+  password: "fatelumen123"
+  name: "fatelumen"
