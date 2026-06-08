@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/jwt"
 	"fatelumen/backend/internal/pkg/response"
 
@@ -12,7 +13,6 @@ import (
 )
 
 // AuthMiddleware JWT 校验 + 单设备登录检查。
-// 从 Authorization: Bearer <token> 提取 JWT，校验后把 user_id 写入 context。
 type AuthMiddleware struct {
 	jwtSecret string
 	db        *gorm.DB
@@ -22,7 +22,7 @@ func NewAuthMiddleware(jwtSecret string, db *gorm.DB) *AuthMiddleware {
 	return &AuthMiddleware{jwtSecret: jwtSecret, db: db}
 }
 
-// Handler 返回 Gin 中间件函数。
+// Handler 返回 Gin 中间件函数：提取 JWT → 校验签名 → 单设备登录检查 → 写入 context。
 func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
@@ -40,18 +40,26 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 			return
 		}
 
-		// 单设备登录：比对 current_token_id（若启用）
-		// MVP 阶段此逻辑在 auth_service 中实现，中间件只做基本校验。
-		_ = claims.TokenID
+		// 单设备登录：比对 DB 中的 current_token_id
+		var user model.User
+		if err := m.db.Select("current_token_id").First(&user, claims.UserID).Error; err != nil {
+			response.Fail(c, response.CodeUnauthorized, "user not found")
+			c.Abort()
+			return
+		}
+		if user.CurrentTokenID != "" && user.CurrentTokenID != claims.TokenID {
+			response.Fail(c, response.CodeKicked, "logged in from another device")
+			c.Abort()
+			return
+		}
 
-		// 设置用户 ID 到 context
 		c.Set("user_id", claims.UserID)
 		c.Set("token_id", claims.TokenID)
 		c.Next()
 	}
 }
 
-// OptionalAuth 可选鉴权（有 token 则解析，无则不拦截）。
+// OptionalHandler 可选鉴权（有 token 则解析，无则不拦截）。
 func (m *AuthMiddleware) OptionalHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		auth := c.GetHeader("Authorization")
@@ -61,10 +69,24 @@ func (m *AuthMiddleware) OptionalHandler() gin.HandlerFunc {
 		}
 		tokenStr := strings.TrimPrefix(auth, "Bearer ")
 		claims, err := jwt.Parse(m.jwtSecret, tokenStr)
-		if err == nil {
-			c.Set("user_id", claims.UserID)
-			c.Set("token_id", claims.TokenID)
+		if err != nil {
+			c.Next()
+			return
 		}
+
+		// 单设备检查（可选鉴权时同样校验）
+		var user model.User
+		if err := m.db.Select("current_token_id").First(&user, claims.UserID).Error; err != nil {
+			c.Next()
+			return
+		}
+		if user.CurrentTokenID != "" && user.CurrentTokenID != claims.TokenID {
+			c.Next()
+			return
+		}
+
+		c.Set("user_id", claims.UserID)
+		c.Set("token_id", claims.TokenID)
 		c.Next()
 	}
 }
@@ -78,7 +100,7 @@ func GetUserID(c *gin.Context) uint64 {
 	return v.(uint64)
 }
 
-// JSONAbort 返回 JSON 并 abort（兼容非标准响应）。
+// JSONAbort 返回 JSON 并 abort。
 func JSONAbort(c *gin.Context, code int, data interface{}) {
 	c.AbortWithStatusJSON(http.StatusOK, data)
 }
