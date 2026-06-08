@@ -1,0 +1,26 @@
+# 环境变量(含密钥，绝不入库)
+.env
+.env.*
+!.env.example
+
+# Go
+/backend/bin/
+/backend/tmp/
+*.exe
+*.test
+*.out
+vendor/
+
+# Next.js / Node
+/frontend/node_modules/
+/frontend/.next/
+/frontend/out/
+/frontend/.vercel/
+
+# opencode 本地状态
+.opencode/
+
+# 通用
+.DS_Store
+*.log
+.idea/
