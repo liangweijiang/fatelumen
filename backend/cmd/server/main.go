@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/config"
@@ -14,7 +13,6 @@ import (
 	"fatelumen/backend/internal/service"
 	pkgLogger "fatelumen/backend/internal/pkg/logger"
 
-	"go.uber.org/zap"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormLogger "gorm.io/gorm/logger"
@@ -23,14 +21,10 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("failed to load config: %v", err)
+		panic(fmt.Sprintf("failed to load config: %v", err))
 	}
 
-	zapLog, err := pkgLogger.New(cfg.AppEnv)
-	if err != nil {
-		log.Fatalf("failed to init logger: %v", err)
-	}
-	defer zapLog.Sync()
+	log := pkgLogger.New(cfg.LogLevel)
 
 	dbLogLevel := gormLogger.Warn
 	if cfg.AppEnv == "development" {
@@ -40,7 +34,7 @@ func main() {
 		Logger: gormLogger.Default.LogMode(dbLogLevel),
 	})
 	if err != nil {
-		zapLog.Fatal("failed to connect database", zap.Error(err))
+		log.Fatal("failed to connect database", "err", err)
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(25)
@@ -48,9 +42,9 @@ func main() {
 
 	if cfg.AppEnv == "development" {
 		if err := autoMigrate(db); err != nil {
-			zapLog.Fatal("failed to auto migrate", zap.Error(err))
+			log.Fatal("failed to auto migrate", "err", err)
 		}
-		zapLog.Info("auto migrate completed")
+		log.Info("auto migrate completed")
 	}
 
 	// 依赖注入
@@ -68,7 +62,7 @@ func main() {
 		))
 	}
 
-	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, zapLog)
+	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, log)
 	profileSvc := service.NewProfileService(profileRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
@@ -83,9 +77,9 @@ func main() {
 	engine := router.Setup(app)
 
 	addr := fmt.Sprintf(":%s", cfg.AppPort)
-	zapLog.Info("server starting", zap.String("addr", addr))
+	log.Info("server starting", "addr", addr)
 	if err := engine.Run(addr); err != nil {
-		zapLog.Fatal("server failed", zap.Error(err))
+		log.Fatal("server failed", "err", err)
 	}
 }
 

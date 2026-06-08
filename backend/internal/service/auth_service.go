@@ -11,9 +11,8 @@ import (
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/jwt"
+	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/repository"
-
-	"go.uber.org/zap"
 )
 
 // LoginResult 登录成功后返回的数据。
@@ -33,7 +32,7 @@ type AuthService struct {
 	jwtExpHrs  int
 	stateStore map[string]time.Time
 	mu         sync.Mutex
-	log        *zap.Logger
+	log        *logger.Logger
 }
 
 func NewAuthService(
@@ -41,7 +40,7 @@ func NewAuthService(
 	authReg *auth.Registry,
 	jwtSecret string,
 	jwtExpHours int,
-	log *zap.Logger,
+	log *logger.Logger,
 ) *AuthService {
 	s := &AuthService{
 		userRepo:   userRepo,

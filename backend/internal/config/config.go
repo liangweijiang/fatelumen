@@ -9,6 +9,7 @@ import (
 
 // Config 全局配置。
 type Config struct {
+	LogLevel  string // debug / info / warn / error
 	AppEnv     string
 	AppPort    string
 	AppBaseURL string
@@ -69,6 +70,7 @@ func Load() (*Config, error) {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	viper.SetDefault("LOG_LEVEL", "info")
 	// 默认值
 	viper.SetDefault("APP_ENV", "development")
 	viper.SetDefault("APP_PORT", "8080")
@@ -88,6 +90,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 
 	cfg := &Config{
+		LogLevel:   viper.GetString("LOG_LEVEL"),
 		AppEnv:     viper.GetString("APP_ENV"),
 		AppPort:    viper.GetString("APP_PORT"),
 		AppBaseURL: viper.GetString("APP_BASE_URL"),
