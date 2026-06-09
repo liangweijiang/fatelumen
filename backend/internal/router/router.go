@@ -11,10 +11,11 @@ import (
 
 // App 包含所有路由依赖的上下文。
 type App struct {
-	DB          *gorm.DB
-	Auth        *middleware.AuthMiddleware
-	AuthHandler *handler.AuthHandler
-	ProfHandler *handler.ProfileHandler
+	DB           *gorm.DB
+	Auth         *middleware.AuthMiddleware
+	AuthHandler  *handler.AuthHandler
+	ProfHandler  *handler.ProfileHandler
+	ChartHandler *handler.ChartHandler
 }
 
 // Setup 注册所有 Gin 路由。
@@ -60,6 +61,12 @@ func Setup(app *App) *gin.Engine {
 				profiles.GET("", app.ProfHandler.List)
 				profiles.GET("/:id", app.ProfHandler.Get)
 				profiles.DELETE("/:id", app.ProfHandler.Delete)
+			}
+
+			charts := authed.Group("/charts")
+			{
+				charts.POST("", app.ChartHandler.Create)
+				charts.GET("/:id", app.ChartHandler.Get)
 			}
 		}
 	}

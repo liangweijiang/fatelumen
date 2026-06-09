@@ -52,6 +52,7 @@ func main() {
 
 	userRepo := repository.NewUserRepo(db)
 	profileRepo := repository.NewProfileRepo(db)
+	chartRepo := repository.NewChartRepo(db)
 
 	authReg := auth.NewRegistry()
 	if contains(cfg.AuthProviders, "google") {
@@ -64,15 +65,18 @@ func main() {
 
 	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, log)
 	profileSvc := service.NewProfileService(profileRepo)
+	chartSvc := service.NewChartService(chartRepo, profileRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
+	chartHandler := handler.NewChartHandler(chartSvc)
 
 	app := &router.App{
-		DB:          db,
-		Auth:        authMW,
-		AuthHandler: authHandler,
-		ProfHandler: profileHandler,
+		DB:           db,
+		Auth:         authMW,
+		AuthHandler:  authHandler,
+		ProfHandler:  profileHandler,
+		ChartHandler: chartHandler,
 	}
 	engine := router.Setup(app)
 
