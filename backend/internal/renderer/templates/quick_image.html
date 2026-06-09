@@ -1,0 +1,87 @@
+{{/* quick_image.html — 1080×1350 竖版社交分享图，复用 FateLumen 设计系统(第14章) */ -}}
+<!doctype html>
+<html lang="{{.Locale}}">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: 1080px 1350px; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    width: 1080px; height: 1350px;
+    background: #ede8e0; color: #1a1715;
+    font-family: 'Inter', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    padding: 72px 80px;
+    display: flex; flex-direction: column;
+    height: 1350px;
+  }
+  .brand {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 34px; color: #a8851a;
+    letter-spacing: 1px;
+  }
+  .summary {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 54px; line-height: 1.25;
+    margin: 40px 0 48px; color: #1a1715;
+  }
+  .pillars {
+    display: flex; gap: 20px; margin-bottom: 48px;
+  }
+  .pillar {
+    flex: 1; text-align: center;
+    background: #f5f1ea;
+    border: 1px solid #cec6b8;
+    border-radius: 16px; padding: 28px 0;
+  }
+  .pillar .gz {
+    font-size: 48px;
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .pillar .label {
+    font-size: 18px; color: #8a8178; margin-top: 8px;
+  }
+  .section { margin-bottom: 32px; }
+  .section h3 {
+    font-size: 22px; color: #a8851a;
+    margin: 0 0 10px;
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .section p {
+    font-size: 26px; line-height: 1.6; color: #5a544c; margin: 0;
+  }
+  .section ul {
+    list-style: none; display: flex; flex-wrap: wrap; gap: 12px;
+    font-size: 22px; color: #5a544c;
+  }
+  .section ul li {
+    background: #f5f1ea; border: 1px solid #cec6b8;
+    border-radius: 10px; padding: 8px 20px;
+  }
+  .foot {
+    margin-top: auto; font-size: 18px; color: #8a8178;
+    display: flex; justify-content: space-between;
+    padding-top: 20px; border-top: 1px solid #ddd6ca;
+  }
+</style></head>
+<body><div class="wrap">
+  <div class="brand">{{.Brand}} · {{.DayMasterLabel}}</div>
+  <div class="summary">{{.Content.SummaryLine}}</div>
+  <div class="pillars">
+    {{range .Pillars}}<div class="pillar">
+      <div class="gz" style="color:{{.ElementColor}}">{{.Stem}}{{.Branch}}</div>
+      <div class="label">{{.PositionLabel}}</div>
+    </div>{{end}}
+  </div>
+  <div class="section">
+    <h3>{{.T.personality}}</h3>
+    <p>{{.Content.Personality}}</p>
+  </div>
+  <div class="section">
+    <h3>{{.T.element_note}}</h3>
+    <p>{{.Content.ElementNote}}</p>
+  </div>
+  <div class="foot"><span>fatelumen.com</span><span>{{.GenDate}}</span></div>
+</div></body></html>
