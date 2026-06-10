@@ -55,6 +55,8 @@ func TestChromedpScreenshot(t *testing.T) {
 	}
 
 	// 保存截图用于人工检查
-	os.WriteFile("/tmp/quick_test.png", png, 0644)
-	t.Logf("screenshot saved to /tmp/quick_test.png (%d bytes)", len(png))
+	out := "testdata/output/quick.png"
+	os.MkdirAll("testdata/output", 0755)
+	os.WriteFile(out, png, 0644)
+	t.Logf("screenshot saved to %s (%d bytes)", out, len(png))
 }

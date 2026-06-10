@@ -62,6 +62,8 @@ func TestRenderReportPDF_Chromedp(t *testing.T) {
 		t.Errorf("PDF too small: %d bytes", len(pdf))
 	}
 
-	os.WriteFile("/tmp/report_test.pdf", pdf, 0644)
-	t.Logf("PDF saved to /tmp/report_test.pdf (%d bytes)", len(pdf))
+	out := "testdata/output/report.pdf"
+	os.MkdirAll("testdata/output", 0755)
+	os.WriteFile(out, pdf, 0644)
+	t.Logf("PDF saved to %s (%d bytes)", out, len(pdf))
 }
