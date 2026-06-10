@@ -15,34 +15,20 @@ type openAICompatProvider struct {
 	name   string
 	client *openai.Client
 	model  string
-	log    *logger.Logger
 }
 
-func newOpenAICompat(name, apiKey, baseURL, model string, log *logger.Logger) *openAICompatProvider {
+func newOpenAICompat(name, apiKey, baseURL, model string) *openAICompatProvider {
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
 	return &openAICompatProvider{
 		name:   name,
 		client: openai.NewClientWithConfig(cfg),
 		model:  model,
-		log:    log,
 	}
 }
 
 func (p *openAICompatProvider) Name() string {
 	return p.name
-}
-
-func (p *openAICompatProvider) logError(msg string, args ...any) {
-	if p.log != nil {
-		p.log.Error(msg, args...)
-	}
-}
-
-func (p *openAICompatProvider) logDebug(msg string, args ...any) {
-	if p.log != nil {
-		p.log.Debug(msg, args...)
-	}
 }
 
 func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user string, opts ...Option) (string, error) {
@@ -68,23 +54,23 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 		ResponseFormat: &openai.ChatCompletionResponseFormat{Type: openai.ChatCompletionResponseFormatTypeJSONObject},
 	})
 	if err != nil {
-		p.logError("llm call failed", "err", err, "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
+		logger.FromCtx(ctx).Error("llm call failed", "err", err, "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
 		return "", err
 	}
-	p.logDebug("llm call completed", "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
+	logger.FromCtx(ctx).Debug("llm call completed", "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
 
 	if len(resp.Choices) == 0 {
-		p.logError("llm returned empty choices", "provider", p.name, "model", p.model)
+		logger.FromCtx(ctx).Error("llm returned empty choices", "provider", p.name, "model", p.model)
 		return "", errors.New("llm returned empty response")
 	}
 	content := resp.Choices[0].Message.Content
 	if content == "" {
-		p.logError("llm returned empty content", "provider", p.name, "model", p.model)
+		logger.FromCtx(ctx).Error("llm returned empty content", "provider", p.name, "model", p.model)
 		return "", errors.New("llm returned empty content")
 	}
 
 	if !json.Valid([]byte(content)) {
-		p.logError("llm returned invalid JSON", "provider", p.name, "model", p.model)
+		logger.FromCtx(ctx).Error("llm returned invalid JSON", "provider", p.name, "model", p.model)
 		return "", errors.New("llm returned invalid JSON")
 	}
 	return content, nil

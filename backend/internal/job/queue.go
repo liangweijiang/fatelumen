@@ -6,6 +6,8 @@ import "context"
 type Job struct {
 	Type    string // "generate_report"
 	Payload []byte // JSON 序列化的任务参数（如 report_id）
+	// TraceID 由 Enqueue 从 ctx 读取写入，worker 执行时重建 ctx，使异步日志与触发请求共享同一 trace_id。
+	TraceID string
 }
 
 // Handler 处理某类 Job。

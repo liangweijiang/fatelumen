@@ -10,12 +10,12 @@ import (
 	"fatelumen/backend/internal/llm"
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
 	"fatelumen/backend/internal/router"
 	"fatelumen/backend/internal/service"
 	"fatelumen/backend/internal/storage"
-	pkgLogger "fatelumen/backend/internal/pkg/logger"
 
 	"github.com/redis/go-redis/v9"
 
@@ -30,7 +30,7 @@ func main() {
 		panic(fmt.Sprintf("failed to load config: %v", err))
 	}
 
-	log := pkgLogger.New(cfg.LogLevel)
+	log := logger.Init(cfg.LogLevel)
 
 	dbLogLevel := gormLogger.Warn
 	if cfg.AppEnv == "development" {
@@ -76,23 +76,23 @@ func main() {
 	var llmProvider llm.LLMProvider
 	switch cfg.LLMProvider {
 	case "openai":
-		llmProvider = llm.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.OpenAIModel, log)
+		llmProvider = llm.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.OpenAIModel)
 	default:
-		llmProvider = llm.NewDeepSeekProvider(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel, log)
+		llmProvider = llm.NewDeepSeekProvider(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel)
 	}
 	log.Info("llm provider initialized", "name", llmProvider.Name())
 
 	var imgRenderer renderer.Renderer
 	switch cfg.Renderer {
 	default:
-		imgRenderer = renderer.NewChromedpRenderer(cfg.ChromiumPath, log)
+		imgRenderer = renderer.NewChromedpRenderer(cfg.ChromiumPath)
 	}
 	_ = imgRenderer // will be wired into reading service in sub-step 6
 	log.Info("renderer initialized", "type", cfg.Renderer)
 
 	var fileStorage storage.Storage
 	if cfg.R2AccountID != "" {
-		r2, err := storage.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBase, log)
+		r2, err := storage.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBase)
 		if err != nil {
 			log.Fatal("failed to init R2 storage", "err", err)
 		}
@@ -117,7 +117,7 @@ func main() {
 		log.Info("cache initialized", "type", "memory")
 	}
 
-	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit, log)
+	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit)
 	_ = quotaSvc // will be wired into reading service in sub-step 6
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)

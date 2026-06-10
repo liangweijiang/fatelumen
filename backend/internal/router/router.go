@@ -24,6 +24,7 @@ func Setup(app *App) *gin.Engine {
 	r := gin.New()
 
 	r.Use(middleware.Recovery())
+	r.Use(middleware.Trace())
 	r.Use(middleware.CORS())
 
 	r.GET("/health", func(c *gin.Context) {

@@ -13,7 +13,7 @@ import (
 
 func TestChromedpScreenshot(t *testing.T) {
 	chromiumPath := os.Getenv("CHROMIUM_PATH")
-	renderer := NewChromedpRenderer(chromiumPath, nil)
+	renderer := NewChromedpRenderer(chromiumPath)
 
 	chart, err := bazi.Calculate(bazi.BirthInput{
 		Gender:       1,

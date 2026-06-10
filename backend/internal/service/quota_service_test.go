@@ -12,7 +12,7 @@ import (
 func TestQuotaService_ThreeSuccesses(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	defer mc.Close()
-	qs := NewQuotaService(mc, 3, nil)
+	qs := NewQuotaService(mc, 3)
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
@@ -26,7 +26,7 @@ func TestQuotaService_ThreeSuccesses(t *testing.T) {
 func TestQuotaService_FourthExceeds(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	defer mc.Close()
-	qs := NewQuotaService(mc, 3, nil)
+	qs := NewQuotaService(mc, 3)
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
@@ -57,7 +57,7 @@ func TestQuotaService_CrossDayReset(t *testing.T) {
 		t.Skip("test requires different dates")
 	}
 
-	qs := NewQuotaService(mc, 3, nil)
+	qs := NewQuotaService(mc, 3)
 
 	for i := 1; i <= 3; i++ {
 		if err := qs.CheckAndConsume(ctx, 7); err != nil {
@@ -94,7 +94,7 @@ func TestQuotaService_CrossDayReset(t *testing.T) {
 func TestQuotaService_DifferentUsersSeparated(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	defer mc.Close()
-	qs := NewQuotaService(mc, 3, nil)
+	qs := NewQuotaService(mc, 3)
 	ctx := context.Background()
 
 	for i := 1; i <= 3; i++ {
@@ -123,7 +123,7 @@ func TestQuotaService_DifferentUsersSeparated(t *testing.T) {
 func TestQuotaService_CustomLimit(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	defer mc.Close()
-	qs := NewQuotaService(mc, 5, nil)
+	qs := NewQuotaService(mc, 5)
 	ctx := context.Background()
 
 	for i := 1; i <= 5; i++ {

@@ -28,7 +28,7 @@ func TestR2Put(t *testing.T) {
 		t.Skip("R2 credentials not set, skipping integration test")
 	}
 
-	r2, err := NewR2Storage(accountID, accessKey, secretKey, bucket, publicBase, nil)
+	r2, err := NewR2Storage(accountID, accessKey, secretKey, bucket, publicBase)
 	if err != nil {
 		t.Fatalf("NewR2Storage: %v", err)
 	}

@@ -19,30 +19,16 @@ var ErrQuotaExceeded = fmt.Errorf("daily free quota exceeded")
 type QuotaService struct {
 	cache    cache.Cache
 	maxDaily int
-	log      *logger.Logger
 }
 
 // NewQuotaService 创建额度服务。maxDaily 为 0 时使用默认值 3。
-func NewQuotaService(c cache.Cache, maxDaily int, log *logger.Logger) *QuotaService {
+func NewQuotaService(c cache.Cache, maxDaily int) *QuotaService {
 	if maxDaily <= 0 {
 		maxDaily = DefaultMaxDailyQuota
 	}
 	return &QuotaService{
 		cache:    c,
 		maxDaily: maxDaily,
-		log:      log,
-	}
-}
-
-func (s *QuotaService) logError(msg string, args ...any) {
-	if s.log != nil {
-		s.log.Error(msg, args...)
-	}
-}
-
-func (s *QuotaService) logWarn(msg string, args ...any) {
-	if s.log != nil {
-		s.log.Warn(msg, args...)
 	}
 }
 
@@ -53,19 +39,19 @@ func (s *QuotaService) CheckAndConsume(ctx context.Context, userID uint64) error
 
 	count, err := s.cache.Incr(ctx, key)
 	if err != nil {
-		s.logError("quota incr failed", "err", err, "user_id", userID, "key", key)
+		logger.FromCtx(ctx).Error("quota incr failed", "err", err, "user_id", userID, "key", key)
 		return fmt.Errorf("quota incr: %w", err)
 	}
 
 	if count == 1 {
 		ttl := ttlToEndOfUTCDay(now)
 		if err := s.cache.Set(ctx, key, strconv.FormatInt(count, 10), ttl); err != nil {
-			s.logWarn("quota set ttl failed", "key", key, "err", err)
+			logger.FromCtx(ctx).Warn("quota set ttl failed", "key", key, "err", err)
 		}
 	}
 
 	if count > int64(s.maxDaily) {
-		s.logWarn("quota exceeded", "user_id", userID, "count", count, "max_daily", s.maxDaily)
+		logger.FromCtx(ctx).Warn("quota exceeded", "user_id", userID, "count", count, "max_daily", s.maxDaily)
 		return ErrQuotaExceeded
 	}
 	return nil
