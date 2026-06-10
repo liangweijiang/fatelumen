@@ -7,6 +7,7 @@ import (
 	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/config"
 	"fatelumen/backend/internal/handler"
+	"fatelumen/backend/internal/job"
 	"fatelumen/backend/internal/llm"
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
@@ -121,6 +122,19 @@ func main() {
 	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit)
 	readingSvc := service.NewReadingService(readingRepo, profileRepo, chartSvc, quotaSvc, llmProvider, imgRenderer, fileStorage)
 
+	// Job Queue（异步报告任务队列 — Phase 4 状态机核心）
+	// TODO: worker 消费在 Phase 4 后续步骤实现
+	var jobQueue job.Queue
+	switch cfg.JobQueue {
+	case "db":
+		jobQueue = job.NewDBQueue(db)
+		log.Info("job queue initialized", "type", "db")
+	default:
+		jobQueue = job.NewMemoryQueue()
+		log.Info("job queue initialized", "type", "memory")
+	}
+	_ = jobQueue
+
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
@@ -157,6 +171,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.AdminUser{},
 		&model.AdminRole{},
 		&model.AdminAuditLog{},
+		&job.Job{},
 	)
 }
 
