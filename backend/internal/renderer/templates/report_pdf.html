@@ -1,0 +1,246 @@
+{{/* report_pdf.html — A4 多页报告模板，FateLumen 设计系统(§14) */ -}}
+<!doctype html>
+<html lang="{{.Locale}}">
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4;
+    margin: 24mm 20mm 28mm 20mm;
+    @bottom-center {
+      content: counter(page);
+      font-family: 'Inter', sans-serif;
+      font-size: 10px;
+      color: #8a8178;
+    }
+    @bottom-left {
+      content: "FateLumen";
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 9px;
+      color: #a8851a;
+    }
+  }
+  @page:first {
+    @bottom-center { content: none; }
+    @bottom-left { content: none; }
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
+    font-size: 11px;
+    line-height: 1.75;
+    color: #1a1715;
+    background: #fff;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: 'Playfair Display', Georgia, 'Noto Serif CJK SC', serif;
+    color: #1a1715;
+  }
+
+  /* ── 封面 ── */
+  .cover {
+    page-break-after: always;
+    display: flex; flex-direction: column;
+    justify-content: center;
+    height: 100vh;
+    background: #ede8e0;
+    padding: 60px;
+    text-align: center;
+  }
+  .cover .brand {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 28px; color: #a8851a;
+    letter-spacing: 2px; margin-bottom: 48px;
+  }
+  .cover h1 {
+    font-size: 36px; margin-bottom: 24px; color: #1a1715;
+  }
+  .cover .subtitle {
+    font-size: 16px; color: #5a544c; margin-bottom: 40px;
+  }
+  .cover .meta {
+    font-size: 12px; color: #8a8178; line-height: 2;
+  }
+  .cover .meta span { display: block; }
+  .cover .divider {
+    width: 80px; height: 1px;
+    background: #a8851a; margin: 32px auto;
+  }
+  .cover .strength-badge {
+    display: inline-block;
+    background: #f5f1ea; border: 1px solid #cec6b8;
+    border-radius: 20px; padding: 6px 24px;
+    font-size: 14px; color: #1a1715;
+    margin-top: 16px;
+  }
+
+  /* ── 章节 ── */
+  .chapter {
+    page-break-before: always;
+    padding: 20px 0;
+  }
+  .chapter h2 {
+    font-size: 22px;
+    color: #a8851a;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #ede8e0;
+  }
+  .chapter p {
+    margin-bottom: 12px;
+    text-align: justify;
+  }
+
+  /* ── 四柱摘要 ── */
+  .pillar-summary {
+    display: flex; gap: 12px; margin-bottom: 32px;
+  }
+  .pillar-box {
+    flex: 1; text-align: center;
+    background: #faf8f5;
+    border: 1px solid #ddd6ca;
+    border-radius: 10px; padding: 16px 8px;
+  }
+  .pillar-box .stem-branch {
+    font-family: 'Playfair Display', Georgia, 'Noto Serif CJK SC', serif;
+    font-size: 22px;
+  }
+  .pillar-box .label {
+    font-size: 10px; color: #8a8178; margin-top: 4px;
+  }
+
+  /* ── 五行条 ── */
+  .element-bars {
+    display: flex; align-items: flex-end; gap: 8px;
+    height: 60px; margin-bottom: 20px; padding: 0 4px;
+  }
+  .element-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .element-bar {
+    width: 100%; border-radius: 4px 4px 0 0; transition: height .3s;
+  }
+  .element-label {
+    font-size: 10px; color: #8a8178; margin-top: 4px;
+  }
+
+  /* ── 流年表格 ── */
+  .fortune-table {
+    width: 100%; border-collapse: collapse; margin-bottom: 20px;
+  }
+  .fortune-table th {
+    background: #ede8e0; color: #a8851a;
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 11px; padding: 10px 14px; text-align: left;
+  }
+  .fortune-table td {
+    padding: 10px 14px; border-bottom: 1px solid #ede8e0;
+    font-size: 11px; vertical-align: top;
+  }
+  .fortune-table .year {
+    white-space: nowrap; color: #a8851a; font-weight: 600;
+  }
+
+  /* ── 建议列表 ── */
+  .suggestion-list {
+    list-style: none; counter-reset: sug;
+  }
+  .suggestion-list li {
+    counter-increment: sug;
+    padding: 8px 0 8px 32px;
+    position: relative;
+    border-bottom: 1px solid #f5f1ea;
+  }
+  .suggestion-list li::before {
+    content: counter(sug);
+    position: absolute; left: 0; top: 8px;
+    width: 22px; height: 22px;
+    line-height: 22px; text-align: center;
+    background: #a8851a; color: #fff;
+    border-radius: 50%; font-size: 11px; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+{{/* ── 封面 ── */}}
+<div class="cover">
+  <div class="brand">{{.Brand}}</div>
+  <h1>{{.ReportTitle}}</h1>
+  <div class="subtitle">{{.Content.SummaryLine}}</div>
+  <div class="divider"></div>
+  <div class="meta">
+    <span>{{.SectionLabels.day_master}}: {{.DayMasterLabel}}</span>
+    <span>{{.SectionLabels.strength}}: {{.StrengthLevel}}</span>
+    <span>{{.SectionLabels.birth_info}}: {{.SolarDate}} / {{.LunarDate}}</span>
+    <span>{{.SectionLabels.generated}}: {{.GenDate}}</span>
+  </div>
+  <div class="strength-badge">{{.SectionLabels.five_elements}}: {{.ElementBalance}}</div>
+</div>
+
+{{/* ── 四柱摘要 ── */}}
+<div class="chapter">
+  <h2>{{.SectionLabels.summary}}</h2>
+  <div class="pillar-summary">
+    {{range .Pillars}}<div class="pillar-box">
+      <div class="stem-branch" style="color:{{.ElementColor}}">{{.Stem}}{{.Branch}}</div>
+      <div class="label">{{.PositionLabel}}</div>
+    </div>{{end}}
+  </div>
+  {{range .Elements}}<div class="element-bar-wrap" style="display:inline-block;width:18%;vertical-align:bottom;margin:0 1%;">
+    <div class="element-bar" style="height:{{.Width}}%;background:{{.Color}};"></div>
+    <div class="element-label">{{.Element}} {{.Count}}</div>
+  </div>{{end}}
+  <div style="clear:both;margin-top:12px;"></div>
+  <p>{{.Content.Summary}}</p>
+</div>
+
+{{/* ── 性格 ── */}}
+<div class="chapter">
+  <h2>{{.SectionLabels.personality}}</h2>
+  <p>{{.Content.Personality}}</p>
+</div>
+
+{{/* ── 事业 ── */}}
+<div class="chapter">
+  <h2>{{.SectionLabels.career}}</h2>
+  <p>{{.Content.Career}}</p>
+</div>
+
+{{/* ── 感情 ── */}}
+<div class="chapter">
+  <h2>{{.SectionLabels.relationship}}</h2>
+  <p>{{.Content.Relationship}}</p>
+</div>
+
+{{/* ── 健康 ── */}}
+<div class="chapter">
+  <h2>{{.SectionLabels.health}}</h2>
+  <p>{{.Content.Health}}</p>
+</div>
+
+{{/* ── 流年 ── */}}
+{{if .FortuneItems}}
+<div class="chapter">
+  <h2>{{.SectionLabels.yearly_fortune}}</h2>
+  <table class="fortune-table">
+    <tr><th>Year</th><th>Analysis</th></tr>
+    {{range .FortuneItems}}<tr>
+      <td class="year">{{.Year}}</td>
+      <td>{{.Note}}</td>
+    </tr>{{end}}
+  </table>
+</div>
+{{end}}
+
+{{/* ── 建议 ── */}}
+{{if .Suggestions}}
+<div class="chapter">
+  <h2>{{.SectionLabels.suggestions}}</h2>
+  <ol class="suggestion-list">
+    {{range .Suggestions}}<li>{{.}}</li>{{end}}
+  </ol>
+</div>
+{{end}}
+
+</body>
+</html>
