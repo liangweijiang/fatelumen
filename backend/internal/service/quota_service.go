@@ -34,6 +34,18 @@ func NewQuotaService(c cache.Cache, maxDaily int, log *logger.Logger) *QuotaServ
 	}
 }
 
+func (s *QuotaService) logError(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Error(msg, args...)
+	}
+}
+
+func (s *QuotaService) logWarn(msg string, args ...any) {
+	if s.log != nil {
+		s.log.Warn(msg, args...)
+	}
+}
+
 // CheckAndConsume 检查并消耗一次免费额度。超额返回 ErrQuotaExceeded。
 func (s *QuotaService) CheckAndConsume(ctx context.Context, userID uint64) error {
 	now := time.Now().UTC()
@@ -41,17 +53,19 @@ func (s *QuotaService) CheckAndConsume(ctx context.Context, userID uint64) error
 
 	count, err := s.cache.Incr(ctx, key)
 	if err != nil {
+		s.logError("quota incr failed", "err", err, "user_id", userID, "key", key)
 		return fmt.Errorf("quota incr: %w", err)
 	}
 
 	if count == 1 {
 		ttl := ttlToEndOfUTCDay(now)
 		if err := s.cache.Set(ctx, key, strconv.FormatInt(count, 10), ttl); err != nil {
-			s.log.Warn("quota set ttl failed", "key", key, "err", err)
+			s.logWarn("quota set ttl failed", "key", key, "err", err)
 		}
 	}
 
 	if count > int64(s.maxDaily) {
+		s.logWarn("quota exceeded", "user_id", userID, "count", count, "max_daily", s.maxDaily)
 		return ErrQuotaExceeded
 	}
 	return nil

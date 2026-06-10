@@ -1,11 +1,13 @@
 package llm
 
-func NewDeepSeekProvider(apiKey, baseURL, model string) LLMProvider {
+import "fatelumen/backend/internal/pkg/logger"
+
+func NewDeepSeekProvider(apiKey, baseURL, model string, log *logger.Logger) LLMProvider {
 	if baseURL == "" {
 		baseURL = "https://api.deepseek.com/v1"
 	}
 	if model == "" {
 		model = "deepseek-chat"
 	}
-	return newOpenAICompat("deepseek", apiKey, baseURL, model)
+	return newOpenAICompat("deepseek", apiKey, baseURL, model, log)
 }

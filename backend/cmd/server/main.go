@@ -76,23 +76,23 @@ func main() {
 	var llmProvider llm.LLMProvider
 	switch cfg.LLMProvider {
 	case "openai":
-		llmProvider = llm.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.OpenAIModel)
+		llmProvider = llm.NewOpenAIProvider(cfg.OpenAIAPIKey, cfg.OpenAIModel, log)
 	default:
-		llmProvider = llm.NewDeepSeekProvider(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel)
+		llmProvider = llm.NewDeepSeekProvider(cfg.DeepSeekAPIKey, cfg.DeepSeekBaseURL, cfg.DeepSeekModel, log)
 	}
 	log.Info("llm provider initialized", "name", llmProvider.Name())
 
 	var imgRenderer renderer.Renderer
 	switch cfg.Renderer {
 	default:
-		imgRenderer = renderer.NewChromedpRenderer(cfg.ChromiumPath)
+		imgRenderer = renderer.NewChromedpRenderer(cfg.ChromiumPath, log)
 	}
 	_ = imgRenderer // will be wired into reading service in sub-step 6
 	log.Info("renderer initialized", "type", cfg.Renderer)
 
 	var fileStorage storage.Storage
 	if cfg.R2AccountID != "" {
-		r2, err := storage.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBase)
+		r2, err := storage.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBase, log)
 		if err != nil {
 			log.Fatal("failed to init R2 storage", "err", err)
 		}

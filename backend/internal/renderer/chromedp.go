@@ -9,6 +9,8 @@ import (
 	"html/template"
 	"time"
 
+	"fatelumen/backend/internal/pkg/logger"
+
 	"github.com/chromedp/cdproto/page"
 	"github.com/chromedp/chromedp"
 )
@@ -30,10 +32,17 @@ func init() {
 // 运行环境要求：安装 chromium + fonts-noto-cjk，否则中日韩文渲染成方块。
 type ChromedpRenderer struct {
 	chromiumPath string
+	log          *logger.Logger
 }
 
-func NewChromedpRenderer(chromiumPath string) *ChromedpRenderer {
-	return &ChromedpRenderer{chromiumPath: chromiumPath}
+func NewChromedpRenderer(chromiumPath string, log *logger.Logger) *ChromedpRenderer {
+	return &ChromedpRenderer{chromiumPath: chromiumPath, log: log}
+}
+
+func (r *ChromedpRenderer) logError(msg string, args ...any) {
+	if r.log != nil {
+		r.log.Error(msg, args...)
+	}
 }
 
 func (r *ChromedpRenderer) Render(ctx context.Context, html string, format Format) ([]byte, error) {
@@ -82,9 +91,11 @@ func (r *ChromedpRenderer) renderPNG(ctx context.Context, html string) ([]byte, 
 		chromedp.FullScreenshot(&buf, 100),
 	)
 	if err != nil {
+		r.logError("chromedp screenshot failed", "err", err, "format", "png")
 		return nil, fmt.Errorf("chromedp screenshot: %w", err)
 	}
 	if len(buf) == 0 {
+		r.logError("chromedp produced empty screenshot", "format", "png")
 		return nil, errors.New("chromedp produced empty screenshot")
 	}
 	return buf, nil
@@ -131,9 +142,11 @@ func (r *ChromedpRenderer) renderPDF(ctx context.Context, html string) ([]byte, 
 		}),
 	)
 	if err != nil {
+		r.logError("chromedp pdf failed", "err", err, "format", "pdf")
 		return nil, fmt.Errorf("chromedp pdf: %w", err)
 	}
 	if len(buf) == 0 {
+		r.logError("chromedp produced empty pdf", "format", "pdf")
 		return nil, errors.New("chromedp produced empty pdf")
 	}
 	return buf, nil
