@@ -87,14 +87,20 @@ func (q *MemoryQueue) UpdateStatus(ctx context.Context, id string, status Status
 			"from", string(job.Status),
 			"to", string(status),
 		)
-		return nil // 幂等忽略
+		return nil
 	}
 
+	wasPending := job.Status == StatusPending
 	job.Status = status
 	job.Result = result
 	job.UpdatedAt = time.Now()
 	if status == StatusFailed {
 		job.Attempts++
+	}
+
+	// 若转为 pending 且之前不是 pending，重新加入出队顺序
+	if status == StatusPending && !wasPending {
+		q.order = append(q.order, id)
 	}
 	return nil
 }
