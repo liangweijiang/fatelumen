@@ -10,14 +10,14 @@ import (
 
 // Chapter 单章（12 章之一）。
 type Chapter struct {
-	No            int           `json:"no"`
-	Key           string        `json:"key"`
-	Title         string        `json:"title"`
-	Body          string        `json:"body"`
-	StrengthScore int           `json:"strength_score,omitempty"`
-	Cycles        []CycleNote   `json:"cycles,omitempty"`
-	Years         []YearNote    `json:"years,omitempty"`
-	Tags          []string      `json:"tags,omitempty"`
+	No            int         `json:"no"`
+	Key           string      `json:"key"`
+	Title         string      `json:"title"`
+	Body          string      `json:"body"`
+	StrengthScore int         `json:"strength_score,omitempty"`
+	Cycles        []CycleNote `json:"cycles,omitempty"`
+	Years         []YearNote  `json:"years,omitempty"`
+	Tags          []string    `json:"tags,omitempty"`
 }
 
 // CycleNote 大运备注。
@@ -35,11 +35,25 @@ type YearNote struct {
 	Note   string `json:"note"`
 }
 
-// ReportContent 完整报告 12 章 JSON。
+// YearlyFortuneItem 流年运势单项。
+type YearlyFortuneItem struct {
+	Year int    `json:"year"`
+	Note string `json:"note"`
+}
+
+// ReportContent 深度报告 JSON 结构（§9.2）。
+// 各章节字段均为专业命理解读，禁止绝对化、医疗、投资、寿命断言。
 type ReportContent struct {
-	Locale      string    `json:"locale"`
-	SummaryLine string    `json:"summary_line"`
-	Chapters    []Chapter `json:"chapters"`
+	Locale        string               `json:"locale"`
+	SummaryLine   string               `json:"summary_line"`
+	Summary       string               `json:"summary"`
+	Personality   string               `json:"personality"`
+	Career        string               `json:"career"`
+	Relationship  string               `json:"relationship"`
+	Health        string               `json:"health"`
+	YearlyFortune []YearlyFortuneItem  `json:"yearly_fortune"`
+	Suggestions   []string             `json:"suggestions"`
+	Chapters      []Chapter            `json:"chapters,omitempty"`
 }
 
 // Value 实现 driver.Valuer。
