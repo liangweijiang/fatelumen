@@ -58,6 +58,8 @@ type Config struct {
 	StripeSecretKey   string
 	StripeWebhookSecret string
 
+	QuotaDailyLimit int
+
 	R2AccountID       string
 	R2AccessKeyID     string
 	R2SecretAccessKey string
@@ -88,6 +90,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("OPENAI_MODEL", "gpt-4o-mini")
 	viper.SetDefault("RENDERER", "chromedp")
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
+	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 
 	cfg := &Config{
 		LogLevel:   viper.GetString("LOG_LEVEL"),
@@ -118,6 +121,8 @@ func Load() (*Config, error) {
 
 		Renderer:    viper.GetString("RENDERER"),
 		ChromiumPath: viper.GetString("CHROMIUM_PATH"),
+
+		QuotaDailyLimit: viper.GetInt("QUOTA_DAILY_LIMIT"),
 
 		JobQueue:   viper.GetString("JOB_QUEUE"),
 		JobWorkers: viper.GetInt("JOB_WORKERS"),

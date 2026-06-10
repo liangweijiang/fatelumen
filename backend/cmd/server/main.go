@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"fatelumen/backend/internal/auth"
+	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/config"
 	"fatelumen/backend/internal/handler"
 	"fatelumen/backend/internal/llm"
@@ -15,6 +16,8 @@ import (
 	"fatelumen/backend/internal/service"
 	"fatelumen/backend/internal/storage"
 	pkgLogger "fatelumen/backend/internal/pkg/logger"
+
+	"github.com/redis/go-redis/v9"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -100,6 +103,22 @@ func main() {
 		log.Info("storage initialized", "type", "noop")
 	}
 	_ = fileStorage // will be wired into reading service in sub-step 6
+
+	var c cache.Cache
+	if cfg.RedisAddr != "" {
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     cfg.RedisAddr,
+			Password: cfg.RedisPassword,
+		})
+		c = cache.NewRedisCache(redisClient)
+		log.Info("cache initialized", "type", "redis")
+	} else {
+		c = cache.NewMemoryCache()
+		log.Info("cache initialized", "type", "memory")
+	}
+
+	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit, log)
+	_ = quotaSvc // will be wired into reading service in sub-step 6
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
