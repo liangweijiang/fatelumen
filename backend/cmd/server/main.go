@@ -59,6 +59,7 @@ func main() {
 	userRepo := repository.NewUserRepo(db)
 	profileRepo := repository.NewProfileRepo(db)
 	chartRepo := repository.NewChartRepo(db)
+	readingRepo := repository.NewReadingRepo(db)
 
 	authReg := auth.NewRegistry()
 	if contains(cfg.AuthProviders, "google") {
@@ -118,18 +119,20 @@ func main() {
 	}
 
 	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit)
-	_ = quotaSvc // will be wired into reading service in sub-step 6
+	readingSvc := service.NewReadingService(readingRepo, profileRepo, chartSvc, quotaSvc, llmProvider, imgRenderer, fileStorage)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
+	readingHandler := handler.NewReadingHandler(readingSvc)
 
 	app := &router.App{
-		DB:           db,
-		Auth:         authMW,
-		AuthHandler:  authHandler,
-		ProfHandler:  profileHandler,
-		ChartHandler: chartHandler,
+		DB:             db,
+		Auth:           authMW,
+		AuthHandler:    authHandler,
+		ProfHandler:    profileHandler,
+		ChartHandler:   chartHandler,
+		ReadingHandler: readingHandler,
 	}
 	engine := router.Setup(app)
 

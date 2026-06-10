@@ -45,6 +45,7 @@ type Reading struct {
 	Locale    string       `gorm:"type:varchar(8);not null;default:'en'" json:"locale"`
 	Content   QuickContent `gorm:"type:json" json:"content"`
 	ImageURL  string       `gorm:"type:varchar(512)" json:"image_url"`
+	Status    string       `gorm:"type:varchar(16);not null;default:'done'" json:"status"`
 	CreatedAt time.Time    `gorm:"not null" json:"created_at"`
 }
 
