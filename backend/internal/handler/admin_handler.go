@@ -45,6 +45,11 @@ func NewAdminHandler(statsSvc *service.StatsService, userSvc *service.AdminUserS
 	return &AdminHandler{statsSvc: statsSvc, userSvc: userSvc, orderSvc: orderSvc, reportSvc: reportSvc}
 }
 
+// NewAdminHandlerForTest creates an AdminHandler with any implementations for testing.
+func NewAdminHandlerForTest(statsSvc adminStatsService, userSvc adminUserService, orderSvc adminOrderService, reportSvc adminReportService) *AdminHandler {
+	return &AdminHandler{statsSvc: statsSvc, userSvc: userSvc, orderSvc: orderSvc, reportSvc: reportSvc}
+}
+
 // Ping 临时探活接口，验证管理员权限链畅通。
 func (h *AdminHandler) Ping(c *gin.Context) {
 	response.OK(c, gin.H{"pong": true, "role": "admin"})

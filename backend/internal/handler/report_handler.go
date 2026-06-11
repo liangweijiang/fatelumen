@@ -30,6 +30,11 @@ func NewReportHandler(svc *service.ReportService) *ReportHandler {
 	return &ReportHandler{svc: svc}
 }
 
+// NewReportHandlerForTest creates a ReportHandler with any reportSvc, for testing only.
+func NewReportHandlerForTest(svc reportSvc) *ReportHandler {
+	return &ReportHandler{svc: svc}
+}
+
 type createReportIn struct {
 	ProfileID uint64 `json:"profile_id"`
 	Locale    string `json:"locale"`
