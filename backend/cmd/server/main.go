@@ -170,7 +170,9 @@ func main() {
 	paySvc := service.NewPaymentService(payProvider, orderRepo, reportRepo, webhookEventRepo)
 	webhookHandler := handler.NewWebhookHandler(paySvc)
 
-	adminHTTPHandler := handler.NewAdminHandler()
+	statsRepo := repository.NewStatsRepo(db)
+	statsSvc := service.NewStatsService(statsRepo)
+	adminHTTPHandler := handler.NewAdminHandler(statsSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)

@@ -104,6 +104,7 @@ func Setup(app *App) *gin.Engine {
 			admin.Use(middleware.AdminOnly(app.DB))
 			{
 				admin.GET("/ping", app.AdminHandler.Ping)
+				admin.GET("/stats", app.AdminHandler.Stats)
 			}
 		}
 	}
