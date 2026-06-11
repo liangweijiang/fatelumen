@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -26,13 +27,14 @@ type LoginResult struct {
 
 // AuthService 认证业务逻辑。依赖接口，不依赖具体 SDK。
 type AuthService struct {
-	userRepo   *repository.UserRepo
-	authReg    *auth.Registry
-	jwtSecret  string
-	jwtExpHrs  int
-	stateStore map[string]time.Time
-	mu         sync.Mutex
-	log        *logger.Logger
+	userRepo    *repository.UserRepo
+	authReg     *auth.Registry
+	jwtSecret   string
+	jwtExpHrs   int
+	adminEmails []string
+	stateStore  map[string]time.Time
+	mu          sync.Mutex
+	log         *logger.Logger
 }
 
 func NewAuthService(
@@ -40,15 +42,17 @@ func NewAuthService(
 	authReg *auth.Registry,
 	jwtSecret string,
 	jwtExpHours int,
+	adminEmails []string,
 	log *logger.Logger,
 ) *AuthService {
 	s := &AuthService{
-		userRepo:   userRepo,
-		authReg:    authReg,
-		jwtSecret:  jwtSecret,
-		jwtExpHrs:  jwtExpHours,
-		stateStore: make(map[string]time.Time),
-		log:        log,
+		userRepo:    userRepo,
+		authReg:     authReg,
+		jwtSecret:   jwtSecret,
+		jwtExpHrs:   jwtExpHours,
+		adminEmails: adminEmails,
+		stateStore:  make(map[string]time.Time),
+		log:         log,
 	}
 	go s.stateGC()
 	return s
@@ -100,6 +104,9 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 	if err != nil {
 		return nil, fmt.Errorf("upsert user failed: %w", err)
 	}
+
+	// Auto-promote admin users based on configured email list
+	s.ensureAdminRole(user)
 
 	// 签发 JWT，同时更新 current_token_id 实现单设备登录
 	tokenID := genTokenID()
@@ -172,4 +179,31 @@ func genTokenID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// isAdminEmail 检查邮箱是否在管理员列表中（大小写不敏感）。
+func (s *AuthService) isAdminEmail(email string) bool {
+	lower := strings.ToLower(strings.TrimSpace(email))
+	for _, e := range s.adminEmails {
+		if strings.ToLower(strings.TrimSpace(e)) == lower {
+			return true
+		}
+	}
+	return false
+}
+
+// ensureAdminRole 如果用户邮箱命中管理员列表但 role 还不是 admin，则自动提权。
+func (s *AuthService) ensureAdminRole(user *model.User) {
+	if user.Role == model.RoleAdmin {
+		return
+	}
+	if !s.isAdminEmail(user.Email) {
+		return
+	}
+	if err := s.userRepo.UpdateFields(user.ID, map[string]interface{}{"role": model.RoleAdmin}); err != nil {
+		s.log.Warn("failed to promote user to admin", "user_id", user.ID, "err", err)
+		return
+	}
+	user.Role = model.RoleAdmin
+	s.log.Info("user promoted to admin", "user_id", user.ID)
 }

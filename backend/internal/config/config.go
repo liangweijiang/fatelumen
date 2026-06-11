@@ -62,6 +62,8 @@ type Config struct {
 
 	QuotaDailyLimit int
 
+	AdminEmails []string
+
 	R2AccountID       string
 	R2AccessKeyID     string
 	R2SecretAccessKey string
@@ -148,6 +150,8 @@ func Load() (*Config, error) {
 		PaymentCancelURL:  viper.GetString("PAYMENT_CANCEL_URL"),
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
 		StripeSecretKey:   viper.GetString("STRIPE_SECRET_KEY"),
+
+		AdminEmails: splitEnv("ADMIN_EMAILS"),
 		StripeWebhookSecret: viper.GetString("STRIPE_WEBHOOK_SECRET"),
 
 		R2AccountID:       viper.GetString("R2_ACCOUNT_ID"),
@@ -180,4 +184,15 @@ func splitEnv(key string) []string {
 		}
 	}
 	return result
+}
+
+// IsAdminEmail 检测邮箱是否在管理员列表中（大小写不敏感）。
+func (c *Config) IsAdminEmail(email string) bool {
+	lower := strings.ToLower(strings.TrimSpace(email))
+	for _, e := range c.AdminEmails {
+		if strings.ToLower(e) == lower {
+			return true
+		}
+	}
+	return false
 }

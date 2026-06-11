@@ -17,6 +17,7 @@ const (
 	CodeKicked       = 4011 // Token 被新设备登录踢下线
 	CodeNoCredits    = 4020
 	CodeOrderUnpaid  = 4030
+	CodeForbidden    = 4031
 	CodeQuotaExhausted = 4290
 	CodeNotFound     = 4040
 	CodeServerError  = 5000

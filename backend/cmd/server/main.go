@@ -75,7 +75,7 @@ func main() {
 		))
 	}
 
-	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, log)
+	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, cfg.AdminEmails, log)
 	profileSvc := service.NewProfileService(profileRepo)
 	chartSvc := service.NewChartService(chartRepo, profileRepo)
 
@@ -170,6 +170,8 @@ func main() {
 	paySvc := service.NewPaymentService(payProvider, orderRepo, reportRepo, webhookEventRepo)
 	webhookHandler := handler.NewWebhookHandler(paySvc)
 
+	adminHTTPHandler := handler.NewAdminHandler()
+
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
@@ -185,6 +187,7 @@ func main() {
 		ReportHandler:  reportHTTPHandler,
 		OrderHandler:   orderHTTPHandler,
 		WebhookHandler: webhookHandler,
+		AdminHandler:   adminHTTPHandler,
 	}
 	engine := router.Setup(app)
 

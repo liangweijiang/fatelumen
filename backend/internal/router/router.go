@@ -20,6 +20,7 @@ type App struct {
 	ReportHandler  *handler.ReportHandler
 	OrderHandler   *handler.OrderHandler
 	WebhookHandler *handler.WebhookHandler
+	AdminHandler   *handler.AdminHandler
 }
 
 // Setup 注册所有 Gin 路由。
@@ -96,6 +97,13 @@ func Setup(app *App) *gin.Engine {
 				orders.POST("", app.OrderHandler.Create)
 				orders.GET("/:id", app.OrderHandler.Get)
 				orders.GET("", app.OrderHandler.List)
+			}
+
+			// Admin routes: JWT auth + AdminOnly guard
+			admin := authed.Group("/admin")
+			admin.Use(middleware.AdminOnly(app.DB))
+			{
+				admin.GET("/ping", app.AdminHandler.Ping)
 			}
 		}
 	}
