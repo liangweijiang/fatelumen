@@ -6,6 +6,7 @@ import (
 
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/jwt"
+	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
@@ -52,6 +53,14 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+		if !user.Active {
+			logger.FromCtx(c.Request.Context()).Warn("blocked disabled user",
+				"user_id", claims.UserID,
+			)
+			response.Fail(c, response.CodeForbidden, "account is disabled")
+			c.Abort()
+			return
+		}
 
 		c.Set("user_id", claims.UserID)
 		c.Set("token_id", claims.TokenID)
@@ -82,6 +91,10 @@ func (m *AuthMiddleware) OptionalHandler() gin.HandlerFunc {
 			return
 		}
 		if user.CurrentTokenID != "" && user.CurrentTokenID != claims.TokenID {
+			c.Next()
+			return
+		}
+		if !user.Active {
 			c.Next()
 			return
 		}

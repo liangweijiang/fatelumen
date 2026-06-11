@@ -51,6 +51,7 @@ type adminUserStore interface {
 	ListUsers(keyword string, limit, offset int) ([]model.User, int64, error)
 	GetUserByID(id uint64) (*model.User, error)
 	SetUserActive(id uint64, active bool) error
+	ClearCurrentToken(userID uint64) error
 }
 
 type adminCountStore interface {
@@ -125,7 +126,7 @@ func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint64) (*A
 	}, nil
 }
 
-// SetUserActive 启用/禁用用户，带审计日志。
+// SetUserActive 启用/禁用用户，带审计日志。禁用时同时清除令牌使其立即生效。
 func (s *AdminUserService) SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error {
 	if err := s.userRepo.SetUserActive(targetUserID, active); err != nil {
 		logger.FromCtx(ctx).Error("admin set user active failed",
@@ -134,6 +135,16 @@ func (s *AdminUserService) SetUserActive(ctx context.Context, operatorID, target
 			"target_user_id", targetUserID,
 		)
 		return err
+	}
+	if !active {
+		if err := s.userRepo.ClearCurrentToken(targetUserID); err != nil {
+			logger.FromCtx(ctx).Error("admin clear token on disable failed",
+				"err", err,
+				"operator_id", operatorID,
+				"target_user_id", targetUserID,
+			)
+			// Non-fatal: active=false already written; token still invalid via active check
+		}
 	}
 	logger.FromCtx(ctx).Info("admin set user active",
 		"operator_id", operatorID,

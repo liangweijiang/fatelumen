@@ -20,11 +20,14 @@ type fakeAdminUserStore struct {
 	getErr    error
 	activeSet map[uint64]bool
 	activeErr error
+	tokenCleared map[uint64]bool
+	clearTokenErr error
 }
 
 func newFakeAdminUserStore() *fakeAdminUserStore {
 	return &fakeAdminUserStore{
 		activeSet: make(map[uint64]bool),
+		tokenCleared: make(map[uint64]bool),
 	}
 }
 
@@ -49,6 +52,14 @@ func (f *fakeAdminUserStore) SetUserActive(id uint64, active bool) error {
 		return f.activeErr
 	}
 	f.activeSet[id] = active
+	return nil
+}
+
+func (f *fakeAdminUserStore) ClearCurrentToken(userID uint64) error {
+	if f.clearTokenErr != nil {
+		return f.clearTokenErr
+	}
+	f.tokenCleared[userID] = true
 	return nil
 }
 
@@ -187,5 +198,41 @@ func TestToAdminUserItem_NoSensitiveFields(t *testing.T) {
 		if strings.Contains(s, forbidden) {
 			t.Errorf("AdminUserItem JSON contains forbidden field: %s", forbidden)
 		}
+	}
+}
+
+// ---------- SetUserActive token invalidation ----------
+
+func TestSetUserActive_Disable_ClearsToken(t *testing.T) {
+	store := newFakeAdminUserStore()
+	svc := &AdminUserService{userRepo: store, countRepo: &fakeAdminCountStore{}}
+
+	err := svc.SetUserActive(context.Background(), 1, 2, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if v, ok := store.activeSet[2]; !ok || v != false {
+		t.Errorf("expected user 2 active=false, got %v", v)
+	}
+	if !store.tokenCleared[2] {
+		t.Error("expected ClearCurrentToken called when disabling user")
+	}
+}
+
+func TestSetUserActive_Enable_DoesNotClearToken(t *testing.T) {
+	store := newFakeAdminUserStore()
+	svc := &AdminUserService{userRepo: store, countRepo: &fakeAdminCountStore{}}
+
+	err := svc.SetUserActive(context.Background(), 1, 3, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if v, ok := store.activeSet[3]; !ok || v != true {
+		t.Errorf("expected user 3 active=true, got %v", v)
+	}
+	if store.tokenCleared[3] {
+		t.Error("token should NOT be cleared when enabling user")
 	}
 }

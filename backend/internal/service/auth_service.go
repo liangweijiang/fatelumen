@@ -92,13 +92,14 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 		return nil, fmt.Errorf("exchange failed: %w", err)
 	}
 
-	// upsert 用户
+	// upsert 用户 (explicitly set Active=true to avoid GORM zero-value issue)
 	user := &model.User{
 		GoogleSub: eu.ExternalID,
 		Email:     eu.Email,
 		Name:      eu.Name,
 		AvatarURL: eu.AvatarURL,
 		Locale:    "en",
+		Active:    true,
 	}
 	user, err = s.userRepo.UpsertByGoogleSub(user)
 	if err != nil {
