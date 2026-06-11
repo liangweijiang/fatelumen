@@ -147,7 +147,7 @@ func main() {
 	defer worker.Stop()
 	log.Info("job worker started", "workers", 3)
 
-	_ = reportSvc // will be wired into HTTP handlers in a subsequent step
+	reportHTTPHandler := handler.NewReportHandler(reportSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
@@ -161,6 +161,7 @@ func main() {
 		ProfHandler:    profileHandler,
 		ChartHandler:   chartHandler,
 		ReadingHandler: readingHandler,
+		ReportHandler:  reportHTTPHandler,
 	}
 	engine := router.Setup(app)
 

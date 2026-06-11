@@ -17,6 +17,7 @@ type App struct {
 	ProfHandler    *handler.ProfileHandler
 	ChartHandler   *handler.ChartHandler
 	ReadingHandler *handler.ReadingHandler
+	ReportHandler  *handler.ReportHandler
 }
 
 // Setup 注册所有 Gin 路由。
@@ -76,6 +77,13 @@ func Setup(app *App) *gin.Engine {
 				readings.POST("/quick", app.ReadingHandler.CreateQuick)
 				readings.GET("/:id", app.ReadingHandler.GetByID)
 				readings.GET("", app.ReadingHandler.ListByUser)
+			}
+
+			reports := authed.Group("/reports")
+			{
+				reports.POST("", app.ReportHandler.Create)
+				reports.GET("/:id", app.ReportHandler.Get)
+				reports.GET("", app.ReportHandler.List)
 			}
 		}
 	}
