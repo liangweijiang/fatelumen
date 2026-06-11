@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"fatelumen/backend/internal/auth"
@@ -61,6 +62,7 @@ func main() {
 	profileRepo := repository.NewProfileRepo(db)
 	chartRepo := repository.NewChartRepo(db)
 	readingRepo := repository.NewReadingRepo(db)
+	reportRepo := repository.NewReportRepo(db)
 
 	authReg := auth.NewRegistry()
 	if contains(cfg.AuthProviders, "google") {
@@ -89,7 +91,6 @@ func main() {
 	default:
 		imgRenderer = renderer.NewChromedpRenderer(cfg.ChromiumPath)
 	}
-	_ = imgRenderer // will be wired into reading service in sub-step 6
 	log.Info("renderer initialized", "type", cfg.Renderer)
 
 	var fileStorage storage.Storage
@@ -104,7 +105,6 @@ func main() {
 		fileStorage = &storage.NoopStorage{}
 		log.Info("storage initialized", "type", "noop")
 	}
-	_ = fileStorage // will be wired into reading service in sub-step 6
 
 	var c cache.Cache
 	if cfg.RedisAddr != "" {
@@ -123,7 +123,6 @@ func main() {
 	readingSvc := service.NewReadingService(readingRepo, profileRepo, chartSvc, quotaSvc, llmProvider, imgRenderer, fileStorage)
 
 	// Job Queue（异步报告任务队列 — Phase 4 状态机核心）
-	// TODO: worker 消费在 Phase 4 后续步骤实现
 	var jobQueue job.Queue
 	switch cfg.JobQueue {
 	case "db":
@@ -133,7 +132,22 @@ func main() {
 		jobQueue = job.NewMemoryQueue()
 		log.Info("job queue initialized", "type", "memory")
 	}
-	_ = jobQueue
+
+	// Report service + handler
+	reportSvc := service.NewReportService(reportRepo, jobQueue)
+	reportHandler := service.NewReportHandler(profileRepo, chartRepo, llmProvider, imgRenderer, fileStorage, reportRepo)
+
+	// Handler registry + worker
+	handlerReg := job.NewHandlerRegistry()
+	handlerReg.Register("report", reportHandler)
+	worker := job.NewWorker(jobQueue, handlerReg, 0, 0)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	worker.Start(ctx)
+	defer worker.Stop()
+	log.Info("job worker started", "workers", 3)
+
+	_ = reportSvc // will be wired into HTTP handlers in a subsequent step
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
