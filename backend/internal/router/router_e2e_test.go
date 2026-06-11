@@ -128,11 +128,16 @@ func createTestRouter(t *testing.T, db *gorm.DB, userReportID, userUserID uint64
 	adminH := handler.NewAdminHandlerForTest(faker, faker, faker, faker)
 	reportH := handler.NewReportHandlerForTest(&fakeUserReportSvc{ownReportID: userReportID, ownUserID: userUserID})
 
+	rlNoop := func(c *gin.Context) { c.Next() }
+
 	app := &App{
-		DB:           db,
-		Auth:         authMW,
-		AdminHandler: adminH,
-		ReportHandler: reportH,
+		DB:               db,
+		Auth:             authMW,
+		AdminHandler:     adminH,
+		ReportHandler:    reportH,
+		RateLimitAuth:    rlNoop,
+		RateLimitReading: rlNoop,
+		RateLimitOrder:   rlNoop,
 	}
 	return Setup(app)
 }
