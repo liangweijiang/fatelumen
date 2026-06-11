@@ -51,9 +51,9 @@ type reportDetailResponse struct {
 	UpdatedAt   interface{}           `json:"updated_at"`
 }
 
-// buildReportDetail 根据 Paid 状态组装报告详情响应。
-// 纯函数，便于单测。未付费 → 锁定态；已付费 → 全文。
-func buildReportDetail(r *model.Report) reportDetailResponse {
+// buildReportDetail 根据 unlocked 标志组装报告详情响应。
+// 纯函数，便于单测。unlocked 时返回全文，否则按付费状态门控。
+func buildReportDetail(r *model.Report, unlocked bool) reportDetailResponse {
 	resp := reportDetailResponse{
 		ID:          r.ID,
 		Status:      r.Status,
@@ -71,15 +71,15 @@ func buildReportDetail(r *model.Report) reportDetailResponse {
 		return resp
 	}
 
-	// 已完成且已付费 → 返回全文
-	if r.Paid {
+	// unlocked（已付费 或 admin 豁免）→ 返回全文
+	if unlocked {
 		resp.Locked = false
 		resp.Content = &r.Content
 		resp.PDFURL = r.PDFURL
 		return resp
 	}
 
-	// 已完成但未付费 → 锁定态：仅摘要钩子，无深度内容
+	// 已完成但未付费且非 admin → 锁定态：仅摘要钩子，无深度内容
 	resp.Locked = true
 	return resp
 }
@@ -136,7 +136,8 @@ func (h *ReportHandler) Get(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	response.OK(c, buildReportDetail(report))
+	unlocked := report.Paid || middleware.IsAdmin(c)
+	response.OK(c, buildReportDetail(report, unlocked))
 }
 
 // List GET /api/v1/reports

@@ -70,14 +70,18 @@ func NewReadingService(
 type CreateQuickInput struct {
 	ProfileID uint64 `json:"profile_id"`
 	Locale    string `json:"locale"`
+	IsAdmin   bool   `json:"-"` // admin 豁免额度检查
 }
 
 // CreateQuick 编排完整简单测算链路：额度→排盘→LLM→渲染→存储→落库。
 func (s *ReadingService) CreateQuick(ctx context.Context, userID uint64, in CreateQuickInput) (*model.Reading, error) {
-	// 1. 额度校验
-	if err := s.quotaService.CheckAndConsume(ctx, userID); err != nil {
-		// TODO: 额度已扣不回滚，后续 Phase 6 引入赔偿机制
-		return nil, err
+	// 1. 额度校验（admin 豁免）
+	if !in.IsAdmin {
+		if err := s.quotaService.CheckAndConsume(ctx, userID); err != nil {
+			return nil, err
+		}
+	} else {
+		logger.FromCtx(ctx).Info("admin bypassed quota", "user_id", userID)
 	}
 
 	// 2. 取 Profile + 排盘（确定性，绝不走 LLM — P1）

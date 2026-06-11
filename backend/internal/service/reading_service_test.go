@@ -262,6 +262,47 @@ func TestCreateQuick_QuotaExceeded(t *testing.T) {
 	}
 }
 
+func TestCreateQuick_AdminBypassesQuota(t *testing.T) {
+	mc := cache.NewMemoryCache()
+	quota := NewQuotaService(mc, 1)
+
+	svc := &ReadingService{
+		readingRepo:  newFakeReadingStore(),
+		profileRepo:  &fakeProfileGetter{profile: newFakeProfile()},
+		chartService: &fakeChartProvider{chart: minChart()},
+		quotaService: quota,
+		llmProvider:  &fakeLLM{result: okLLMResult()},
+		imgRenderer:  &fakeRenderer{png: []byte("fake-png-data")},
+		fileStorage:  &fakeStorage{url: "https://cdn.example.com/reading.png"},
+	}
+
+	ctx := context.Background()
+
+	// First call as admin (bypasses quota)
+	_, err := svc.CreateQuick(ctx, 99, CreateQuickInput{ProfileID: 1, IsAdmin: true})
+	if err != nil {
+		t.Fatalf("admin first call: unexpected error: %v", err)
+	}
+
+	// Second call as admin still works (no quota deducted)
+	_, err = svc.CreateQuick(ctx, 99, CreateQuickInput{ProfileID: 1, IsAdmin: true})
+	if err != nil {
+		t.Fatalf("admin second call: unexpected error: %v", err)
+	}
+
+	// Third call as normal user should still have quota=1 available
+	_, err = svc.CreateQuick(ctx, 99, CreateQuickInput{ProfileID: 1, IsAdmin: false})
+	if err != nil {
+		t.Fatalf("normal user first call after admin: unexpected error: %v", err)
+	}
+
+	// Normal user second call exceeds quota
+	_, err = svc.CreateQuick(ctx, 99, CreateQuickInput{ProfileID: 1, IsAdmin: false})
+	if !errors.Is(err, ErrQuotaExceeded) {
+		t.Fatalf("expected ErrQuotaExceeded for normal user, got %v", err)
+	}
+}
+
 func TestCreateQuick_LLMJSONParseFailure(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	quota := NewQuotaService(mc, 3)

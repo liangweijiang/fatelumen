@@ -38,6 +38,7 @@ func (h *ReadingHandler) CreateQuick(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "profile_id is required")
 		return
 	}
+	in.IsAdmin = middleware.IsAdmin(c)
 
 	reading, err := h.svc.CreateQuick(c.Request.Context(), userID, in)
 	if err != nil {

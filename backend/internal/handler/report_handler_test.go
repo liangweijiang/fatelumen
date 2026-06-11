@@ -483,7 +483,7 @@ func TestBuildReportDetail_Paid(t *testing.T) {
 		},
 	}
 
-	resp := buildReportDetail(r)
+	resp := buildReportDetail(r, true)
 	if resp.Locked {
 		t.Error("expected locked=false for paid report")
 	}
@@ -515,7 +515,7 @@ func TestBuildReportDetail_Unpaid(t *testing.T) {
 		},
 	}
 
-	resp := buildReportDetail(r)
+	resp := buildReportDetail(r, false)
 	if !resp.Locked {
 		t.Error("expected locked=true for unpaid report")
 	}
@@ -541,11 +541,41 @@ func TestBuildReportDetail_Processing(t *testing.T) {
 		Locale: "en",
 	}
 
-	resp := buildReportDetail(r)
+	resp := buildReportDetail(r, false)
 	if resp.Locked {
 		t.Error("expected locked=false for non-done report")
 	}
 	if resp.Content != nil {
 		t.Error("expected no content for processing report")
+	}
+}
+
+func TestBuildReportDetail_AdminBypass(t *testing.T) {
+	r := &model.Report{
+		ID:      1,
+		Status:  "done",
+		Paid:    false, // unpaid
+		Locale:  "en",
+		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		Content: model.ReportContent{
+			SummaryLine:   "hook",
+			Summary:       "hook summary",
+			Chapters:      []model.Chapter{{No: 1, Title: "visible"}},
+		},
+	}
+
+	// unlocked=true (admin bypass) → should get full content even if unpaid
+	resp := buildReportDetail(r, true)
+	if resp.Locked {
+		t.Error("expected locked=false for admin bypass on unpaid report")
+	}
+	if resp.Content == nil {
+		t.Fatal("expected content for admin bypass")
+	}
+	if resp.PDFURL != "https://cdn.example.com/r/1.pdf" {
+		t.Errorf("expected pdf_url for admin bypass, got %s", resp.PDFURL)
+	}
+	if resp.Content.Chapters == nil || len(resp.Content.Chapters) != 1 {
+		t.Error("expected chapters for admin bypass")
 	}
 }
