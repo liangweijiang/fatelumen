@@ -92,14 +92,20 @@ func (w *Worker) process(parentCtx context.Context, idx int, job *Job) {
 	if err != nil {
 		logger.FromCtx(jobCtx).Error("job handler not found",
 			"job_id", job.ID, "job_type", job.Type, "err", err)
-		w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error())
+		if err := w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error()); err != nil {
+			logger.FromCtx(jobCtx).Error("failed to update job status after handler-not-found",
+				"job_id", job.ID, "status", StatusFailed, "err", err)
+		}
 		return
 	}
 
 	result, err := w.invokeHandler(jobCtx, handler, job)
 	if err == nil {
 		logger.FromCtx(jobCtx).Info("job completed", "job_id", job.ID)
-		w.q.UpdateStatus(jobCtx, job.ID, StatusDone, result)
+		if err := w.q.UpdateStatus(jobCtx, job.ID, StatusDone, result); err != nil {
+			logger.FromCtx(jobCtx).Error("failed to update job status to done",
+				"job_id", job.ID, "status", StatusDone, "err", err)
+		}
 		return
 	}
 
@@ -108,12 +114,21 @@ func (w *Worker) process(parentCtx context.Context, idx int, job *Job) {
 	if currentAttempt < job.MaxAttempts {
 		logger.FromCtx(jobCtx).Warn("job failed, will retry",
 			"job_id", job.ID, "attempt", currentAttempt, "max_attempts", job.MaxAttempts, "err", err)
-		w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error())
-		w.q.UpdateStatus(jobCtx, job.ID, StatusPending, "")
+		// 两步状态流转：processing → failed → pending（状态机不支持 processing 直接到 pending）
+		if err := w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error()); err != nil {
+			logger.FromCtx(jobCtx).Error("failed to update job status to failed before retry",
+				"job_id", job.ID, "status", StatusFailed, "err", err)
+		} else if err := w.q.UpdateStatus(jobCtx, job.ID, StatusPending, ""); err != nil {
+			logger.FromCtx(jobCtx).Error("failed to update job status to pending for retry",
+				"job_id", job.ID, "status", StatusPending, "err", err)
+		}
 	} else {
 		logger.FromCtx(jobCtx).Error("job permanently failed",
 			"job_id", job.ID, "attempts", currentAttempt, "err", err)
-		w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error())
+		if err := w.q.UpdateStatus(jobCtx, job.ID, StatusFailed, err.Error()); err != nil {
+			logger.FromCtx(jobCtx).Error("failed to update job status to failed",
+				"job_id", job.ID, "status", StatusFailed, "err", err)
+		}
 	}
 }
 
