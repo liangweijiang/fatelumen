@@ -78,7 +78,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 		SKU:         "report_single",
 		AmountCents: s.priceCents,
 		Currency:    "usd",
-		Provider:    "stripe",
+		Provider:    s.pay.Name(),
 		Status:      model.OrderStatusCreated,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -116,7 +116,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 		logger.FromCtx(ctx).Error("payment checkout failed",
 			"err", err,
 			"order_id", order.ID,
-			"provider", "stripe",
+			"provider", s.pay.Name(),
 		)
 		return nil, err
 	}

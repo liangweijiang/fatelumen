@@ -96,6 +96,8 @@ type fakePayProvider struct {
 	evt       *payment.WebhookEvent
 }
 
+func (f *fakePayProvider) Name() string { return "test" }
+
 func (f *fakePayProvider) CreateCheckout(ctx context.Context, in payment.CheckoutInput) (*payment.CheckoutResult, error) {
 	return nil, errors.New("not implemented")
 }

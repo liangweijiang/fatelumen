@@ -112,6 +112,8 @@ func newFakePaymentProvider() *fakePaymentProvider {
 	}
 }
 
+func (f *fakePaymentProvider) Name() string { return "test" }
+
 func (f *fakePaymentProvider) CreateCheckout(ctx context.Context, in payment.CheckoutInput) (*payment.CheckoutResult, error) {
 	f.lastInput = &in
 	if f.checkoutErr != nil {

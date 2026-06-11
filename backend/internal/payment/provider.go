@@ -35,6 +35,8 @@ type WebhookEvent struct {
 
 // PaymentProvider 每个支付渠道实现此接口。
 type PaymentProvider interface {
+	// Name 返回支付渠道名（如 "stripe"），由 provider 实现层定义。
+	Name() string
 	CreateCheckout(ctx context.Context, in CheckoutInput) (*CheckoutResult, error)
 	VerifyAndParse(payload []byte, sigHeader string) (*WebhookEvent, error)
 }

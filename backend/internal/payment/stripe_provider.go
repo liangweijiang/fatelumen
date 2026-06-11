@@ -24,6 +24,9 @@ func NewStripeProvider(secretKey, webhookSecret string) PaymentProvider {
 	}
 }
 
+// Name 返回支付渠道标识。
+func (s *stripeProvider) Name() string { return "stripe" }
+
 // CreateCheckout 创建 Stripe Checkout Session，返回会话 ID 与前端跳转 URL。
 func (s *stripeProvider) CreateCheckout(ctx context.Context, in CheckoutInput) (*CheckoutResult, error) {
 	stripe.Key = s.secretKey
