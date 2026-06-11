@@ -73,7 +73,7 @@ func (s *PaymentService) HandleWebhook(ctx context.Context, payload []byte, sigH
 	}
 
 	// 原子履约：去重 + 订单 paid + 报告解锁 在同一事务
-	err = s.orders.FulfillPaidOrder("stripe", evt.EventID, order.ID)
+	err = s.orders.FulfillPaidOrder(evt.Provider, evt.EventID, order.ID)
 	if err != nil {
 		if errors.Is(err, repository.ErrDuplicateEvent) {
 			logger.FromCtx(ctx).Info("webhook duplicate event ignored",

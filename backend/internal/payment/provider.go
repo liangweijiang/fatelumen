@@ -26,6 +26,7 @@ type CheckoutResult struct {
 type WebhookEvent struct {
 	EventID         string
 	Type            string
+	Provider        string // provider 名（如 "stripe"），由 provider 实现层在 VerifyAndParse 时填入
 	SessionID       string
 	PaymentIntentID string
 	OrderID         uint64

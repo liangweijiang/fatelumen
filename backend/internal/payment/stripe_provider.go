@@ -79,9 +79,10 @@ func (s *stripeProvider) VerifyAndParse(payload []byte, sigHeader string) (*Webh
 	}
 
 	we := &WebhookEvent{
-		EventID: event.ID,
-		Type:    string(event.Type),
-		Raw:     payload,
+		EventID:  event.ID,
+		Type:     string(event.Type),
+		Provider: "stripe",
+		Raw:      payload,
 	}
 
 	if event.Type == "checkout.session.completed" {
