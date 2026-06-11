@@ -199,8 +199,9 @@ func main() {
 	chartHandler := handler.NewChartHandler(chartSvc)
 	readingHandler := handler.NewReadingHandler(readingSvc)
 
-	// Rate limiters
-	var rlAuth, rlReading, rlOrder gin.HandlerFunc
+	// Rate limiters — always non-nil (no-op passthrough when disabled)
+	rlNoop := func(c *gin.Context) { c.Next() }
+	rlAuth, rlReading, rlOrder := rlNoop, rlNoop, rlNoop
 	if cfg.RateLimitEnabled {
 		authLim := ratelimit.NewMemoryLimiter(rate.Limit(cfg.RateLimitAuthPerMin)/60, cfg.RateLimitAuthPerMin)
 		readingLim := ratelimit.NewMemoryLimiter(rate.Limit(cfg.RateLimitReadingPerMin)/60, cfg.RateLimitReadingPerMin)

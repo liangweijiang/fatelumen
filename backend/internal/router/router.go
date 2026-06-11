@@ -92,9 +92,7 @@ func Setup(app *App) *gin.Engine {
 	{
 		// --- 认证（无需鉴权）---
 		authGroup := v1.Group("/auth")
-		if app.RateLimitAuth != nil {
-			authGroup.Use(app.RateLimitAuth)
-		}
+		authGroup.Use(app.RateLimitAuth)
 		{
 			// 同时支持 302 跳转和 JSON 返回
 			authGroup.GET("/google/login", func(c *gin.Context) {
@@ -135,45 +133,21 @@ func Setup(app *App) *gin.Engine {
 
 			readings := authed.Group("/readings")
 			{
-				readings.POST("/quick", func(c *gin.Context) {
-					if app.RateLimitReading != nil {
-						app.RateLimitReading(c)
-						if c.IsAborted() {
-							return
-						}
-					}
-					app.ReadingHandler.CreateQuick(c)
-				})
+				readings.POST("/quick", app.RateLimitReading, app.ReadingHandler.CreateQuick)
 				readings.GET("/:id", app.ReadingHandler.GetByID)
 				readings.GET("", app.ReadingHandler.ListByUser)
 			}
 
 			reports := authed.Group("/reports")
 			{
-				reports.POST("", func(c *gin.Context) {
-					if app.RateLimitReading != nil {
-						app.RateLimitReading(c)
-						if c.IsAborted() {
-							return
-						}
-					}
-					app.ReportHandler.Create(c)
-				})
+				reports.POST("", app.RateLimitReading, app.ReportHandler.Create)
 				reports.GET("/:id", app.ReportHandler.Get)
 				reports.GET("", app.ReportHandler.List)
 			}
 
 			orders := authed.Group("/orders")
 			{
-				orders.POST("", func(c *gin.Context) {
-					if app.RateLimitOrder != nil {
-						app.RateLimitOrder(c)
-						if c.IsAborted() {
-							return
-						}
-					}
-					app.OrderHandler.Create(c)
-				})
+				orders.POST("", app.RateLimitOrder, app.OrderHandler.Create)
 				orders.GET("/:id", app.OrderHandler.Get)
 				orders.GET("", app.OrderHandler.List)
 			}
