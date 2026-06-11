@@ -9,12 +9,12 @@ func NewRegistry() *Registry {
 	return &Registry{m: make(map[string]PaymentProvider)}
 }
 
-func (r *Registry) Register(p PaymentProvider) {
-	r.m[p.ID()] = p
+func (r *Registry) Register(name string, p PaymentProvider) {
+	r.m[name] = p
 }
 
-func (r *Registry) Get(id string) (PaymentProvider, bool) {
-	p, ok := r.m[id]
+func (r *Registry) Get(name string) (PaymentProvider, bool) {
+	p, ok := r.m[name]
 	return p, ok
 }
 
