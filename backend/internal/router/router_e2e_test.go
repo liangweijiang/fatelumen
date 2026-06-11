@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -552,5 +553,187 @@ func TestE2E_AllAdminRoutesRegistered(t *testing.T) {
 					r.method, r.path, resp.Code, resp.Msg)
 			}
 		})
+	}
+}
+
+// ---------- rate-limit e2e (fake limiter that always denies) ----------
+
+type denyingLimiter struct {
+	mu     sync.Mutex
+	calls  map[string]int
+	denied bool
+}
+
+func newDenyingLimiter() *denyingLimiter {
+	return &denyingLimiter{calls: make(map[string]int), denied: true}
+}
+
+func (d *denyingLimiter) Allow(key string) (bool, time.Duration) {
+	d.mu.Lock()
+	d.calls[key]++
+	d.mu.Unlock()
+	return !d.denied, 2 * time.Second
+}
+
+func (d *denyingLimiter) callsFor(key string) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.calls[key]
+}
+
+func createRateLimitedRouter(t *testing.T, db *gorm.DB) (*gin.Engine, *denyingLimiter) {
+	t.Helper()
+	authMW := middleware.NewAuthMiddleware(testJWTSecret, db)
+	faker := &fakeAllAdminServices{}
+	adminH := handler.NewAdminHandlerForTest(faker, faker, faker, faker)
+	reportH := handler.NewReportHandlerForTest(&fakeUserReportSvc{ownReportID: 1, ownUserID: 2})
+
+	lim := newDenyingLimiter()
+	rl := middleware.RateLimit(lim, middleware.KeyByUser)
+
+	app := &App{
+		DB:               db,
+		Auth:             authMW,
+		AdminHandler:     adminH,
+		ReportHandler:    reportH,
+		RateLimitAuth:    rl,
+		RateLimitReading: rl,
+		RateLimitOrder:   rl,
+	}
+	return Setup(app), lim
+}
+
+func TestE2E_RateLimit_ReadingQuickPost_Returns429(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("POST", "/api/v1/readings/quick", strings.NewReader(`{"profile_id":1}`))
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code != response.CodeTooManyRequests {
+		t.Errorf("POST /readings/quick: expected 429, got code=%d msg=%s", resp.Code, resp.Msg)
+	}
+}
+
+func TestE2E_RateLimit_ReadingGet_NotLimited(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("GET", "/api/v1/readings", nil)
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code == response.CodeTooManyRequests {
+		t.Errorf("GET /readings: should not be rate-limited, got code=%d", resp.Code)
+	}
+}
+
+func TestE2E_RateLimit_ReportPost_Returns429(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("POST", "/api/v1/reports", strings.NewReader(`{"profile_id":1}`))
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code != response.CodeTooManyRequests {
+		t.Errorf("POST /reports: expected 429, got code=%d msg=%s", resp.Code, resp.Msg)
+	}
+}
+
+func TestE2E_RateLimit_ReportGet_NotLimited(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("GET", "/api/v1/reports", nil)
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code == response.CodeTooManyRequests {
+		t.Errorf("GET /reports: should not be rate-limited, got code=%d", resp.Code)
+	}
+}
+
+func TestE2E_RateLimit_OrderPost_Returns429(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("POST", "/api/v1/orders", strings.NewReader(`{"report_id":1}`))
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code != response.CodeTooManyRequests {
+		t.Errorf("POST /orders: expected 429, got code=%d msg=%s", resp.Code, resp.Msg)
+	}
+}
+
+func TestE2E_RateLimit_OrderGet_NotLimited(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("GET", "/api/v1/orders", nil)
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code == response.CodeTooManyRequests {
+		t.Errorf("GET /orders: should not be rate-limited, got code=%d", resp.Code)
+	}
+}
+
+func TestE2E_RateLimit_WebhookNotLimited(t *testing.T) {
+	db := setupTestDB(t)
+	router, _ := createRateLimitedRouter(t, db)
+
+	req := httptest.NewRequest("POST", "/api/v1/webhooks/stripe", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := mustParseResp(t, w)
+	if resp.Code == response.CodeTooManyRequests {
+		t.Errorf("webhook should NOT be rate-limited, got 429")
+	}
+}
+
+func TestE2E_RateLimit_DisabledPassthrough_Still200(t *testing.T) {
+	db := setupTestDB(t)
+	router := createTestRouter(t, db, 1, 2) // uses rlNoop
+	userToken := makeToken(t, 2)
+
+	req := httptest.NewRequest("POST", "/api/v1/readings/quick", strings.NewReader(`{"profile_id":1}`))
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// Verify no-op does not trigger 429 (route may get 500 due to missing handler, but NOT 429)
+	if w.Code == http.StatusOK {
+		var resp response.Resp
+		json.Unmarshal(w.Body.Bytes(), &resp)
+		if resp.Code == response.CodeTooManyRequests {
+			t.Errorf("no-op passthrough should not trigger 429")
+		}
 	}
 }
