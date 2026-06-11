@@ -53,11 +53,12 @@ type Config struct {
 	OpenAIAPIKey    string
 	OpenAIModel     string
 
-	PaymentProviders  []string
-	PaymentSuccessURL string
-	PaymentCancelURL  string
-	StripeSecretKey   string
-	StripeWebhookSecret string
+	PaymentProviders     []string
+	PaymentSuccessURL    string
+	PaymentCancelURL     string
+	OrderReportPriceCents int
+	StripeSecretKey      string
+	StripeWebhookSecret  string
 
 	QuotaDailyLimit int
 
@@ -93,6 +94,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("RENDERER", "chromedp")
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
+	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
 
 	cfg := &Config{
 		LogLevel:   viper.GetString("LOG_LEVEL"),
@@ -144,6 +146,7 @@ func Load() (*Config, error) {
 		PaymentProviders:  splitEnv("PAYMENT_PROVIDERS"),
 		PaymentSuccessURL: viper.GetString("PAYMENT_SUCCESS_URL"),
 		PaymentCancelURL:  viper.GetString("PAYMENT_CANCEL_URL"),
+		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
 		StripeSecretKey:   viper.GetString("STRIPE_SECRET_KEY"),
 		StripeWebhookSecret: viper.GetString("STRIPE_WEBHOOK_SECRET"),
 

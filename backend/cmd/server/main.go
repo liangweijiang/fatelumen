@@ -12,6 +12,7 @@ import (
 	"fatelumen/backend/internal/llm"
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/payment"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
@@ -63,6 +64,7 @@ func main() {
 	chartRepo := repository.NewChartRepo(db)
 	readingRepo := repository.NewReadingRepo(db)
 	reportRepo := repository.NewReportRepo(db)
+	orderRepo := repository.NewOrderRepo(db)
 
 	authReg := auth.NewRegistry()
 	if contains(cfg.AuthProviders, "google") {
@@ -149,6 +151,21 @@ func main() {
 
 	reportHTTPHandler := handler.NewReportHandler(reportSvc)
 
+	// Payment provider (P5: inject concrete impl at boundary)
+	var payProvider payment.PaymentProvider
+	if contains(cfg.PaymentProviders, "stripe") {
+		payProvider = payment.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+		log.Info("payment provider initialized", "type", "stripe")
+	}
+
+	orderSvc := service.NewOrderService(
+		orderRepo, reportRepo, payProvider,
+		cfg.OrderReportPriceCents,
+		cfg.PaymentSuccessURL,
+		cfg.PaymentCancelURL,
+	)
+	orderHTTPHandler := handler.NewOrderHandler(orderSvc)
+
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
@@ -162,6 +179,7 @@ func main() {
 		ChartHandler:   chartHandler,
 		ReadingHandler: readingHandler,
 		ReportHandler:  reportHTTPHandler,
+		OrderHandler:   orderHTTPHandler,
 	}
 	engine := router.Setup(app)
 
