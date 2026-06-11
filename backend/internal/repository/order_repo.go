@@ -138,6 +138,21 @@ func (r *OrderRepo) AdminGetOrderByID(id uint64) (*model.Order, error) {
 	return &order, nil
 }
 
+// FindActiveByUserReport 查询同一用户对同一报告的活跃订单（created/pending/paid），按创建时间倒序。
+// excluded/failed/refunded 不会被返回。
+func (r *OrderRepo) FindActiveByUserReport(userID, reportID uint64) ([]model.Order, error) {
+	var orders []model.Order
+	err := r.db.
+		Where("user_id = ? AND report_id = ? AND status IN ?", userID, reportID, []string{
+			model.OrderStatusCreated,
+			model.OrderStatusPending,
+			model.OrderStatusPaid,
+		}).
+		Order("created_at DESC").
+		Find(&orders).Error
+	return orders, err
+}
+
 // FulfillPaidOrder 在单事务内完成：webhook 去重插入 + 订单 Transit(paid) + 报告解锁。
 // 任一步失败整体回滚；去重唯一索引冲突视为重复事件，返回 ErrDuplicateEvent。
 func (r *OrderRepo) FulfillPaidOrder(provider, eventID string, orderID uint64) error {

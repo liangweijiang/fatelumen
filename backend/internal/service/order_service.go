@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -12,11 +13,15 @@ import (
 	"fatelumen/backend/internal/repository"
 )
 
+// ErrReportAlreadyPurchased 报告已通过该用户的其他订单购买。
+var ErrReportAlreadyPurchased = errors.New("report already purchased")
+
 type orderStore interface {
 	Create(*model.Order) error
 	GetByID(id, userID uint64) (*model.Order, error)
 	ListByUser(userID uint64) ([]model.Order, error)
 	UpdateProviderRef(id uint64, sessionID string) error
+	FindActiveByUserReport(userID, reportID uint64) ([]model.Order, error)
 }
 
 type orderReportStore interface {
@@ -70,6 +75,70 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 		return nil, fmt.Errorf("report not found or not owned")
 	}
 	_ = report // 仅校验归属
+
+	// 幂等检查：同一用户对同一报告是否已有活跃订单
+	existing, err := s.orderRepo.FindActiveByUserReport(userID, reportID)
+	if err != nil {
+		logger.FromCtx(ctx).Error("order create failed: lookup existing orders",
+			"err", err,
+			"user_id", userID,
+			"report_id", reportID,
+		)
+		return nil, err
+	}
+	for _, o := range existing {
+		if o.Status == model.OrderStatusPaid {
+			logger.FromCtx(ctx).Warn("order create blocked: report already purchased",
+				"user_id", userID,
+				"report_id", reportID,
+				"existing_order_id", o.ID,
+			)
+			return nil, ErrReportAlreadyPurchased
+		}
+	}
+	// 存在 created 或 pending 订单：复用（取最近一条）
+	if len(existing) > 0 {
+		reused := existing[0] // sorted by created_at DESC
+		logger.FromCtx(ctx).Info("reuse existing pending order",
+			"order_id", reused.ID,
+			"user_id", userID,
+			"report_id", reportID,
+			"status", reused.Status,
+		)
+		checkoutInput := payment.CheckoutInput{
+			OrderID:     reused.ID,
+			AmountCents: int64(reused.AmountCents),
+			Currency:    reused.Currency,
+			ProductName: "Destiny Report",
+			SuccessURL:  s.successURL,
+			CancelURL:   s.cancelURL,
+			Metadata: map[string]string{
+				"order_id": strconv.FormatUint(reused.ID, 10),
+			},
+		}
+		result, err := s.pay.CreateCheckout(ctx, checkoutInput)
+		if err != nil {
+			logger.FromCtx(ctx).Error("payment checkout failed for reused order",
+				"err", err,
+				"order_id", reused.ID,
+				"provider", s.pay.Name(),
+			)
+			return nil, err
+		}
+		if err := s.orderRepo.UpdateProviderRef(reused.ID, result.SessionID); err != nil {
+			logger.FromCtx(ctx).Error("failed to save provider ref for reused order",
+				"err", err,
+				"order_id", reused.ID,
+				"session_id", result.SessionID,
+			)
+			return nil, err
+		}
+		reused.ProviderRef = result.SessionID
+		return &CreateOrderResult{
+			Order:       &reused,
+			CheckoutURL: result.CheckoutURL,
+		}, nil
+	}
 
 	order := &model.Order{
 		UserID:      userID,

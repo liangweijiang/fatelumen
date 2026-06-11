@@ -53,6 +53,10 @@ func (h *OrderHandler) Create(c *gin.Context) {
 
 	result, err := h.svc.CreateOrder(c.Request.Context(), userID, in.ReportID)
 	if err != nil {
+		if errors.Is(err, service.ErrReportAlreadyPurchased) {
+			response.Fail(c, response.CodeOrderUnpaid, "report already purchased")
+			return
+		}
 		response.Error(c, err.Error())
 		return
 	}

@@ -77,6 +77,23 @@ func (f *fakeOrderStore) UpdateProviderRef(id uint64, sessionID string) error {
 	return nil
 }
 
+func (f *fakeOrderStore) FindActiveByUserReport(userID, reportID uint64) ([]model.Order, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var result []model.Order
+	for _, o := range f.orders {
+		if o.UserID == userID && o.ReportID == reportID &&
+			(o.Status == model.OrderStatusCreated || o.Status == model.OrderStatusPending || o.Status == model.OrderStatusPaid) {
+			result = append(result, *o)
+		}
+	}
+	// Simulate ORDER BY created_at DESC: reverse insertion order
+	for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
+		result[i], result[j] = result[j], result[i]
+	}
+	return result, nil
+}
+
 type fakeOrderReportStore struct {
 	reports map[uint64]*model.Report
 }
@@ -293,5 +310,79 @@ func TestListOrders_Success(t *testing.T) {
 	}
 	if len(orders) != 2 {
 		t.Fatalf("expected 2 orders, got %d", len(orders))
+	}
+}
+
+// ---------- idempotency tests ----------
+
+func TestCreateOrder_RejectsWhenPaid(t *testing.T) {
+	svc, store, reports, _ := newTestOrderService()
+	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
+	store.Create(&model.Order{ID: 1, UserID: 42, ReportID: 1, Status: model.OrderStatusPaid, AmountCents: 999, Currency: "usd"})
+
+	_, err := svc.CreateOrder(context.Background(), 42, 1)
+	if err == nil {
+		t.Fatal("expected ErrReportAlreadyPurchased, got nil")
+	}
+	if !errors.Is(err, ErrReportAlreadyPurchased) {
+		t.Errorf("expected ErrReportAlreadyPurchased, got: %v", err)
+	}
+}
+
+func TestCreateOrder_ReusesPendingOrder(t *testing.T) {
+	svc, store, reports, pay := newTestOrderService()
+	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
+	store.Create(&model.Order{ID: 1, UserID: 42, ReportID: 1, Status: model.OrderStatusCreated, AmountCents: 999, Currency: "usd"})
+
+	// Change checkout URL to verify it's a fresh session
+	pay.checkoutResult = &payment.CheckoutResult{
+		SessionID:   "cs_reused",
+		CheckoutURL: "https://checkout.example.com/reused",
+	}
+
+	result, err := svc.CreateOrder(context.Background(), 42, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Order.ID != 1 {
+		t.Errorf("expected to reuse order 1, got order %d", result.Order.ID)
+	}
+	if result.CheckoutURL != "https://checkout.example.com/reused" {
+		t.Errorf("expected new checkout URL, got %s", result.CheckoutURL)
+	}
+	// Verify no new order was created
+	if store.nextID != 1 {
+		t.Errorf("expected no new order created, but store.nextID=%d", store.nextID)
+	}
+}
+
+func TestCreateOrder_AllowsWhenRefunded(t *testing.T) {
+	svc, store, reports, _ := newTestOrderService()
+	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
+	store.Create(&model.Order{ID: 1, UserID: 42, ReportID: 1, Status: model.OrderStatusRefunded, AmountCents: 999, Currency: "usd"})
+
+	result, err := svc.CreateOrder(context.Background(), 42, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// New order should be created (not reuse refunded one)
+	if result.Order.ID == 10 {
+		t.Error("should create new order, not reuse refunded one")
+	}
+}
+
+func TestCreateOrder_NormalWhenNoExisting(t *testing.T) {
+	svc, _, reports, _ := newTestOrderService()
+	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
+
+	result, err := svc.CreateOrder(context.Background(), 42, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Order.ID != 1 {
+		t.Errorf("expected new order ID 1, got %d", result.Order.ID)
+	}
+	if result.Order.Status != model.OrderStatusCreated {
+		t.Errorf("expected status created, got %s", result.Order.Status)
 	}
 }
