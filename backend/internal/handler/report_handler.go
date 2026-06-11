@@ -35,6 +35,55 @@ type createReportIn struct {
 	Locale    string `json:"locale"`
 }
 
+// reportDetailResponse Get /:id 返回的报告详情 DTO。
+type reportDetailResponse struct {
+	ID          uint64                `json:"id"`
+	Status      string                `json:"status"`
+	Locale      string                `json:"locale"`
+	Paid        bool                  `json:"paid"`
+	Locked      bool                  `json:"locked"`
+	SummaryLine string                `json:"summary_line"`
+	Summary     string                `json:"summary"`
+	Content     *model.ReportContent  `json:"content,omitempty"`
+	PDFURL      string                `json:"pdf_url,omitempty"`
+	ProfileID   uint64                `json:"profile_id"`
+	CreatedAt   interface{}           `json:"created_at"`
+	UpdatedAt   interface{}           `json:"updated_at"`
+}
+
+// buildReportDetail 根据 Paid 状态组装报告详情响应。
+// 纯函数，便于单测。未付费 → 锁定态；已付费 → 全文。
+func buildReportDetail(r *model.Report) reportDetailResponse {
+	resp := reportDetailResponse{
+		ID:          r.ID,
+		Status:      r.Status,
+		Locale:      r.Locale,
+		Paid:        r.Paid,
+		SummaryLine: r.Content.SummaryLine,
+		Summary:     r.Content.Summary,
+		ProfileID:   r.ProfileID,
+		CreatedAt:   r.CreatedAt,
+		UpdatedAt:   r.UpdatedAt,
+	}
+
+	// 报告未完成时不触发门控，直接返回生成状态
+	if r.Status != "done" {
+		return resp
+	}
+
+	// 已完成且已付费 → 返回全文
+	if r.Paid {
+		resp.Locked = false
+		resp.Content = &r.Content
+		resp.PDFURL = r.PDFURL
+		return resp
+	}
+
+	// 已完成但未付费 → 锁定态：仅摘要钩子，无深度内容
+	resp.Locked = true
+	return resp
+}
+
 // Create POST /api/v1/reports
 func (h *ReportHandler) Create(c *gin.Context) {
 	userID := middleware.GetUserID(c)
@@ -87,7 +136,7 @@ func (h *ReportHandler) Get(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	response.OK(c, report)
+	response.OK(c, buildReportDetail(report))
 }
 
 // List GET /api/v1/reports

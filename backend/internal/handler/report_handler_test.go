@@ -176,9 +176,10 @@ func TestGetReport_SuccessDone(t *testing.T) {
 		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
 			return &model.Report{
 				ID: reportID, UserID: userID, ProfileID: 1,
-				Status: "done",
-				PDFURL: "https://cdn.example.com/report/1.pdf",
-				Content: model.ReportContent{Locale: "en", SummaryLine: "test"},
+				Status:  "done",
+				Paid:    true,
+				PDFURL:  "https://cdn.example.com/report/1.pdf",
+				Content: model.ReportContent{Locale: "en", SummaryLine: "preview line", Summary: "preview text", Chapters: []model.Chapter{{No: 1, Title: "ch1"}}},
 			}, nil
 		},
 	}
@@ -201,8 +202,17 @@ func TestGetReport_SuccessDone(t *testing.T) {
 	if data["status"] != "done" {
 		t.Errorf("expected status=done, got %v", data["status"])
 	}
+	if data["paid"] != true {
+		t.Errorf("expected paid=true")
+	}
+	if data["locked"] != false {
+		t.Errorf("expected locked=false for paid report")
+	}
 	if data["pdf_url"] != "https://cdn.example.com/report/1.pdf" {
 		t.Errorf("expected pdf_url, got %v", data["pdf_url"])
+	}
+	if data["content"] == nil {
+		t.Error("expected content to be present for paid report")
 	}
 }
 
@@ -346,5 +356,196 @@ func TestListReports_Unauthorized(t *testing.T) {
 	resp := parseResp(t, w)
 	if resp.Code != response.CodeUnauthorized {
 		t.Fatalf("expected code %d, got %d", response.CodeUnauthorized, resp.Code)
+	}
+}
+
+// --- Paid gating tests ---
+
+func TestGetReport_Locked_Unpaid(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{
+				ID: reportID, UserID: userID, ProfileID: 1,
+				Status: "done",
+				Paid:   false,
+				PDFURL: "https://cdn.example.com/report/1.pdf",
+				Content: model.ReportContent{
+					Locale:      "en",
+					SummaryLine: "hook line",
+					Summary:     "hook summary",
+					Chapters:    []model.Chapter{{No: 1, Title: "secret", Body: "secret body"}},
+					Personality: "secret",
+					Career:      "secret",
+					Suggestions: []string{"secret"},
+				},
+			}, nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeOK {
+		t.Fatalf("expected code 0, got %d", resp.Code)
+	}
+
+	data, ok := resp.Data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data map, got %T", resp.Data)
+	}
+
+	// Must be locked
+	if data["locked"] != true {
+		t.Errorf("expected locked=true for unpaid report")
+	}
+	if data["paid"] != false {
+		t.Errorf("expected paid=false")
+	}
+
+	// Must have summary preview hooks
+	if data["summary_line"] != "hook line" {
+		t.Errorf("expected summary_line, got %v", data["summary_line"])
+	}
+	if data["summary"] != "hook summary" {
+		t.Errorf("expected summary, got %v", data["summary"])
+	}
+
+	// Must NOT leak pdf_url
+	if data["pdf_url"] != nil && data["pdf_url"] != "" {
+		t.Errorf("expected no pdf_url for locked report, got %v", data["pdf_url"])
+	}
+
+	// Must NOT leak full content
+	if data["content"] != nil {
+		t.Errorf("expected no content for locked report, got %v", data["content"])
+	}
+}
+
+func TestGetReport_Processing(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{
+				ID: reportID, UserID: userID, ProfileID: 1,
+				Status: "processing",
+				Paid:   false,
+				Content: model.ReportContent{
+					Locale:    "en",
+					Chapters:  nil,
+				},
+			}, nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeOK {
+		t.Fatalf("expected code 0, got %d", resp.Code)
+	}
+
+	data, ok := resp.Data.(map[string]interface{})
+	if !ok {
+		t.Fatalf("expected data map, got %T", resp.Data)
+	}
+	if data["status"] != "processing" {
+		t.Errorf("expected status=processing, got %v", data["status"])
+	}
+	// processing state should not trigger gating
+	if data["locked"] != false {
+		t.Errorf("expected locked=false for processing report, got locked=%v", data["locked"])
+	}
+}
+
+// --- buildReportDetail pure function tests ---
+
+func TestBuildReportDetail_Paid(t *testing.T) {
+	r := &model.Report{
+		ID:      1,
+		Status:  "done",
+		Paid:    true,
+		Locale:  "en",
+		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		Content: model.ReportContent{
+			SummaryLine:   "line",
+			Summary:       "sum",
+			Personality:   "p",
+			Career:        "c",
+			Chapters:      []model.Chapter{{No: 1, Title: "t"}},
+			Suggestions:   []string{"s"},
+		},
+	}
+
+	resp := buildReportDetail(r)
+	if resp.Locked {
+		t.Error("expected locked=false for paid report")
+	}
+	if resp.Content == nil {
+		t.Fatal("expected content for paid report")
+	}
+	if resp.PDFURL != "https://cdn.example.com/r/1.pdf" {
+		t.Errorf("expected pdf_url, got %s", resp.PDFURL)
+	}
+	if len(resp.Content.Chapters) != 1 {
+		t.Errorf("expected 1 chapter, got %d", len(resp.Content.Chapters))
+	}
+}
+
+func TestBuildReportDetail_Unpaid(t *testing.T) {
+	r := &model.Report{
+		ID:      1,
+		Status:  "done",
+		Paid:    false,
+		Locale:  "en",
+		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		Content: model.ReportContent{
+			SummaryLine:   "hook",
+			Summary:       "hook summary",
+			Personality:   "secret",
+			Career:        "secret",
+			Chapters:      []model.Chapter{{No: 1, Title: "secret"}},
+			Suggestions:   []string{"secret"},
+		},
+	}
+
+	resp := buildReportDetail(r)
+	if !resp.Locked {
+		t.Error("expected locked=true for unpaid report")
+	}
+	if resp.SummaryLine != "hook" {
+		t.Errorf("expected summary_line, got %s", resp.SummaryLine)
+	}
+	if resp.Summary != "hook summary" {
+		t.Errorf("expected summary, got %s", resp.Summary)
+	}
+	if resp.Content != nil {
+		t.Error("expected no content for locked report")
+	}
+	if resp.PDFURL != "" {
+		t.Errorf("expected empty pdf_url, got %s", resp.PDFURL)
+	}
+}
+
+func TestBuildReportDetail_Processing(t *testing.T) {
+	r := &model.Report{
+		ID:     1,
+		Status: "processing",
+		Paid:   false,
+		Locale: "en",
+	}
+
+	resp := buildReportDetail(r)
+	if resp.Locked {
+		t.Error("expected locked=false for non-done report")
+	}
+	if resp.Content != nil {
+		t.Error("expected no content for processing report")
 	}
 }
