@@ -1,10 +1,17 @@
 package repository
 
 import (
+	"errors"
+	"strings"
+	"time"
+
 	"fatelumen/backend/internal/model"
 
 	"gorm.io/gorm"
 )
+
+// ErrDuplicateEvent webhook 去重哨兵错误。
+var ErrDuplicateEvent = errors.New("duplicate webhook event")
 
 // OrderRepo 订单数据访问层。
 type OrderRepo struct {
@@ -129,4 +136,68 @@ func (r *OrderRepo) AdminGetOrderByID(id uint64) (*model.Order, error) {
 		return nil, err
 	}
 	return &order, nil
+}
+
+// FulfillPaidOrder 在单事务内完成：webhook 去重插入 + 订单 Transit(paid) + 报告解锁。
+// 任一步失败整体回滚；去重唯一索引冲突视为重复事件，返回 ErrDuplicateEvent。
+func (r *OrderRepo) FulfillPaidOrder(provider, eventID string, orderID uint64) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. 插入 webhook_event 记录（去重）
+		evt := &model.ProcessedWebhookEvent{
+			Provider:  provider,
+			EventID:   eventID,
+			EventType: "checkout.session.completed",
+			CreatedAt: time.Now(),
+		}
+		if err := tx.Create(evt).Error; err != nil {
+			if isDuplicateKeyError(err) {
+				return ErrDuplicateEvent
+			}
+			return err
+		}
+
+		// 2. 查订单
+		var order model.Order
+		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+
+		// 订单已 paid → 幂等（新 event_id 但订单已被前序事件解锁）
+		if order.Status == model.OrderStatusPaid {
+			return nil
+		}
+
+		// 3. 状态机流转
+		if err := order.Transit(model.OrderStatusPaid); err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Order{}).Where("id = ?", orderID).Updates(map[string]interface{}{
+			"status":     order.Status,
+			"updated_at": order.UpdatedAt,
+		}).Error; err != nil {
+			return err
+		}
+
+		// 4. 解锁报告
+		if order.ReportID > 0 {
+			if err := tx.Model(&model.Report{}).Where("id = ?", order.ReportID).Updates(map[string]interface{}{
+				"paid":     true,
+				"order_id": orderID,
+			}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}
+
+// isDuplicateKeyError 判断唯一键冲突（兼容 MySQL 与 SQLite）。
+func isDuplicateKeyError(err error) bool {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
+		return true
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "Duplicate entry") ||
+		strings.Contains(msg, "UNIQUE constraint")
 }

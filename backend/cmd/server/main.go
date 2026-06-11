@@ -166,8 +166,7 @@ func main() {
 	)
 	orderHTTPHandler := handler.NewOrderHandler(orderSvc)
 
-	webhookEventRepo := repository.NewWebhookEventRepo(db)
-	paySvc := service.NewPaymentService(payProvider, orderRepo, reportRepo, webhookEventRepo)
+	paySvc := service.NewPaymentService(payProvider, orderRepo)
 	webhookHandler := handler.NewWebhookHandler(paySvc)
 
 	statsRepo := repository.NewStatsRepo(db)
