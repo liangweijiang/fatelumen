@@ -166,6 +166,10 @@ func main() {
 	)
 	orderHTTPHandler := handler.NewOrderHandler(orderSvc)
 
+	webhookEventRepo := repository.NewWebhookEventRepo(db)
+	paySvc := service.NewPaymentService(payProvider, orderRepo, reportRepo, webhookEventRepo)
+	webhookHandler := handler.NewWebhookHandler(paySvc)
+
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
@@ -180,6 +184,7 @@ func main() {
 		ReadingHandler: readingHandler,
 		ReportHandler:  reportHTTPHandler,
 		OrderHandler:   orderHTTPHandler,
+		WebhookHandler: webhookHandler,
 	}
 	engine := router.Setup(app)
 
@@ -204,6 +209,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.AdminUser{},
 		&model.AdminRole{},
 		&model.AdminAuditLog{},
+		&model.ProcessedWebhookEvent{},
 		&job.Job{},
 	)
 }

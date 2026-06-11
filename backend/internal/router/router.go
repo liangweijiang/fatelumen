@@ -19,6 +19,7 @@ type App struct {
 	ReadingHandler *handler.ReadingHandler
 	ReportHandler  *handler.ReportHandler
 	OrderHandler   *handler.OrderHandler
+	WebhookHandler *handler.WebhookHandler
 }
 
 // Setup 注册所有 Gin 路由。
@@ -50,6 +51,9 @@ func Setup(app *App) *gin.Engine {
 			authGroup.GET("/google/callback", app.AuthHandler.GoogleCallback)
 			authGroup.GET("/providers", app.AuthHandler.ProvidersList)
 		}
+
+		// Webhook 路由（无需鉴权，依靠渠道签名字段验证身份）
+		v1.POST("/webhooks/stripe", app.WebhookHandler.Stripe)
 
 		// --- 需鉴权 ---
 		authed := v1.Group("")

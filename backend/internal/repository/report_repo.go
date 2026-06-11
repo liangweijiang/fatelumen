@@ -66,3 +66,11 @@ func (r *ReportRepo) UpdateResult(id uint64, content model.ReportContent, pdfURL
 func (r *ReportRepo) UpdateChartID(id uint64, chartID uint64) error {
 	return r.db.Model(&model.Report{}).Where("id = ?", id).Update("chart_id", chartID).Error
 }
+
+// MarkPaid 标记报告已付款，关联订单 ID。
+func (r *ReportRepo) MarkPaid(reportID, orderID uint64) error {
+	return r.db.Model(&model.Report{}).Where("id = ?", reportID).Updates(map[string]interface{}{
+		"paid":     true,
+		"order_id": orderID,
+	}).Error
+}

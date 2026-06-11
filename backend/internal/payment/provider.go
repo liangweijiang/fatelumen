@@ -24,6 +24,7 @@ type CheckoutResult struct {
 
 // WebhookEvent 已验签的回调事件（渠道无关）。
 type WebhookEvent struct {
+	EventID         string
 	Type            string
 	SessionID       string
 	PaymentIntentID string

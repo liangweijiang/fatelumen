@@ -89,6 +89,7 @@ type Report struct {
 	PDFURL     string        `gorm:"type:varchar(512)" json:"pdf_url"`
 	ErrorMsg   string        `gorm:"type:varchar(512)" json:"error_msg"`
 	RetryCount int           `gorm:"not null;default:0" json:"retry_count"`
+	Paid       bool          `gorm:"not null;default:false;index" json:"paid"`
 	CreatedAt  time.Time     `gorm:"not null" json:"created_at"`
 	UpdatedAt  time.Time     `gorm:"not null" json:"updated_at"`
 }

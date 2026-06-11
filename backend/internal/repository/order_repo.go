@@ -58,6 +58,29 @@ func (r *OrderRepo) UpdateProviderRef(id uint64, sessionID string) error {
 		Update("provider_ref", sessionID).Error
 }
 
+// MarkPaid 在事务中完成订单支付状态流转。
+// 先用 Transit 校验 created→paid 合法性，再写入 ProviderTxnID 和原始回调数据。
+func (r *OrderRepo) MarkPaid(orderID uint64, providerTxnID string, meta []byte) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		var order model.Order
+		if err := tx.Where("id = ?", orderID).First(&order).Error; err != nil {
+			return err
+		}
+		if err := order.Transit(model.OrderStatusPaid); err != nil {
+			return err
+		}
+		updates := map[string]interface{}{
+			"status":          order.Status,
+			"provider_txn_id": providerTxnID,
+			"updated_at":      order.UpdatedAt,
+		}
+		if meta != nil {
+			updates["provider_meta"] = model.JSONRaw(meta)
+		}
+		return tx.Model(&model.Order{}).Where("id = ?", orderID).Updates(updates).Error
+	})
+}
+
 // ListByUser 列出用户所有订单。
 func (r *OrderRepo) ListByUser(userID uint64) ([]model.Order, error) {
 	var orders []model.Order
