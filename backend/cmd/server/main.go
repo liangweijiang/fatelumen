@@ -173,7 +173,8 @@ func main() {
 	statsRepo := repository.NewStatsRepo(db)
 	statsSvc := service.NewStatsService(statsRepo)
 	adminUserSvc := service.NewAdminUserService(userRepo, orderRepo, reportRepo)
-	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc)
+	adminOrderSvc := service.NewAdminOrderService(orderRepo)
+	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)

@@ -21,14 +21,20 @@ type adminUserService interface {
 	SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error
 }
 
+type adminOrderService interface {
+	ListOrders(ctx context.Context, status string, userID uint64, page, pageSize int) (*service.AdminOrdersPage, error)
+	GetOrderDetail(ctx context.Context, orderID uint64) (*service.AdminOrderDetail, error)
+}
+
 // AdminHandler 后台管理 HTTP 处理器。
 type AdminHandler struct {
 	statsSvc adminStatsService
 	userSvc  adminUserService
+	orderSvc adminOrderService
 }
 
-func NewAdminHandler(statsSvc *service.StatsService, userSvc *service.AdminUserService) *AdminHandler {
-	return &AdminHandler{statsSvc: statsSvc, userSvc: userSvc}
+func NewAdminHandler(statsSvc *service.StatsService, userSvc *service.AdminUserService, orderSvc *service.AdminOrderService) *AdminHandler {
+	return &AdminHandler{statsSvc: statsSvc, userSvc: userSvc, orderSvc: orderSvc}
 }
 
 // Ping 临时探活接口，验证管理员权限链畅通。
@@ -103,4 +109,35 @@ func (h *AdminHandler) SetActive(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"id": id, "active": body.Active})
+}
+
+// ListOrders GET /api/v1/admin/orders — 订单列表（支持筛选）。
+func (h *AdminHandler) ListOrders(c *gin.Context) {
+	status := c.Query("status")
+	userID, _ := strconv.ParseUint(c.DefaultQuery("user_id", "0"), 10, 64)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	result, err := h.orderSvc.ListOrders(c.Request.Context(), status, userID, page, pageSize)
+	if err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+	response.OK(c, result)
+}
+
+// GetOrder GET /api/v1/admin/orders/:id — 订单详情（含原始回调 JSON）。
+func (h *AdminHandler) GetOrder(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid order id")
+		return
+	}
+
+	detail, err := h.orderSvc.GetOrderDetail(c.Request.Context(), id)
+	if err != nil {
+		response.Fail(c, response.CodeNotFound, "order not found")
+		return
+	}
+	response.OK(c, detail)
 }

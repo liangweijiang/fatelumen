@@ -62,7 +62,7 @@ func (o *Order) Transit(to string) error {
 	return nil
 }
 
-// JSONRaw 存储原始 JSON 字节。
+// JSONRaw 存储原始 JSON 字节，序列化时输出为原始 JSON 对象（非 base64）。
 type JSONRaw []byte
 
 func (j JSONRaw) Value() (driver.Value, error) {
@@ -83,4 +83,12 @@ func (j *JSONRaw) Scan(value interface{}) error {
 	*j = make([]byte, len(b))
 	copy(*j, b)
 	return nil
+}
+
+// MarshalJSON 使 JSONRaw 序列化时输出原始 JSON 对象而非 base64 字符串。
+func (j JSONRaw) MarshalJSON() ([]byte, error) {
+	if j == nil {
+		return []byte("null"), nil
+	}
+	return []byte(j), nil
 }

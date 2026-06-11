@@ -96,3 +96,37 @@ func (r *OrderRepo) CountByUser(userID uint64) (int64, error) {
 	err := r.db.Model(&model.Order{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
 }
+
+// OrderFilter admin 订单筛选条件。
+type OrderFilter struct {
+	Status string
+	UserID uint64
+}
+
+// AdminListOrders admin 分页订单列表（可筛选 status/userID）。
+func (r *OrderRepo) AdminListOrders(filter OrderFilter, limit, offset int) ([]model.Order, int64, error) {
+	query := r.db.Model(&model.Order{})
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var orders []model.Order
+	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&orders).Error
+	return orders, total, err
+}
+
+// AdminGetOrderByID admin 查单（不限 user_id，管理员可看任意订单）。
+func (r *OrderRepo) AdminGetOrderByID(id uint64) (*model.Order, error) {
+	var order model.Order
+	err := r.db.First(&order, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
+}
