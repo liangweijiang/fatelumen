@@ -81,3 +81,41 @@ func (r *ReportRepo) CountByUser(userID uint64) (int64, error) {
 	err := r.db.Model(&model.Report{}).Where("user_id = ?", userID).Count(&count).Error
 	return count, err
 }
+
+// ReportFilter admin 报告筛选条件。
+type ReportFilter struct {
+	Status string
+	Paid   *bool
+	UserID uint64
+}
+
+// AdminListReports admin 分页报告列表（可筛选 status/paid/userID）。
+func (r *ReportRepo) AdminListReports(filter ReportFilter, limit, offset int) ([]model.Report, int64, error) {
+	query := r.db.Model(&model.Report{})
+	if filter.Status != "" {
+		query = query.Where("status = ?", filter.Status)
+	}
+	if filter.Paid != nil {
+		query = query.Where("paid = ?", *filter.Paid)
+	}
+	if filter.UserID > 0 {
+		query = query.Where("user_id = ?", filter.UserID)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var reports []model.Report
+	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&reports).Error
+	return reports, total, err
+}
+
+// AdminGetReportByID admin 查报告（不限 user_id，管理员可看任意报告）。
+func (r *ReportRepo) AdminGetReportByID(id uint64) (*model.Report, error) {
+	var report model.Report
+	err := r.db.First(&report, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &report, nil
+}

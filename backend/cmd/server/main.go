@@ -174,7 +174,8 @@ func main() {
 	statsSvc := service.NewStatsService(statsRepo)
 	adminUserSvc := service.NewAdminUserService(userRepo, orderRepo, reportRepo)
 	adminOrderSvc := service.NewAdminOrderService(orderRepo)
-	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc)
+	adminReportSvc := service.NewAdminReportService(reportRepo)
+	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc, adminReportSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)

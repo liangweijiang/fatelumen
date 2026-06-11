@@ -110,6 +110,9 @@ func Setup(app *App) *gin.Engine {
 				admin.PATCH("/users/:id/active", app.AdminHandler.SetActive)
 				admin.GET("/orders", app.AdminHandler.ListOrders)
 				admin.GET("/orders/:id", app.AdminHandler.GetOrder)
+				admin.GET("/reports", app.AdminHandler.ListReports)
+				admin.GET("/reports/:id", app.AdminHandler.GetReport)
+				admin.POST("/reports/:id/unlock", app.AdminHandler.UnlockReport)
 			}
 		}
 	}
