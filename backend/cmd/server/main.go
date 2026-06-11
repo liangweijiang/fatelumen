@@ -3,6 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/cache"
@@ -31,6 +36,11 @@ import (
 	gormLogger "gorm.io/gorm/logger"
 )
 
+const (
+	shutdownHTTPTimeout = 30 * time.Second
+	shutdownJobTimeout  = 30 * time.Second
+)
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -38,6 +48,11 @@ func main() {
 	}
 
 	log := logger.Init(cfg.LogLevel)
+
+	// Fail-fast on missing critical config
+	if missing := cfg.Validate(); len(missing) > 0 {
+		log.Fatal("missing required configuration", "keys", missing)
+	}
 
 	dbLogLevel := gormLogger.Warn
 	if cfg.AppEnv == "development" {
@@ -150,7 +165,6 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	worker.Start(ctx)
-	defer worker.Stop()
 	log.Info("job worker started", "workers", 3)
 
 	reportHTTPHandler := handler.NewReportHandler(reportSvc)
@@ -202,27 +216,69 @@ func main() {
 	}
 
 	app := &router.App{
-		DB:             db,
-		Auth:           authMW,
-		AuthHandler:    authHandler,
-		ProfHandler:    profileHandler,
-		ChartHandler:   chartHandler,
-		ReadingHandler: readingHandler,
-		ReportHandler:  reportHTTPHandler,
-		OrderHandler:   orderHTTPHandler,
-		WebhookHandler: webhookHandler,
-		AdminHandler:   adminHTTPHandler,
-		RateLimitAuth:    rlAuth,
+		DB:              db,
+		Auth:            authMW,
+		HealthChecker:   router.NewDBHealthChecker(db),
+		AuthHandler:     authHandler,
+		ProfHandler:     profileHandler,
+		ChartHandler:    chartHandler,
+		ReadingHandler:  readingHandler,
+		ReportHandler:   reportHTTPHandler,
+		OrderHandler:    orderHTTPHandler,
+		WebhookHandler:  webhookHandler,
+		AdminHandler:    adminHTTPHandler,
+		RateLimitAuth:   rlAuth,
 		RateLimitReading: rlReading,
-		RateLimitOrder:   rlOrder,
+		RateLimitOrder:  rlOrder,
 	}
 	engine := router.Setup(app)
 
 	addr := fmt.Sprintf(":%s", cfg.AppPort)
-	log.Info("server starting", "addr", addr)
-	if err := engine.Run(addr); err != nil {
-		log.Fatal("server failed", "err", err)
+	srv := &http.Server{
+		Addr:    addr,
+		Handler: engine,
 	}
+
+	// Start HTTP in goroutine
+	go func() {
+		log.Info("server starting", "addr", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("server failed", "err", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-quit
+	log.Info("shutdown signal received", "signal", sig.String())
+
+	// Phase 1: Stop HTTP server (stop accepting new requests)
+	log.Info("shutting down HTTP server", "timeout", shutdownHTTPTimeout)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownHTTPTimeout)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Error("HTTP shutdown error", "err", err)
+	} else {
+		log.Info("HTTP server stopped")
+	}
+
+	// Phase 2: Stop job worker with timeout
+	// Worker.Stop() blocks on wg.Wait(); wrap with timeout
+	log.Info("shutting down job worker", "timeout", shutdownJobTimeout)
+	jobDone := make(chan struct{})
+	go func() {
+		worker.Stop()
+		close(jobDone)
+	}()
+	select {
+	case <-jobDone:
+		log.Info("job worker stopped cleanly")
+	case <-time.After(shutdownJobTimeout):
+		log.Warn("job worker stop timeout — in-flight jobs remain in processing state, will not be marked as completed")
+	}
+
+	log.Info("shutdown complete")
 }
 
 func autoMigrate(db *gorm.DB) error {

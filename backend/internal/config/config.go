@@ -77,6 +77,37 @@ type Config struct {
 	R2PublicBase      string
 }
 
+// Validate checks mandatory config fields and returns all missing keys.
+func (c *Config) Validate() []string {
+	var missing []string
+
+	require := func(val, name string) {
+		if val == "" {
+			missing = append(missing, name)
+		}
+	}
+
+	require(c.DBUser, "DB_USER")
+	require(c.DBPassword, "DB_PASSWORD")
+	require(c.DBName, "DB_NAME")
+	require(c.JWTSecret, "JWT_SECRET")
+
+	if len(c.PaymentProviders) > 0 {
+		require(c.StripeSecretKey, "STRIPE_SECRET_KEY")
+		require(c.StripeWebhookSecret, "STRIPE_WEBHOOK_SECRET")
+	}
+
+	require(c.DeepSeekAPIKey, "DEEPSEEK_API_KEY")
+
+	if c.R2AccountID != "" {
+		require(c.R2AccessKeyID, "R2_ACCESS_KEY_ID")
+		require(c.R2SecretAccessKey, "R2_SECRET_ACCESS_KEY")
+		require(c.R2Bucket, "R2_BUCKET")
+	}
+
+	return missing
+}
+
 // Load 从 .env / 环境变量加载配置。
 func Load() (*Config, error) {
 	viper.AutomaticEnv()

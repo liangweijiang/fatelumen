@@ -1,18 +1,48 @@
 package router
 
 import (
+	"context"
+	"fmt"
+	"net/http"
+	"time"
+
 	"fatelumen/backend/internal/handler"
 	"fatelumen/backend/internal/middleware"
+	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+// HealthChecker 健康检查抽象，便于单测注入 fake。
+type HealthChecker interface {
+	Ping(ctx context.Context) error
+}
+
+// NewDBHealthChecker creates a health checker backed by a gorm DB.
+func NewDBHealthChecker(db *gorm.DB) *DBHealthChecker {
+	return &DBHealthChecker{db: db}
+}
+
+// DBHealthChecker 基于 *gorm.DB 的探活实现。
+type DBHealthChecker struct {
+	db *gorm.DB
+}
+
+func (h *DBHealthChecker) Ping(ctx context.Context) error {
+	sqlDB, err := h.db.DB()
+	if err != nil {
+		return fmt.Errorf("db conn unavailable: %w", err)
+	}
+	return sqlDB.PingContext(ctx)
+}
+
 // App 包含所有路由依赖的上下文。
 type App struct {
 	DB             *gorm.DB
 	Auth           *middleware.AuthMiddleware
+	HealthChecker  HealthChecker
 	AuthHandler    *handler.AuthHandler
 	ProfHandler    *handler.ProfileHandler
 	ChartHandler   *handler.ChartHandler
@@ -38,6 +68,23 @@ func Setup(app *App) *gin.Engine {
 	r.Use(middleware.CORS())
 
 	r.GET("/health", func(c *gin.Context) {
+		if app.HealthChecker == nil {
+			response.OK(c, gin.H{"status": "ok"})
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := app.HealthChecker.Ping(ctx); err != nil {
+			logger.FromCtx(c.Request.Context()).Error("health check failed",
+				"err", err,
+			)
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"status": "unhealthy",
+				"detail": "database unreachable",
+			})
+			return
+		}
 		response.OK(c, gin.H{"status": "ok"})
 	})
 
