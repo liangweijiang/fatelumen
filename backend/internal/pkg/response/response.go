@@ -11,18 +11,19 @@ import (
 
 // 业务错误码表
 const (
-	CodeOK           = 0
-	CodeBadRequest   = 4000
-	CodeUnauthorized = 4010
-	CodeKicked       = 4011 // Token 被新设备登录踢下线
-	CodeNoCredits    = 4020
-	CodeOrderUnpaid  = 4030
-	CodeForbidden    = 4031
-	CodeQuotaExhausted = 4290
-	CodeNotFound     = 4040
-	CodeServerError  = 5000
-	CodeLLMFailed    = 5001
-	CodeRenderFailed = 5002
+	CodeOK              = 0
+	CodeBadRequest      = 4000
+	CodeUnauthorized    = 4010
+	CodeKicked          = 4011 // Token 被新设备登录踢下线
+	CodeNoCredits       = 4020
+	CodeOrderUnpaid     = 4030
+	CodeForbidden       = 4031
+	CodeQuotaExhausted  = 4290
+	CodeNotFound        = 4040
+	CodeTooManyRequests = 4291
+	CodeServerError     = 5000
+	CodeLLMFailed       = 5001
+	CodeRenderFailed    = 5002
 )
 
 // Resp 统一响应。

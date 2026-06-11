@@ -62,6 +62,12 @@ type Config struct {
 
 	QuotaDailyLimit int
 
+	RateLimitEnabled         bool
+	RateLimitReadingPerMin   int
+	RateLimitOrderPerMin     int
+	RateLimitAuthPerMin      int
+	RateLimitDefaultPerMin   int
+
 	AdminEmails []string
 
 	R2AccountID       string
@@ -97,6 +103,11 @@ func Load() (*Config, error) {
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
+	viper.SetDefault("RATELIMIT_ENABLED", true)
+	viper.SetDefault("RATELIMIT_READING_PER_MIN", 5)
+	viper.SetDefault("RATELIMIT_ORDER_PER_MIN", 10)
+	viper.SetDefault("RATELIMIT_AUTH_PER_MIN", 10)
+	viper.SetDefault("RATELIMIT_DEFAULT_PER_MIN", 60)
 
 	cfg := &Config{
 		LogLevel:   viper.GetString("LOG_LEVEL"),
@@ -150,6 +161,12 @@ func Load() (*Config, error) {
 		PaymentCancelURL:  viper.GetString("PAYMENT_CANCEL_URL"),
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
 		StripeSecretKey:   viper.GetString("STRIPE_SECRET_KEY"),
+
+		RateLimitEnabled:         viper.GetBool("RATELIMIT_ENABLED"),
+		RateLimitReadingPerMin:   viper.GetInt("RATELIMIT_READING_PER_MIN"),
+		RateLimitOrderPerMin:     viper.GetInt("RATELIMIT_ORDER_PER_MIN"),
+		RateLimitAuthPerMin:      viper.GetInt("RATELIMIT_AUTH_PER_MIN"),
+		RateLimitDefaultPerMin:   viper.GetInt("RATELIMIT_DEFAULT_PER_MIN"),
 
 		AdminEmails: splitEnv("ADMIN_EMAILS"),
 		StripeWebhookSecret: viper.GetString("STRIPE_WEBHOOK_SECRET"),

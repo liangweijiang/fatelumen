@@ -21,6 +21,11 @@ type App struct {
 	OrderHandler   *handler.OrderHandler
 	WebhookHandler *handler.WebhookHandler
 	AdminHandler   *handler.AdminHandler
+
+	// Pre-built rate-limit middleware (set by main)
+	RateLimitAuth    gin.HandlerFunc
+	RateLimitReading gin.HandlerFunc
+	RateLimitOrder   gin.HandlerFunc
 }
 
 // Setup 注册所有 Gin 路由。
@@ -40,6 +45,9 @@ func Setup(app *App) *gin.Engine {
 	{
 		// --- 认证（无需鉴权）---
 		authGroup := v1.Group("/auth")
+		if app.RateLimitAuth != nil {
+			authGroup.Use(app.RateLimitAuth)
+		}
 		{
 			// 同时支持 302 跳转和 JSON 返回
 			authGroup.GET("/google/login", func(c *gin.Context) {
@@ -80,21 +88,45 @@ func Setup(app *App) *gin.Engine {
 
 			readings := authed.Group("/readings")
 			{
-				readings.POST("/quick", app.ReadingHandler.CreateQuick)
+				readings.POST("/quick", func(c *gin.Context) {
+					if app.RateLimitReading != nil {
+						app.RateLimitReading(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					app.ReadingHandler.CreateQuick(c)
+				})
 				readings.GET("/:id", app.ReadingHandler.GetByID)
 				readings.GET("", app.ReadingHandler.ListByUser)
 			}
 
 			reports := authed.Group("/reports")
 			{
-				reports.POST("", app.ReportHandler.Create)
+				reports.POST("", func(c *gin.Context) {
+					if app.RateLimitReading != nil {
+						app.RateLimitReading(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					app.ReportHandler.Create(c)
+				})
 				reports.GET("/:id", app.ReportHandler.Get)
 				reports.GET("", app.ReportHandler.List)
 			}
 
 			orders := authed.Group("/orders")
 			{
-				orders.POST("", app.OrderHandler.Create)
+				orders.POST("", func(c *gin.Context) {
+					if app.RateLimitOrder != nil {
+						app.RateLimitOrder(c)
+						if c.IsAborted() {
+							return
+						}
+					}
+					app.OrderHandler.Create(c)
+				})
 				orders.GET("/:id", app.OrderHandler.Get)
 				orders.GET("", app.OrderHandler.List)
 			}

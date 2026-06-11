@@ -1,55 +1,54 @@
 package middleware
 
 import (
-	"sync"
-	"time"
+	"fmt"
+	"strconv"
+
+	"fatelumen/backend/internal/pkg/logger"
+	"fatelumen/backend/internal/pkg/ratelimit"
+	"fatelumen/backend/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
-	"fatelumen/backend/internal/pkg/response"
 )
 
-// RateLimiter 简易内存限流器（按 IP token bucket，MVP 用内存实现）。
-type RateLimiter struct {
-	mu      sync.Mutex
-	buckets map[string]*tokenBucket
-	limit   int
-	window  time.Duration
-}
-
-type tokenBucket struct {
-	tokens   int
-	resetAt  time.Time
-}
-
-func NewRateLimiter(limit int, windowSeconds int64) *RateLimiter {
-	return &RateLimiter{
-		buckets: make(map[string]*tokenBucket),
-		limit:   limit,
-		window:  time.Duration(windowSeconds) * time.Second,
+// KeyByUser returns a rate-limit key scoped to the authenticated user.
+// Falls back to client IP when no user is authenticated.
+func KeyByUser(c *gin.Context) string {
+	uid := GetUserID(c)
+	if uid > 0 {
+		return fmt.Sprintf("uid:%d", uid)
 	}
+	return KeyByIP(c)
 }
 
-func (rl *RateLimiter) Handler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		ip := c.ClientIP()
-		now := time.Now()
+// KeyByIP returns a rate-limit key scoped to the client IP.
+func KeyByIP(c *gin.Context) string {
+	return fmt.Sprintf("ip:%s", c.ClientIP())
+}
 
-		rl.mu.Lock()
-		b, ok := rl.buckets[ip]
-		if !ok || now.After(b.resetAt) {
-			rl.buckets[ip] = &tokenBucket{tokens: 1, resetAt: now.Add(rl.window)}
-			rl.mu.Unlock()
+// RateLimit returns a Gin middleware that uses the provided Limiter.
+// keyFunc determines the dimension (e.g. per-user or per-IP).
+// Admin users are exempt from rate limiting.
+func RateLimit(limiter ratelimit.Limiter, keyFunc func(*gin.Context) string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Admins are exempt
+		if IsAdmin(c) {
 			c.Next()
 			return
 		}
-		if b.tokens >= rl.limit {
-			rl.mu.Unlock()
-			response.Fail(c, response.CodeQuotaExhausted, "rate limit exceeded")
+
+		key := keyFunc(c)
+		allowed, retryAfter := limiter.Allow(key)
+		if !allowed {
+			c.Header("Retry-After", strconv.Itoa(int(retryAfter.Seconds())+1))
+			logger.FromCtx(c.Request.Context()).Warn("rate limit exceeded",
+				"key", key,
+				"path", c.Request.URL.Path,
+			)
+			response.Fail(c, response.CodeTooManyRequests, "too many requests")
 			c.Abort()
 			return
 		}
-		b.tokens++
-		rl.mu.Unlock()
 		c.Next()
 	}
 }

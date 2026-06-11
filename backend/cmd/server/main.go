@@ -14,6 +14,7 @@ import (
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/payment"
 	"fatelumen/backend/internal/pkg/logger"
+	"fatelumen/backend/internal/pkg/ratelimit"
 	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
 	"fatelumen/backend/internal/router"
@@ -21,6 +22,9 @@ import (
 	"fatelumen/backend/internal/storage"
 
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/time/rate"
+
+	"github.com/gin-gonic/gin"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -181,6 +185,22 @@ func main() {
 	chartHandler := handler.NewChartHandler(chartSvc)
 	readingHandler := handler.NewReadingHandler(readingSvc)
 
+	// Rate limiters
+	var rlAuth, rlReading, rlOrder gin.HandlerFunc
+	if cfg.RateLimitEnabled {
+		authLim := ratelimit.NewMemoryLimiter(rate.Limit(cfg.RateLimitAuthPerMin)/60, cfg.RateLimitAuthPerMin)
+		readingLim := ratelimit.NewMemoryLimiter(rate.Limit(cfg.RateLimitReadingPerMin)/60, cfg.RateLimitReadingPerMin)
+		orderLim := ratelimit.NewMemoryLimiter(rate.Limit(cfg.RateLimitOrderPerMin)/60, cfg.RateLimitOrderPerMin)
+		rlAuth = middleware.RateLimit(authLim, middleware.KeyByIP)
+		rlReading = middleware.RateLimit(readingLim, middleware.KeyByUser)
+		rlOrder = middleware.RateLimit(orderLim, middleware.KeyByUser)
+		log.Info("rate limiters initialized",
+			"auth_per_min", cfg.RateLimitAuthPerMin,
+			"reading_per_min", cfg.RateLimitReadingPerMin,
+			"order_per_min", cfg.RateLimitOrderPerMin,
+		)
+	}
+
 	app := &router.App{
 		DB:             db,
 		Auth:           authMW,
@@ -192,6 +212,9 @@ func main() {
 		OrderHandler:   orderHTTPHandler,
 		WebhookHandler: webhookHandler,
 		AdminHandler:   adminHTTPHandler,
+		RateLimitAuth:    rlAuth,
+		RateLimitReading: rlReading,
+		RateLimitOrder:   rlOrder,
 	}
 	engine := router.Setup(app)
 
