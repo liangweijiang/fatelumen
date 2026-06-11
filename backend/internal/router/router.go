@@ -105,6 +105,9 @@ func Setup(app *App) *gin.Engine {
 			{
 				admin.GET("/ping", app.AdminHandler.Ping)
 				admin.GET("/stats", app.AdminHandler.Stats)
+				admin.GET("/users", app.AdminHandler.ListUsers)
+				admin.GET("/users/:id", app.AdminHandler.GetUser)
+				admin.PATCH("/users/:id/active", app.AdminHandler.SetActive)
 			}
 		}
 	}

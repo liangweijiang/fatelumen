@@ -74,3 +74,10 @@ func (r *ReportRepo) MarkPaid(reportID, orderID uint64) error {
 		"order_id": orderID,
 	}).Error
 }
+
+// CountByUser 统计用户报告数。
+func (r *ReportRepo) CountByUser(userID uint64) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Report{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}

@@ -88,3 +88,35 @@ func (r *UserRepo) GetCurrentToken(userID uint64) (string, error) {
 	}
 	return user.CurrentTokenID, nil
 }
+
+// ListUsers 分页搜索用户（按 email/name 模糊匹配）。
+func (r *UserRepo) ListUsers(keyword string, limit, offset int) ([]model.User, int64, error) {
+	query := r.db.Model(&model.User{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("email LIKE ? OR name LIKE ?", like, like)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var users []model.User
+	err := query.Order("created_at DESC").Limit(limit).Offset(offset).Find(&users).Error
+	return users, total, err
+}
+
+// GetUserByID 按 ID 查找用户（全字段，admin 侧用）。
+func (r *UserRepo) GetUserByID(id uint64) (*model.User, error) {
+	var user model.User
+	err := r.db.First(&user, id).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// SetUserActive 启用/禁用用户。
+func (r *UserRepo) SetUserActive(id uint64, active bool) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).
+		Update("active", active).Error
+}

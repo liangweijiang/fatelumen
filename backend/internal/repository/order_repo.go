@@ -89,3 +89,10 @@ func (r *OrderRepo) ListByUser(userID uint64) ([]model.Order, error) {
 		Find(&orders).Error
 	return orders, err
 }
+
+// CountByUser 统计用户订单数。
+func (r *OrderRepo) CountByUser(userID uint64) (int64, error) {
+	var count int64
+	err := r.db.Model(&model.Order{}).Where("user_id = ?", userID).Count(&count).Error
+	return count, err
+}

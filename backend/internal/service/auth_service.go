@@ -108,6 +108,11 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 	// Auto-promote admin users based on configured email list
 	s.ensureAdminRole(user)
 
+	// Block inactive users
+	if !user.Active {
+		return nil, fmt.Errorf("account disabled")
+	}
+
 	// 签发 JWT，同时更新 current_token_id 实现单设备登录
 	tokenID := genTokenID()
 	token, err := jwt.Generate(s.jwtSecret, s.jwtExpHrs, user.ID, tokenID)

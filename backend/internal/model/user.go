@@ -18,6 +18,7 @@ type User struct {
 	Credits        int       `gorm:"not null;default:0" json:"credits"`
 	Locale         string    `gorm:"type:varchar(8);not null;default:'en'" json:"locale"`
 	Role           string    `gorm:"type:varchar(16);not null;default:'user';index" json:"role"`
+	Active         bool      `gorm:"not null;default:true;index" json:"active"`
 	CurrentTokenID string    `gorm:"type:varchar(64)" json:"-"`
 	CreatedAt      time.Time `gorm:"not null" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"not null" json:"updated_at"`
