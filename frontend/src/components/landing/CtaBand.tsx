@@ -9,7 +9,7 @@ export function CtaBand() {
   const ref = useReveal();
   return (
     <section className="px-0 py-[120px] max-md:py-[80px]">
-      <div className="mx-auto max-w-[var(--maxw)] px-7">
+      <div className="mx-auto max-w-[var(--maxw)] px-5 md:px-10">
         <div
           ref={ref}
           className="reveal relative mx-auto max-w-[var(--maxw)] overflow-hidden rounded-[24px] px-8 py-24 text-center max-md:py-16"

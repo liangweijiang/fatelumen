@@ -16,94 +16,92 @@ export function Hero() {
   ];
 
   return (
-    <section className="relative px-0 pb-32 pt-[160px] text-center max-md:pb-20 max-md:pt-28">
-      {/* Seal stamp */}
-      <div
-        className="absolute right-8 top-24 z-10 select-none rounded-sm border px-1.5 py-0.5 text-[13px] font-bold leading-none tracking-wider opacity-20 max-md:right-4 max-md:top-20"
-        style={{
-          borderColor: "var(--seal-red)",
-          color: "var(--seal-red)",
-          fontFamily: "var(--serif)",
-          transform: "rotate(8deg)",
-        }}
-      >
-        命
-      </div>
+    <section className="relative px-0 pb-24 pt-28 max-md:pb-16 max-md:pt-20">
+      <div className="mx-auto max-w-[1200px] px-5 md:px-7">
+        <div className="grid items-center gap-12 md:grid-cols-2">
+          {/* Left: text */}
+          <div>
+            <span className="mb-6 inline-flex items-center gap-2 text-xs font-medium tracking-[3px] uppercase text-[var(--ink-faint)]">
+              <span className="h-px w-6 bg-[var(--line)]" />
+              {t("eyebrow")}
+            </span>
+            <h1 className="mb-6 font-[var(--serif)] font-medium leading-[1.12] tracking-[-.3px] text-[clamp(36px,5vw,64px)]">
+              {t("title")}{" "}
+              <em className="gold-embossed italic" style={{ color: "var(--gold-deep)" }}>
+                {t("titleEm")}
+              </em>{" "}
+              {t("titleEnd")}
+            </h1>
+            <p className="mb-8 max-w-[56ch] text-[17px] leading-relaxed font-light text-[var(--ink-soft)]">
+              {t("sub")}
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Link
+                href="/login"
+                className="btn-gold inline-flex h-12 items-center gap-2 rounded-lg px-6 text-sm font-medium transition-all w-full sm:w-auto justify-center sm:justify-start"
+                style={{ minHeight: "44px" }}
+              >
+                {t("cta")}
+              </Link>
+              <Link
+                href="#how"
+                className="btn-ghost inline-flex h-12 items-center gap-2 rounded-lg border px-6 text-sm font-medium transition-all w-full sm:w-auto justify-center sm:justify-start"
+                style={{ minHeight: "44px" }}
+              >
+                {t("secondary")}
+              </Link>
+            </div>
+            <p className="mt-5 text-xs tracking-[.3px] text-[var(--ink-faint)]">{t("note")}</p>
+          </div>
 
-      <div className="mx-auto max-w-[var(--maxw)] px-7">
-        <span className="mb-8 inline-flex items-center gap-3 text-xs font-medium tracking-[3px] uppercase text-[var(--ink-faint)]">
-          <span className="h-px w-8 bg-[var(--line)]" />
-          {t("eyebrow")}
-          <span className="h-px w-8 bg-[var(--line)]" />
-        </span>
-        <h1 className="mx-auto mb-8 max-w-[880px] font-[var(--serif)] text-[68px] font-medium leading-[1.1] tracking-[-.3px] max-md:text-[42px]">
-          {t("title")}{" "}
-          <br />
-          <em className="italic gold-embossed" style={{ color: "var(--gold-deep)" }}>{t("titleEm")}</em>{" "}
-          {t("titleEnd")}
-        </h1>
-        <p className="mx-auto mb-10 max-w-[620px] text-[19px] leading-relaxed font-light text-[var(--ink-soft)] max-md:text-[17px]">
-          {t("sub")}
-        </p>
-        <div className="flex gap-[14px] justify-center flex-wrap">
-          <Link
-            href="/login"
-            className="btn-gold inline-flex h-[52px] items-center gap-2 rounded-lg px-7 text-[15px] font-medium transition-all"
-          >
-            {t("cta")}
-          </Link>
-          <Link
-            href="#how"
-            className="btn-ghost inline-flex h-[52px] items-center gap-2 rounded-lg border px-7 text-[15px] font-medium transition-all"
-          >
-            {t("secondary")}
-          </Link>
-        </div>
-        <p className="mt-6 text-[13px] tracking-[.3px] text-[var(--ink-faint)]">{t("note")}</p>
-
-        {/* Chart card */}
-        <div ref={chartRef} className="reveal mx-auto mt-20 max-w-[560px]">
-          <div
-            className="ancient-frame relative overflow-hidden rounded-xl p-9 px-7"
-            style={{
-              background: "var(--bg-card)",
-            }}
-          >
+          {/* Right: letterpress chart */}
+          <div ref={chartRef} className="reveal relative">
+            {/* Seal stamp */}
             <div
-              className="pointer-events-none absolute inset-0"
+              className="absolute -right-1 -top-2 z-10 select-none rounded-sm border px-1.5 py-0.5 text-[13px] font-bold leading-none tracking-wider opacity-85"
               style={{
-                background: "radial-gradient(circle at 50% 0%, rgba(201,162,39,.1), transparent 60%)",
+                borderColor: "var(--seal-red)",
+                color: "var(--seal-red)",
+                fontFamily: "var(--serif)",
+                transform: "rotate(6deg)",
               }}
-            />
-            <div className="relative">
+            >
+              命
+            </div>
+            <div
+              className="relative rounded-lg p-8 px-6"
+              style={{
+                background: "var(--bg-card)",
+                border: "2px solid var(--line)",
+                boxShadow: "inset 0 0 0 4px var(--bg-card), inset 0 0 0 5px var(--gold-soft)",
+              }}
+            >
               <div
-                className="mb-6 text-center font-[var(--serif)] text-[14px] italic tracking-[.8px] text-[var(--ink-faint)]"
+                className="mb-6 text-center font-[var(--serif)] text-xs italic tracking-[.8px] text-[var(--ink-faint)]"
               >
                 {t("chartTitle")}
               </div>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-4 gap-3">
                 {pillars.map((p) => (
                   <div key={p.lab} className="text-center">
-                    <div className="mb-3 font-[var(--serif)] text-[9px] tracking-[3px] uppercase text-[var(--ink-faint)]">
+                    <div className="mb-3 font-[var(--serif)] text-[9px] tracking-[4px] uppercase text-[var(--ink-faint)]">
                       {p.lab}
                     </div>
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5">
                       <span
-                        className="flex h-[52px] items-center justify-center rounded-md border text-[28px] font-medium tracking-[.08em] max-md:h-10 max-md:text-[22px]"
+                        className="flex h-14 items-center justify-center rounded-md font-[var(--serif)] text-[32px] font-medium tracking-wider max-md:text-[26px]"
                         style={{
-                          borderColor: "var(--line-soft)",
-                          background: "var(--bg)",
-                          color: "var(--gold-deep)",
+                          color: "var(--ink)",
+                          textShadow: "0 1px 0 oklch(98% 0.01 80 / 0.4)",
                         }}
                       >
                         {p.stem}
                       </span>
                       <span
-                        className="flex h-[52px] items-center justify-center rounded-md border text-[28px] font-medium tracking-[.08em] max-md:h-10 max-md:text-[22px]"
+                        className="flex h-14 items-center justify-center rounded-md font-[var(--serif)] text-[32px] font-medium tracking-wider max-md:text-[26px]"
                         style={{
-                          borderColor: "var(--line-soft)",
-                          background: "var(--bg)",
-                          color: "var(--ink)",
+                          color: "var(--ink-soft)",
+                          textShadow: "0 1px 0 oklch(98% 0.01 80 / 0.4)",
                         }}
                       >
                         {p.branch}
@@ -113,17 +111,15 @@ export function Hero() {
                 ))}
               </div>
               <div
-                className="mt-6 flex justify-center gap-[20px] border-t pt-[22px]"
+                className="mt-6 flex justify-center gap-5 border-t pt-5"
                 style={{ borderColor: "var(--line-soft)" }}
               >
                 {["wood", "fire", "earth", "metal", "water"].map((wx) => (
-                  <div key={wx} className="flex flex-col items-center gap-1.5 text-[11px] text-[var(--ink-faint)]">
+                  <div key={wx} className="flex flex-col items-center gap-1.5 text-xs tracking-wide text-[var(--ink-soft)]" style={{ fontFamily: "var(--body)" }}>
                     <span
-                      className="flex h-[30px] w-[30px] items-center justify-center rounded-full font-[var(--serif)] text-[15px] text-white"
+                      className="flex h-4 w-4 rounded-full"
                       style={{ background: `var(--wuxing-${wx})` }}
-                    >
-                      {t(wx as "wood")}
-                    </span>
+                    />
                     {t(wx as "wood")}
                   </div>
                 ))}

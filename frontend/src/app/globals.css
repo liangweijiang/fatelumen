@@ -6,6 +6,7 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    scrollbar-gutter: stable;
   }
 
   body {
@@ -143,34 +144,152 @@
       inset 0 0 0 4px var(--line-soft);
   }
 
-  /* ── Locale + theme dropdown trigger ── */
-  .locale-theme-cluster {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
-  .locale-theme-trigger {
+  /* ── Header capsule trigger (language / theme) ── */
+  .header-capsule {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    box-sizing: border-box;
+    padding: 0 13px;
+    border: 1px solid var(--line-soft);
+    border-radius: 9999px;
     background: var(--bg-card);
     font-family: var(--serif), "Noto Serif SC", serif;
-    font-size: 14px;
-    color: var(--ink);
+    font-size: 13px;
+    color: var(--ink-soft);
     cursor: pointer;
     transition: all 150ms ease;
     outline: none;
+    text-align: center;
+    line-height: 1;
   }
-  .locale-theme-trigger:hover {
+  .header-capsule.lang {
+    min-width: 96px;
+  }
+  .header-capsule.theme {
+    min-width: 118px;
+  }
+  .header-capsule:hover {
     border-color: var(--gold);
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px oklch(60% 0.08 80 / 0.18);
+    color: var(--ink);
   }
-  .locale-theme-trigger:focus-visible {
+  .header-capsule:hover .capsule-prefix-icon {
+    color: var(--gold-deep);
+  }
+  .header-capsule:hover .capsule-chevron {
+    color: var(--gold-deep);
+  }
+  .header-capsule:focus-visible {
     outline: 2px solid var(--gold);
     outline-offset: 2px;
+  }
+  .capsule-prefix-icon {
+    color: var(--ink-faint);
+    transition: color 150ms ease;
+    flex-shrink: 0;
+  }
+  .capsule-chevron {
+    color: var(--ink-faint);
+    transition: transform 150ms ease, color 150ms ease;
+    flex-shrink: 0;
+  }
+  .capsule-chevron.open {
+    transform: rotate(180deg);
+  }
+
+  /* ── Mobile drawer ── */
+  .mobile-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    padding-top: env(safe-area-inset-top);
+  }
+  .mobile-drawer-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.35);
+  }
+  .mobile-drawer-panel {
+    position: relative;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--line);
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .drawer-link {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 12px 5px;
+    font-family: var(--serif), "Noto Serif SC", serif;
+    font-size: 15px;
+    color: var(--ink);
+    transition: color 150ms ease;
+    text-decoration: none;
+  }
+  .drawer-link:hover {
+    color: var(--gold-deep);
+  }
+  .drawer-section-label {
+    display: block;
+    padding: 4px 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin-bottom: 4px;
+  }
+  .drawer-item-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    padding: 12px 5px;
+    font-family: var(--serif), "Noto Serif SC", serif;
+    font-size: 15px;
+    color: var(--ink);
+    background: none;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+    text-align: left;
+  }
+  .drawer-item-btn:hover {
+    background: var(--bg-soft);
+  }
+  .drawer-item-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .drawer-close-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background-color 150ms ease;
+    touch-action: manipulation;
+  }
+  .drawer-close-btn:hover {
+    background: var(--bg-soft);
+  }
+
+  /* ── Safe area utilities ── */
+  .pt-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }

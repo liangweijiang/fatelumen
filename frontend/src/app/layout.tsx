@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Newsreader } from "next/font/google";
 import "./globals.css";
 import "@/styles/themes.css";
@@ -23,6 +23,12 @@ export const metadata: Metadata = {
   title: "FateLumen",
   description:
     "Decode your Chinese birth chart — precise Bazi readings, beautifully explained.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

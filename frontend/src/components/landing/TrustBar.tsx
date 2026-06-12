@@ -9,7 +9,7 @@ export function TrustBar() {
       className="border-y"
       style={{ background: "var(--bg-soft)", borderColor: "var(--line)" }}
     >
-      <div className="mx-auto flex max-w-[var(--maxw)] items-center justify-center gap-14 px-7 py-9 flex-wrap max-md:gap-6 max-md:py-6">
+      <div className="mx-auto flex max-w-[var(--maxw)] items-center justify-center gap-14 px-5 md:px-10 py-9 flex-wrap max-md:gap-6 max-md:py-6">
         <div className="text-center">
           <div
             className="gold-embossed font-[var(--serif)] text-[38px] font-medium leading-none tracking-[-.5px] max-md:text-[30px]"

@@ -24,7 +24,7 @@ export function FaqPreview({ locale }: { locale: string }) {
 
   return (
     <section id="faq" className="px-0 py-[120px] max-md:py-[80px]">
-      <div className="mx-auto max-w-[var(--maxw)] px-7">
+      <div className="mx-auto max-w-[var(--maxw)] px-5 md:px-10">
         <div ref={headRef} className="reveal mx-auto mb-[72px] max-w-[620px] text-center">
           <span className="mb-[18px] block text-xs font-medium tracking-[3px] uppercase text-[var(--ink-faint)]">{t("eyebrow")}</span>
           <h2 className="mb-5 font-[var(--serif)] text-[44px] font-medium leading-[1.18] tracking-[-.3px] max-md:text-[32px]">{t("title")}</h2>

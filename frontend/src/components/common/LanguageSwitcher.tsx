@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import { ChevronDown, Check } from "lucide-react";
+import { Globe, ChevronDown, Check } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -19,14 +20,19 @@ const langs: { code: string; label: string }[] = [
 export function LanguageSwitcher({ currentLocale }: { currentLocale: string }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   const current = langs.find((l) => l.code === currentLocale);
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className="locale-theme-trigger">
+    <DropdownMenu onOpenChange={setOpen}>
+      <DropdownMenuTrigger className="header-capsule lang">
+        <Globe size={14} className="capsule-prefix-icon" />
         {current?.label ?? currentLocale}
-        <ChevronDown size={14} color="var(--ink-faint)" />
+        <ChevronDown
+          size={13}
+          className={`capsule-chevron ${open ? "open" : ""}`}
+        />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {langs.map((l) => (
