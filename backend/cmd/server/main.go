@@ -161,7 +161,7 @@ func main() {
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
 	handlerReg.Register("report", reportHandler)
-	worker := job.NewWorker(jobQueue, handlerReg, 0, 0)
+	worker := job.NewWorker(jobQueue, handlerReg, 0, 0, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	worker.Start(ctx)

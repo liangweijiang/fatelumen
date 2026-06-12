@@ -105,6 +105,12 @@ func (q *MemoryQueue) UpdateStatus(ctx context.Context, id string, status Status
 	return nil
 }
 
+// ReclaimStale 内存队列进程级，重启即丢，无持久化孤儿 job 概念。
+// 返回值永远为 0, 0, nil。
+func (q *MemoryQueue) ReclaimStale(ctx context.Context, staleThreshold time.Duration) (int, int, error) {
+	return 0, 0, nil
+}
+
 func (q *MemoryQueue) Get(ctx context.Context, id string) (*Job, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()

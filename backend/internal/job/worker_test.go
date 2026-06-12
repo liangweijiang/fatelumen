@@ -101,7 +101,7 @@ func TestWorker_Success(t *testing.T) {
 	ctx := logger.WithTraceID(context.Background(), "trace-success")
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":1}`))
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -129,7 +129,7 @@ func TestWorker_RetryThenSuccess(t *testing.T) {
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":2}`))
 	job.MaxAttempts = 4
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -157,7 +157,7 @@ func TestWorker_PermanentFail(t *testing.T) {
 	job := &Job{Type: "report", Payload: json.RawMessage(`{"id":3}`), MaxAttempts: 2}
 	q.Enqueue(ctx, job)
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -186,7 +186,7 @@ func TestWorker_PanicRecovery(t *testing.T) {
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":4}`))
 	job.MaxAttempts = 3
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -215,7 +215,7 @@ func TestWorker_PanicAllRetries(t *testing.T) {
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":5}`))
 	job.MaxAttempts = 2
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -239,7 +239,7 @@ func TestWorker_TraceIDContinuation(t *testing.T) {
 	ctx := logger.WithTraceID(context.Background(), "trace-chain-999")
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":6}`))
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -274,7 +274,7 @@ func TestWorker_GracefulShutdown(t *testing.T) {
 	job, _ := enqueueJob(q, ctx, "report", json.RawMessage(`{"id":7}`))
 
 	poll := 10 * time.Millisecond
-	w := NewWorker(q, registry, poll, 1)
+	w := NewWorker(q, registry, poll, 1, 0)
 	w.Start(context.Background())
 
 	// Wait for the job to be picked up (processing)
@@ -328,7 +328,7 @@ func TestWorker_HandlerNotFound(t *testing.T) {
 	ctx := context.Background()
 	job, _ := enqueueJob(q, ctx, "unknown_type", json.RawMessage(`{"id":8}`))
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 1)
+	w := NewWorker(q, registry, 10*time.Millisecond, 1, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 
@@ -381,7 +381,7 @@ func TestWorker_MultipleWorkers(t *testing.T) {
 		ids = append(ids, job.ID)
 	}
 
-	w := NewWorker(q, registry, 10*time.Millisecond, 4)
+	w := NewWorker(q, registry, 10*time.Millisecond, 4, 0)
 	w.Start(context.Background())
 	defer w.Stop()
 

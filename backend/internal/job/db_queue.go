@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"fatelumen/backend/internal/pkg/logger"
@@ -104,6 +105,77 @@ func (q *DBQueue) UpdateStatus(ctx context.Context, id string, status Status, re
 
 		return tx.Model(&Job{}).Where("id = ?", id).Updates(updates).Error
 	})
+}
+
+func (q *DBQueue) ReclaimStale(ctx context.Context, staleThreshold time.Duration) (int, int, error) {
+	cutoff := time.Now().Add(-staleThreshold)
+	log := logger.FromCtx(ctx)
+
+	var reclaimed, failed int
+	err := q.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var jobs []Job
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("status = ? AND updated_at < ?", StatusProcessing, cutoff).
+			Find(&jobs).Error; err != nil {
+			log.Error("reclaim stale query failed", "err", err)
+			return err
+		}
+
+		for _, job := range jobs {
+			newAttempts := job.Attempts + 1
+			if job.Attempts < job.MaxAttempts {
+				result := fmt.Sprintf("reclaimed stale processing job (attempt %d/%d)", newAttempts, job.MaxAttempts)
+				if err := tx.Model(&Job{}).Where("id = ?", job.ID).Updates(map[string]interface{}{
+					"status":     StatusPending,
+					"attempts":   newAttempts,
+					"result":     result,
+					"updated_at": time.Now(),
+				}).Error; err != nil {
+					log.Error("reclaim stale update failed", "err", err, "job_id", job.ID)
+					return err
+				}
+				reclaimed++
+				log.Info("reclaimed stale processing job",
+					"job_id", job.ID,
+					"job_type", job.Type,
+					"attempts", newAttempts,
+					"max_attempts", job.MaxAttempts,
+				)
+			} else {
+				// TODO P2: 触发退款（调用 payment.PaymentProvider.Refund）并通知用户
+				result := fmt.Sprintf("stale job exceeded max attempts (%d/%d), requires manual refund for order: check payment events linked to this job", job.Attempts, job.MaxAttempts)
+				if err := tx.Model(&Job{}).Where("id = ?", job.ID).Updates(map[string]interface{}{
+					"status":     StatusFailed,
+					"result":     result,
+					"updated_at": time.Now(),
+				}).Error; err != nil {
+					log.Error("reclaim stale final-fail update failed", "err", err, "job_id", job.ID)
+					return err
+				}
+				failed++
+				log.Error("stale job permanently failed — manual refund required",
+					"job_id", job.ID,
+					"job_type", job.Type,
+					"attempts", job.Attempts,
+					"max_attempts", job.MaxAttempts,
+				)
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return 0, 0, err
+	}
+
+	if reclaimed > 0 || failed > 0 {
+		log.Info("reclaim stale completed",
+			"reclaimed", reclaimed,
+			"failed", failed,
+			"stale_threshold", staleThreshold.String(),
+		)
+	}
+	return reclaimed, failed, nil
 }
 
 func (q *DBQueue) Get(ctx context.Context, id string) (*Job, error) {

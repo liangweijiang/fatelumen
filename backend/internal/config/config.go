@@ -38,9 +38,10 @@ type Config struct {
 	Renderer    string
 	ChromiumPath string
 
-	JobQueue   string
-	JobWorkers int
+	JobQueue          string
+	JobWorkers        int
 	JobPollIntervalMs int
+	JobStaleThresholdMinutes int
 
 	Notifier    string
 	ResendAPIKey string
@@ -125,6 +126,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("JOB_QUEUE", "goroutine")
 	viper.SetDefault("JOB_WORKERS", 4)
 	viper.SetDefault("JOB_POLL_INTERVAL_MS", 1000)
+	viper.SetDefault("JOB_STALE_THRESHOLD_MINUTES", 5)
 	viper.SetDefault("NOTIFIER", "noop")
 	viper.SetDefault("LLM_PROVIDER", "deepseek")
 	viper.SetDefault("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1")
@@ -175,6 +177,7 @@ func Load() (*Config, error) {
 		JobQueue:   viper.GetString("JOB_QUEUE"),
 		JobWorkers: viper.GetInt("JOB_WORKERS"),
 		JobPollIntervalMs: viper.GetInt("JOB_POLL_INTERVAL_MS"),
+		JobStaleThresholdMinutes: viper.GetInt("JOB_STALE_THRESHOLD_MINUTES"),
 
 		Notifier:    viper.GetString("NOTIFIER"),
 		ResendAPIKey: viper.GetString("RESEND_API_KEY"),

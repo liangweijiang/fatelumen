@@ -16,16 +16,18 @@ const (
 
 // Worker 异步任务消费者。
 type Worker struct {
-	q          Queue
-	registry   *HandlerRegistry
-	interval   time.Duration
-	numWorkers int
-	wg         sync.WaitGroup
-	cancel     context.CancelFunc
+	q              Queue
+	registry       *HandlerRegistry
+	interval       time.Duration
+	numWorkers     int
+	staleThreshold time.Duration
+	wg             sync.WaitGroup
+	cancel         context.CancelFunc
 }
 
 // NewWorker 创建 Worker。interval 为 0 时用默认 1s，workers 为 0 时用默认 3。
-func NewWorker(q Queue, registry *HandlerRegistry, interval time.Duration, workers int) *Worker {
+// staleThreshold 为 0 时跳过启动补偿。
+func NewWorker(q Queue, registry *HandlerRegistry, interval time.Duration, workers int, staleThreshold time.Duration) *Worker {
 	if interval <= 0 {
 		interval = defaultPollInterval
 	}
@@ -33,15 +35,29 @@ func NewWorker(q Queue, registry *HandlerRegistry, interval time.Duration, worke
 		workers = defaultWorkerCount
 	}
 	return &Worker{
-		q:          q,
-		registry:   registry,
-		interval:   interval,
-		numWorkers: workers,
+		q:              q,
+		registry:       registry,
+		interval:       interval,
+		numWorkers:     workers,
+		staleThreshold: staleThreshold,
 	}
 }
 
-// Start 启动 N 个 goroutine 消费队列。
+// Start 启动 N 个 goroutine 消费队列。先执行 stale job 补偿，再启动消费者。
 func (w *Worker) Start(ctx context.Context) {
+	if w.staleThreshold > 0 {
+		reclaimed, failed, err := w.q.ReclaimStale(ctx, w.staleThreshold)
+		if err != nil {
+			logger.FromCtx(ctx).Error("reclaim stale jobs failed", "err", err)
+		} else if reclaimed > 0 || failed > 0 {
+			logger.FromCtx(ctx).Info("reclaim stale jobs completed",
+				"reclaimed", reclaimed,
+				"failed", failed,
+				"stale_threshold", w.staleThreshold.String(),
+			)
+		}
+	}
+
 	ctx, w.cancel = context.WithCancel(ctx)
 	for i := 0; i < w.numWorkers; i++ {
 		w.wg.Add(1)

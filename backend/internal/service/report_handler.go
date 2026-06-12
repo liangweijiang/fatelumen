@@ -77,6 +77,16 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (string, error) 
 		locale = "en"
 	}
 
+	// 幂等保护：report 已完成则直接返回已有结果，避免重复生成。
+	// 场景：进程崩溃后 ReclaimStale 将孤儿 job 重置为 pending 重新调度，
+	// 但原 handler 已达成 done 状态（report 已写库），此时无需重新跑全链路。
+	existingReport, reportErr := h.reportRepo.GetByID(reportID, userID)
+	if reportErr == nil && existingReport != nil && existingReport.Status == "done" {
+		logger.FromCtx(ctx).Info("report already completed, idempotent skip",
+			"report_id", reportID)
+		return existingReport.PDFURL, nil
+	}
+
 	// 2. 取 Profile → bazi.Calculate 排盘（确定性，P1）
 	profile, err := h.profileRepo.FindByID(profileID)
 	if err != nil {
