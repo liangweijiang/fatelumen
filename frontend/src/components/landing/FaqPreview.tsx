@@ -23,11 +23,11 @@ export function FaqPreview({ locale }: { locale: string }) {
   ];
 
   return (
-    <section id="faq" className="px-0 py-24 max-md:py-[68px]">
+    <section id="faq" className="px-0 py-[120px] max-md:py-[80px]">
       <div className="mx-auto max-w-[var(--maxw)] px-7">
-        <div ref={headRef} className="reveal mx-auto mb-[60px] max-w-[620px] text-center">
+        <div ref={headRef} className="reveal mx-auto mb-[72px] max-w-[620px] text-center">
           <span className="mb-[18px] block text-xs font-medium tracking-[3px] uppercase text-[var(--ink-faint)]">{t("eyebrow")}</span>
-          <h2 className="mb-4 font-[var(--serif)] text-[44px] font-medium leading-[1.14] tracking-[-.3px] max-md:text-[32px]">{t("title")}</h2>
+          <h2 className="mb-5 font-[var(--serif)] text-[44px] font-medium leading-[1.18] tracking-[-.3px] max-md:text-[32px]">{t("title")}</h2>
         </div>
         <div ref={faqRef} className="reveal mx-auto max-w-[740px] border-t" style={{ borderColor: "var(--line)" }}>
           {items.map((item, i) => (

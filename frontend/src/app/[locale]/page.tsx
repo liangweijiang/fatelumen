@@ -1,5 +1,5 @@
 import { Hero } from "@/components/landing/Hero";
-import { TrustBar } from "@/components/landing/TrustBar";
+import { TrustBar, GoldDivider } from "@/components/landing/TrustBar";
 import { HowItWorks } from "@/components/landing/HowItWorks";
 import { SampleReport } from "@/components/landing/SampleReport";
 import { Pricing } from "@/components/landing/Pricing";
@@ -11,10 +11,15 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   return (
     <>
       <Hero />
+      <GoldDivider />
       <TrustBar />
+      <GoldDivider />
       <HowItWorks />
+      <GoldDivider />
       <SampleReport />
+      <GoldDivider />
       <Pricing />
+      <GoldDivider />
       <FaqPreview locale={locale} />
       <CtaBand />
     </>

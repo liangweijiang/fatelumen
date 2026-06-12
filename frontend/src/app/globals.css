@@ -15,12 +15,17 @@
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
     font-size: 16px;
+    /* warm uneven tint + four-corner vignette */
     background-image:
-      radial-gradient(circle at 15% 10%, rgba(201,162,39,.05), transparent 40%),
-      radial-gradient(circle at 85% 90%, rgba(92,112,96,.04), transparent 40%);
+      radial-gradient(ellipse at 30% 20%, rgba(201,162,39,.04), transparent 50%),
+      radial-gradient(ellipse at 70% 80%, rgba(168,133,26,.03), transparent 50%),
+      radial-gradient(ellipse at 0% 0%, rgba(26,23,21,.06), transparent 70%),
+      radial-gradient(ellipse at 100% 0%, rgba(26,23,21,.04), transparent 70%),
+      radial-gradient(ellipse at 0% 100%, rgba(26,23,21,.05), transparent 70%),
+      radial-gradient(ellipse at 100% 100%, rgba(26,23,21,.04), transparent 70%);
   }
 
-  /* Paper grain texture overlay */
+  /* Fine grain layer (existing, bumped opacity) */
   body::before {
     content: "";
     position: fixed;
@@ -28,7 +33,18 @@
     z-index: 1;
     pointer-events: none;
     opacity: 0.4;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+  }
+
+  /* Coarse fiber layer (new second layer) */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.5;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='0.04'/%3E%3C/svg%3E");
   }
 
   h1, h2, h3, h4 {
@@ -55,25 +71,36 @@
 }
 
 @layer components {
+  /* ── Gold gradient button (replaces solid gold) ── */
   .btn-gold {
-    background: var(--gold);
+    background: var(--gold-grad);
     color: #fff;
-    box-shadow: 0 1px 2px rgba(168,133,26,.3);
+    border: none;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.18),
+      inset 0 -2px 4px rgba(0,0,0,.08),
+      0 1px 3px rgba(168,133,26,.25);
+    transition: all .2s ease;
   }
   .btn-gold:hover {
-    background: var(--gold-deep);
+    background: linear-gradient(135deg, #b08b22 0%, #927015 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(168,133,26,.28);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,.22),
+      inset 0 -3px 6px rgba(0,0,0,.12),
+      0 6px 18px rgba(168,133,26,.22);
   }
+
   .btn-ghost {
     background: transparent;
     color: var(--ink);
-    border-color: var(--line);
+    border: 1px solid var(--line);
   }
   .btn-ghost:hover {
     border-color: var(--ink-faint);
     background: var(--bg-card);
   }
+
   .btn-text {
     background: transparent;
     color: var(--ink-soft);
@@ -84,5 +111,45 @@
 
   .featured-plan:hover {
     box-shadow: 0 0 0 1px var(--gold), 0 18px 40px -26px rgba(168,133,26,.5) !important;
+  }
+
+  /* ── Embossed gold text ── */
+  .gold-embossed {
+    text-shadow: var(--gold-text-shadow);
+  }
+
+  /* ── Gold section divider ── */
+  .gold-divider {
+    width: 100%;
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 0 28px;
+    position: relative;
+    z-index: 2;
+  }
+  .gold-divider::before {
+    content: "";
+    display: block;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--gold-deep) 20%, var(--gold-deep) 50%, var(--gold-deep) 80%, transparent 100%);
+    opacity: 0.3;
+  }
+  .gold-divider::after {
+    content: "◆";
+    display: block;
+    text-align: center;
+    font-size: 8px;
+    color: var(--gold-deep);
+    opacity: 0.35;
+    margin-top: -1px;
+    line-height: 0;
+  }
+
+  /* ── Ancient double-border frame ── */
+  .ancient-frame {
+    border: 1px solid var(--line);
+    box-shadow:
+      inset 0 0 0 3px var(--bg-card),
+      inset 0 0 0 4px var(--line-soft);
   }
 }
