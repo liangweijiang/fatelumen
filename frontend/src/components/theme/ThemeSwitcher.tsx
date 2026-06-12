@@ -3,23 +3,51 @@
 import { THEMES } from "@/lib/theme/themes";
 import { useThemeStore } from "@/lib/theme/useThemeStore";
 import { useTranslations } from "next-intl";
+import { ChevronDown, Check, Lock } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 export default function ThemeSwitcher() {
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
   const t = useTranslations();
 
+  const current = THEMES.find((th) => th.id === theme);
+
   return (
-    <select
-      value={theme}
-      onChange={(e) => setTheme(e.target.value)}
-      className="rounded border border-[var(--line)] bg-[var(--bg-card)] px-2 py-1 text-xs text-[var(--ink-soft)]"
-    >
-      {THEMES.map((th) => (
-        <option key={th.id} value={th.id} disabled={!th.available}>
-          {t(th.nameKey)}{th.available ? "" : ` (${t("theme.comingSoon")})`}
-        </option>
-      ))}
-    </select>
+    <DropdownMenu>
+      <DropdownMenuTrigger className="locale-theme-trigger">
+        {current ? t(current.nameKey) : theme}
+        <ChevronDown size={14} color="var(--ink-faint)" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {THEMES.map((th) => (
+          <DropdownMenuItem
+            key={th.id}
+            disabled={!th.available}
+            onClick={() => th.available && setTheme(th.id)}
+            className={theme === th.id ? "font-semibold" : ""}
+          >
+            <span className="flex-1">
+              {t(th.nameKey)}
+              {!th.available && (
+                <span className="ml-2 text-xs" style={{ color: "var(--ink-faint)" }}>
+                  Coming soon
+                </span>
+              )}
+            </span>
+            {theme === th.id ? (
+              <Check size={14} color="var(--gold-deep)" />
+            ) : !th.available ? (
+              <Lock size={12} color="var(--ink-faint)" />
+            ) : null}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

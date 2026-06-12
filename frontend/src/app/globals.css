@@ -9,46 +9,37 @@
   }
 
   body {
-    font-family: var(--sans), "Inter", -apple-system, sans-serif;
+    font-family: var(--body), "Noto Serif SC", Georgia, serif;
     color: var(--ink);
     background: var(--bg);
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
     font-size: 16px;
-    /* warm uneven tint + four-corner vignette */
-    background-image:
-      radial-gradient(ellipse at 30% 20%, rgba(201,162,39,.04), transparent 50%),
-      radial-gradient(ellipse at 70% 80%, rgba(168,133,26,.03), transparent 50%),
-      radial-gradient(ellipse at 0% 0%, rgba(26,23,21,.06), transparent 70%),
-      radial-gradient(ellipse at 100% 0%, rgba(26,23,21,.04), transparent 70%),
-      radial-gradient(ellipse at 0% 100%, rgba(26,23,21,.05), transparent 70%),
-      radial-gradient(ellipse at 100% 100%, rgba(26,23,21,.04), transparent 70%);
   }
 
-  /* Fine grain layer (existing, bumped opacity) */
+  /* Paper grain: single layer multiply, always on top of bg */
   body::before {
     content: "";
     position: fixed;
     inset: 0;
-    z-index: 1;
+    z-index: 0;
     pointer-events: none;
-    opacity: 0.4;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E");
+    mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.10'/%3E%3C/svg%3E");
   }
 
-  /* Coarse fiber layer (new second layer) */
+  /* Vignette: radial dark corners */
   body::after {
     content: "";
     position: fixed;
     inset: 0;
-    z-index: 1;
+    z-index: 0;
     pointer-events: none;
-    opacity: 0.5;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.4' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='0.04'/%3E%3C/svg%3E");
+    background-image: radial-gradient(ellipse at 50% 50%, transparent 55%, oklch(20% 0.02 60 / 0.10) 100%);
   }
 
   h1, h2, h3, h4 {
-    font-family: var(--serif), "Playfair Display", Georgia, serif;
+    font-family: var(--serif), "Noto Serif SC", "Songti SC", serif;
   }
   a {
     color: inherit;
@@ -71,24 +62,22 @@
 }
 
 @layer components {
-  /* ── Gold gradient button (replaces solid gold) ── */
+  /* ── Matte gold button ── */
   .btn-gold {
-    background: var(--gold-grad);
+    background: var(--gold-matte);
     color: #fff;
     border: none;
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,.18),
-      inset 0 -2px 4px rgba(0,0,0,.08),
-      0 1px 3px rgba(168,133,26,.25);
+      inset 0 1px 0 oklch(85% 0.06 88 / 0.6),
+      inset 0 -2px 4px oklch(40% 0.08 60 / 0.25);
     transition: all .2s ease;
   }
   .btn-gold:hover {
-    background: linear-gradient(135deg, #b08b22 0%, #927015 100%);
+    background: var(--gold-deep);
     transform: translateY(-1px);
     box-shadow:
-      inset 0 0 0 1px rgba(255,255,255,.22),
-      inset 0 -3px 6px rgba(0,0,0,.12),
-      0 6px 18px rgba(168,133,26,.22);
+      inset 0 1px 0 oklch(85% 0.06 88 / 0.5),
+      inset 0 -3px 8px oklch(40% 0.08 60 / 0.35);
   }
 
   .btn-ghost {
@@ -110,12 +99,13 @@
   }
 
   .featured-plan:hover {
-    box-shadow: 0 0 0 1px var(--gold), 0 18px 40px -26px rgba(168,133,26,.5) !important;
+    box-shadow: 0 0 0 1px var(--gold), 0 18px 40px -26px oklch(60% 0.08 80 / 0.5) !important;
   }
 
   /* ── Embossed gold text ── */
   .gold-embossed {
-    text-shadow: var(--gold-text-shadow);
+    color: var(--gold-deep);
+    text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6);
   }
 
   /* ── Gold section divider ── */
@@ -151,5 +141,36 @@
     box-shadow:
       inset 0 0 0 3px var(--bg-card),
       inset 0 0 0 4px var(--line-soft);
+  }
+
+  /* ── Locale + theme dropdown trigger ── */
+  .locale-theme-cluster {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .locale-theme-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--bg-card);
+    font-family: var(--serif), "Noto Serif SC", serif;
+    font-size: 14px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: all 150ms ease;
+    outline: none;
+  }
+  .locale-theme-trigger:hover {
+    border-color: var(--gold);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px oklch(60% 0.08 80 / 0.18);
+  }
+  .locale-theme-trigger:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
   }
 }

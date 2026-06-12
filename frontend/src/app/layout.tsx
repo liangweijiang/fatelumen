@@ -1,20 +1,21 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Inter } from "next/font/google";
+import { Fraunces, Newsreader } from "next/font/google";
 import "./globals.css";
 import "@/styles/themes.css";
 
-const playfair = Playfair_Display({
+const fraunces = Fraunces({
   subsets: ["latin"],
-  variable: "--font-serif",
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-fraunces",
+  weight: ["400", "500", "600"],
   style: ["normal", "italic"],
   display: "swap",
 });
 
-const inter = Inter({
+const newsreader = Newsreader({
   subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["300", "400", "500", "600"],
+  variable: "--font-newsreader",
+  weight: ["400", "500"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
@@ -33,7 +34,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="kraft"
-      className={`${playfair.variable} ${inter.variable}`}
+      className={`${fraunces.variable} ${newsreader.variable}`}
     >
       <head>
         <script
@@ -43,9 +44,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className="font-sans"
         style={{
-          fontFamily: "var(--sans)",
           background: "var(--bg)",
           color: "var(--ink)",
         }}

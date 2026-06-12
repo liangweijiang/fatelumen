@@ -1,97 +1,108 @@
-/* FateLumen Theme Engine — token-driven semantic CSS variables */
+/* FateLumen Theme Engine — token-driven OKLCH semantic CSS variables */
 /* All components MUST reference these variables. Never hardcode hex/rgb. */
 
 [data-theme="kraft"] {
-  --bg: #ede8e0;
-  --bg-soft: #e4ddd2;
-  --bg-card: #f5f1ea;
-  --bg-dark: #181410;
-  --ink: #1a1715;
-  --ink-soft: #5a544c;
-  --ink-faint: #8a8178;
-  --line: #cec6b8;
-  --line-soft: #ddd6ca;
-  --gold: #c9a227;
-  --gold-deep: #a8851a;
-  --gold-soft: #ece2c4;
-  --gold-matte: #b8941f;
-  --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15);
-  --seal-red: #a83232;
-  --jade: #5c7060;
-  --wuxing-wood: #5c7060;
-  --wuxing-fire: #b8473e;
-  --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a;
-  --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif;
-  --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70);
+  --bg-soft: oklch(89% 0.014 68);
+  --bg-card: oklch(95% 0.01 72);
+  --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55);
+  --ink-soft: oklch(45% 0.012 58);
+  --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62);
+  --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85);
+  --gold-deep: oklch(58% 0.12 80);
+  --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82);
+  --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6);
+  --seal-red: oklch(48% 0.16 28);
+  --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160);
+  --wuxing-fire: oklch(55% 0.15 28);
+  --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85);
+  --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px;
   --maxw: 1120px;
 }
 
 /* theme2–theme6: reserved slots — values copied from kraft as placeholder */
 [data-theme="theme2"] {
-  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
-  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
-  --line: #cec6b8; --line-soft: #ddd6ca;
-  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4;
-  --gold-matte: #b8941f; --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15); --seal-red: #a83232; --jade: #5c7060;
-  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px; --maxw: 1120px;
 }
 
 [data-theme="theme3"] {
-  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
-  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
-  --line: #cec6b8; --line-soft: #ddd6ca;
-  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4;
-  --gold-matte: #b8941f; --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15); --seal-red: #a83232; --jade: #5c7060;
-  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px; --maxw: 1120px;
 }
 
 [data-theme="theme4"] {
-  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
-  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
-  --line: #cec6b8; --line-soft: #ddd6ca;
-  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4;
-  --gold-matte: #b8941f; --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15); --seal-red: #a83232; --jade: #5c7060;
-  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px; --maxw: 1120px;
 }
 
 [data-theme="theme5"] {
-  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
-  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
-  --line: #cec6b8; --line-soft: #ddd6ca;
-  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4;
-  --gold-matte: #b8941f; --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15); --seal-red: #a83232; --jade: #5c7060;
-  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px; --maxw: 1120px;
 }
 
 [data-theme="theme6"] {
-  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
-  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
-  --line: #cec6b8; --line-soft: #ddd6ca;
-  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4;
-  --gold-matte: #b8941f; --gold-grad: linear-gradient(135deg, #c9a227 0%, #a8851a 100%);
-  --gold-text-shadow: 0 1px 0 rgba(168,133,26,.15); --seal-red: #a83232; --jade: #5c7060;
-  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
-  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
-  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
+  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
+  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
+  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
+  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
+  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
+  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
+  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
   --radius: 10px; --maxw: 1120px;
 }

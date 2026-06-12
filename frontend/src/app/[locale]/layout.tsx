@@ -64,8 +64,10 @@ export default async function LocaleLayout({
               <Link href={`/${locale}/cases`} className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("cases")}</Link>
             </nav>
             <div className="flex items-center gap-4">
-              <LanguageSwitcher currentLocale={locale} />
-              <ThemeSwitcher />
+              <div className="locale-theme-cluster">
+                <LanguageSwitcher currentLocale={locale} />
+                <ThemeSwitcher />
+              </div>
               <Link
                 href={`/${locale}/login`}
                 className="inline-flex h-9 items-center gap-2 rounded-lg border border-[var(--line)] px-4 text-[13px] font-medium text-[var(--ink-soft)] transition-all hover:border-[var(--ink-faint)] hover:bg-[var(--bg-card)]"
