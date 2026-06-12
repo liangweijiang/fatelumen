@@ -1,54 +1,63 @@
 import type { Metadata } from "next";
-import { Noto_Serif_SC, Cinzel } from "next/font/google";
-import localFont from "next/font/local";
-import "./globals.css";
-import { cn } from "@/lib/utils";
+import { Playfair_Display, Inter } from "next/font/google";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
+import { notFound } from "next/navigation";
+import { routing } from "@/i18n/routing";
+import ThemeProvider from "@/components/theme/ThemeProvider";
 import Providers from "./providers";
+import "./globals.css";
+import "@/styles/themes.css";
 
-const notoSerif = Noto_Serif_SC({
+const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-serif",
-  weight: ["400", "700", "900"],
+  weight: ["400", "500", "600", "700"],
+  style: ["normal", "italic"],
   display: "swap",
 });
 
-const cinzel = Cinzel({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["400", "700", "900"],
-  display: "swap",
-});
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
   variable: "--font-sans",
-  weight: "100 900",
+  weight: ["300", "400", "500", "600"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "FateLumen",
-  description:
-    "洞悉命理玄机，照亮人生前路。基于传统八字命理学的深度命盘推演与解读。",
+  description: "Decode your Chinese birth chart — precise Bazi readings, beautifully explained.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode;
+  params: Promise<{ locale: string }>;
 }>) {
+  const { locale } = await params;
+  if (!routing.locales.includes(locale as "en" | "zh" | "ja" | "ko")) {
+    notFound();
+  }
+  const messages = await getMessages();
+
   return (
-    <html
-      lang="zh-CN"
-      className={cn(
-        "dark font-sans",
-        notoSerif.variable,
-        cinzel.variable,
-        geistSans.variable
-      )}
-      suppressHydrationWarning
-    >
-      <body className="min-h-screen bg-background text-foreground antialiased">
-        <Providers>{children}</Providers>
+    <html lang={locale} data-theme="kraft" className={`${playfair.variable} ${inter.variable}`}>
+      <head>
+        {/* 防闪烁 script：先读 localStorage 还原主题 */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t=localStorage.getItem('fatelumen-theme');if(t){try{var p=JSON.parse(t);if(p.state&&p.state.theme)document.documentElement.setAttribute('data-theme',p.state.theme);}catch(e){}}})();`,
+          }}
+        />
+      </head>
+      <body className="font-sans" style={{ fontFamily: "var(--sans)", background: "var(--bg)", color: "var(--ink)" }}>
+        <NextIntlClientProvider messages={messages}>
+          <ThemeProvider>
+            <Providers>{children}</Providers>
+          </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

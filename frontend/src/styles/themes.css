@@ -1,0 +1,83 @@
+/* FateLumen Theme Engine — token-driven semantic CSS variables */
+/* All components MUST reference these variables. Never hardcode hex/rgb. */
+
+[data-theme="kraft"] {
+  --bg: #ede8e0;
+  --bg-soft: #e4ddd2;
+  --bg-card: #f5f1ea;
+  --bg-dark: #181410;
+  --ink: #1a1715;
+  --ink-soft: #5a544c;
+  --ink-faint: #8a8178;
+  --line: #cec6b8;
+  --line-soft: #ddd6ca;
+  --gold: #c9a227;
+  --gold-deep: #a8851a;
+  --gold-soft: #ece2c4;
+  --jade: #5c7060;
+  --wuxing-wood: #5c7060;
+  --wuxing-fire: #b8473e;
+  --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a;
+  --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px;
+  --maxw: 1120px;
+}
+
+/* theme2–theme6: reserved slots — values copied from kraft as placeholder */
+[data-theme="theme2"] {
+  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
+  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
+  --line: #cec6b8; --line-soft: #ddd6ca;
+  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4; --jade: #5c7060;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px; --maxw: 1120px;
+}
+
+[data-theme="theme3"] {
+  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
+  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
+  --line: #cec6b8; --line-soft: #ddd6ca;
+  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4; --jade: #5c7060;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px; --maxw: 1120px;
+}
+
+[data-theme="theme4"] {
+  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
+  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
+  --line: #cec6b8; --line-soft: #ddd6ca;
+  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4; --jade: #5c7060;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px; --maxw: 1120px;
+}
+
+[data-theme="theme5"] {
+  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
+  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
+  --line: #cec6b8; --line-soft: #ddd6ca;
+  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4; --jade: #5c7060;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px; --maxw: 1120px;
+}
+
+[data-theme="theme6"] {
+  --bg: #ede8e0; --bg-soft: #e4ddd2; --bg-card: #f5f1ea; --bg-dark: #181410;
+  --ink: #1a1715; --ink-soft: #5a544c; --ink-faint: #8a8178;
+  --line: #cec6b8; --line-soft: #ddd6ca;
+  --gold: #c9a227; --gold-deep: #a8851a; --gold-soft: #ece2c4; --jade: #5c7060;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #a8851a;
+  --wuxing-metal: #9a8f7a; --wuxing-water: #3f5a6b;
+  --serif: 'Playfair Display', Georgia, serif; --sans: 'Inter', -apple-system, sans-serif;
+  --radius: 10px; --maxw: 1120px;
+}
