@@ -1,6 +1,8 @@
+"use client";
+
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useReveal } from "./useReveal";
+import { useReveal } from "@/hooks/useReveal";
 
 export function Hero() {
   const t = useTranslations("hero");

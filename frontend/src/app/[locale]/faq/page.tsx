@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useReveal } from "@/components/landing/useReveal";
+import { useReveal } from "@/hooks/useReveal";
 
 export default function FaqPage() {
   const t = useTranslations("faqPage");
@@ -77,7 +77,7 @@ export default function FaqPage() {
                     {activeCat === "basics" ? [`What is Bazi?`, `What are the Four Pillars?`, `What is a Day Master?`, `What are the Five Elements?`, `What are Heavenly Stems and Earthly Branches?`][n - 1] : `${cats.find((c) => c.key === activeCat)?.label} — Question ${n}`}
                     <span className="shrink-0 font-sans text-[var(--ink-faint)]" style={{ transform: openMap[key] ? "rotate(45deg)" : "" }}>＋</span>
                   </button>
-                  <div className="overflow-hidden transition-[max-height] duration-[280ms]" style={{ maxHeight: openMap[key] ? "200px" : "0" }}>
+                  <div className="overflow-hidden transition-[max-height] duration-300" style={{ maxHeight: openMap[key] ? "200px" : "0" }}>
                     <p className="max-w-[92%] pb-5 text-[14px] font-light" style={{ color: "var(--ink-soft)" }}>
                       {activeCat === "basics" ? `A detailed explanation about ${{ 0: "Bazi fundamentals", 1: "the Four Pillars structure", 2: "Day Master concepts", 3: "Five Elements theory", 4: "Stems and Branches" }[n - 1]}.` : "This question explores the topic in plain, accessible language. A comprehensive answer will be added here."}
                     </p>

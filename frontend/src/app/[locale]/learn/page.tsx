@@ -1,5 +1,7 @@
+"use client";
+
 import { useTranslations } from "next-intl";
-import { useReveal } from "@/components/landing/useReveal";
+import { useReveal } from "@/hooks/useReveal";
 
 const learnItems = [
   { key: "what-is-bazi", titleKey: "What is Bazi / Four Pillars" },

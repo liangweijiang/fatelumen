@@ -1,5 +1,7 @@
+"use client";
+
 import { useTranslations } from "next-intl";
-import { useReveal } from "./useReveal";
+import { useReveal } from "@/hooks/useReveal";
 import Link from "next/link";
 
 export function CtaBand() {

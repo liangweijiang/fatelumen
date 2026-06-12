@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useReveal } from "./useReveal";
+import { useReveal } from "@/hooks/useReveal";
 import Link from "next/link";
 
 export function FaqPreview({ locale }: { locale: string }) {
@@ -39,7 +39,7 @@ export function FaqPreview({ locale }: { locale: string }) {
                 {item.q}
                 <span className="shrink-0 font-sans text-[var(--ink-faint)] transition-transform duration-250" style={{ transform: openIdx === i ? "rotate(45deg)" : "" }}>＋</span>
               </button>
-              <div className="overflow-hidden transition-[max-height] duration-[280ms]" style={{ maxHeight: openIdx === i ? "200px" : "0" }}>
+              <div className="overflow-hidden transition-[max-height] duration-300" style={{ maxHeight: openIdx === i ? "200px" : "0" }}>
                 <p className="max-w-[92%] pb-6 text-[15px] font-light text-[var(--ink-soft)]">{item.a}</p>
               </div>
             </div>
