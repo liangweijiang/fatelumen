@@ -50,6 +50,8 @@ func (r *ChromedpRenderer) Render(ctx context.Context, html string, format Forma
 }
 
 func (r *ChromedpRenderer) renderPNG(ctx context.Context, html string) ([]byte, error) {
+	// --no-sandbox + --disable-dev-shm-usage 是容器内以非 root 运行 headless Chrome 的标准做法。
+	// 容器本身已是隔离边界，关闭沙箱不会引入额外安全风险。
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
@@ -95,6 +97,7 @@ func (r *ChromedpRenderer) renderPNG(ctx context.Context, html string) ([]byte, 
 }
 
 func (r *ChromedpRenderer) renderPDF(ctx context.Context, html string) ([]byte, error) {
+	// --no-sandbox + --disable-dev-shm-usage 是容器内以非 root 运行 headless Chrome 的标准做法。
 	opts := append(chromedp.DefaultExecAllocatorOptions[:],
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
