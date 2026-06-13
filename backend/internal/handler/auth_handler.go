@@ -113,3 +113,46 @@ func (h *AuthHandler) UpdateMe(c *gin.Context) {
 func (h *AuthHandler) ProvidersList(c *gin.Context) {
 	response.OK(c, gin.H{"providers": h.authReg.Enabled()})
 }
+
+// registerRequest 邮箱注册请求体。
+type registerRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Name     string `json:"name"`
+}
+
+// loginRequest 邮箱登录请求体。
+type loginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+// Register POST /api/v1/auth/register — 邮箱密码注册。
+func (h *AuthHandler) Register(c *gin.Context) {
+	var req registerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.Register(c.Request.Context(), req.Email, req.Password, req.Name)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, result)
+}
+
+// Login POST /api/v1/auth/login — 邮箱密码登录。
+func (h *AuthHandler) Login(c *gin.Context) {
+	var req loginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.LoginByPassword(c.Request.Context(), req.Email, req.Password)
+	if err != nil {
+		response.Fail(c, response.CodeUnauthorized, err.Error())
+		return
+	}
+	response.OK(c, result)
+}

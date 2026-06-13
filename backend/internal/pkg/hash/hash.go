@@ -3,6 +3,8 @@ package hash
 import (
 	"crypto/sha256"
 	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 // CalcChartHash 计算 chart_hash = sha256(normalized birth info)。
@@ -12,4 +14,18 @@ func CalcChartHash(gender int8, calendarType int8, year, month, day, hour, minut
 		gender, calendarType, year, month, day, hour, minute, isLeap, timezone)
 	sum := sha256.Sum256([]byte(raw))
 	return fmt.Sprintf("%x", sum)
+}
+
+// HashPassword 用 bcrypt 对明文密码做哈希（默认 cost）。
+func HashPassword(plain string) (string, error) {
+	b, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(b), nil
+}
+
+// CheckPassword 校验明文密码与哈希是否匹配。
+func CheckPassword(hash, plain string) bool {
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain)) == nil
 }

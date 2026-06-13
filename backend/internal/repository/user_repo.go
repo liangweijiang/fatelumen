@@ -120,3 +120,32 @@ func (r *UserRepo) SetUserActive(id uint64, active bool) error {
 	return r.db.Model(&model.User{}).Where("id = ?", id).
 		Update("active", active).Error
 }
+
+// FindByEmail 按 email 查找用户（邮箱密码登录用）。
+func (r *UserRepo) FindByEmail(email string) (*model.User, error) {
+	var user model.User
+	err := r.db.Where("email = ?", email).First(&user).Error
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// CreateUser 创建一个新用户（邮箱注册用），并写入一条 email identity。
+// 在同一事务里完成，保证用户与身份一致。
+func (r *UserRepo) CreateUser(user *model.User) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if user.Locale == "" {
+			user.Locale = "en"
+		}
+		if err := tx.Create(user).Error; err != nil {
+			return err
+		}
+		identity := &model.UserIdentity{
+			UserID:     user.ID,
+			Provider:   model.ProviderEmail,
+			ExternalID: user.Email,
+		}
+		return tx.Create(identity).Error
+	})
+}

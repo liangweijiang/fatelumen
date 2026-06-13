@@ -104,6 +104,8 @@ func Setup(app *App) *gin.Engine {
 			})
 			authGroup.GET("/google/callback", app.AuthHandler.GoogleCallback)
 			authGroup.GET("/providers", app.AuthHandler.ProvidersList)
+			authGroup.POST("/register", app.AuthHandler.Register)
+			authGroup.POST("/login", app.AuthHandler.Login)
 		}
 
 		// Webhook 路由（无需鉴权，依靠渠道签名字段验证身份）

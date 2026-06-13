@@ -11,6 +11,7 @@ import (
 
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/pkg/hash"
 	"fatelumen/backend/internal/pkg/jwt"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/repository"
@@ -212,4 +213,75 @@ func (s *AuthService) ensureAdminRole(user *model.User) {
 	}
 	user.Role = model.RoleAdmin
 	s.log.Info("user promoted to admin", "user_id", user.ID)
+}
+
+// Register 邮箱密码注册：校验邮箱未占用 → bcrypt 存哈希 → 建用户 → 自动提权（若命中 admin 列表）→ 签发 JWT。
+func (s *AuthService) Register(ctx context.Context, email, password, name string) (*LoginResult, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if email == "" || password == "" {
+		return nil, fmt.Errorf("email and password required")
+	}
+	if len(password) < 8 {
+		return nil, fmt.Errorf("password too short")
+	}
+	if _, err := s.userRepo.FindByEmail(email); err == nil {
+		return nil, fmt.Errorf("email already registered")
+	}
+	ph, err := hash.HashPassword(password)
+	if err != nil {
+		s.log.Warn("hash password failed", "err", err)
+		return nil, fmt.Errorf("internal error")
+	}
+	if name == "" {
+		name = email
+	}
+	user := &model.User{
+		Email:        email,
+		Name:         name,
+		PasswordHash: ph,
+		Locale:       "en",
+		Active:       true,
+	}
+	if err := s.userRepo.CreateUser(user); err != nil {
+		s.log.Warn("create user failed", "email", email, "err", err)
+		return nil, fmt.Errorf("create user failed")
+	}
+	s.ensureAdminRole(user)
+	return s.issueToken(user)
+}
+
+// LoginByPassword 邮箱密码登录：查用户 → 校验 bcrypt → 签发 JWT（单设备）。
+func (s *AuthService) LoginByPassword(ctx context.Context, email, password string) (*LoginResult, error) {
+	email = strings.ToLower(strings.TrimSpace(email))
+	user, err := s.userRepo.FindByEmail(email)
+	if err != nil {
+		return nil, fmt.Errorf("invalid email or password")
+	}
+	if user.PasswordHash == "" || !hash.CheckPassword(user.PasswordHash, password) {
+		return nil, fmt.Errorf("invalid email or password")
+	}
+	if !user.Active {
+		return nil, fmt.Errorf("account disabled")
+	}
+	s.ensureAdminRole(user)
+	return s.issueToken(user)
+}
+
+// issueToken 签发 JWT 并更新 current_token_id（单设备登录），抽出来给注册/登录复用。
+func (s *AuthService) issueToken(user *model.User) (*LoginResult, error) {
+	tokenID := genTokenID()
+	token, err := jwt.Generate(s.jwtSecret, s.jwtExpHrs, user.ID, tokenID)
+	if err != nil {
+		return nil, fmt.Errorf("jwt generation failed: %w", err)
+	}
+	if err := s.userRepo.UpdateCurrentToken(user.ID, tokenID); err != nil {
+		return nil, fmt.Errorf("update token id failed: %w", err)
+	}
+	return &LoginResult{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Name:      user.Name,
+		AvatarURL: user.AvatarURL,
+		Token:     token,
+	}, nil
 }
