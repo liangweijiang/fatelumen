@@ -63,7 +63,7 @@ export default function StickyHeader({ locale }: { locale: string }) {
               style={{ background: "var(--line-soft)" }}
             />
             <Link
-              href={`/${locale}/login`}
+              href={`/login?lang=${locale}`}
               className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
               style={{
                 background: "var(--gold-deep)",

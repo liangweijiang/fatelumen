@@ -155,7 +155,7 @@ export default function MobileDrawer({
 
         <div className="px-5 py-5">
           <Link
-            href={`/${locale}/login`}
+            href={`/login?lang=${locale}`}
             onClick={onClose}
             className="flex items-center justify-center w-full py-3.5 rounded-full text-[15px] font-[var(--serif)] font-medium transition-all hover:translate-y-[-1px] active:translate-y-0"
             style={{
