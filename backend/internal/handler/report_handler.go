@@ -141,7 +141,7 @@ func (h *ReportHandler) Get(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	unlocked := report.Paid || middleware.IsAdmin(c)
+	unlocked := report.Paid || middleware.IsAdmin(c) || middleware.IsUnlimited(c)
 	response.OK(c, buildReportDetail(report, unlocked))
 }
 

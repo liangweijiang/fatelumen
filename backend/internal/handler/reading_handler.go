@@ -39,6 +39,7 @@ func (h *ReadingHandler) CreateQuick(c *gin.Context) {
 		return
 	}
 	in.IsAdmin = middleware.IsAdmin(c)
+	in.IsUnlimited = middleware.IsUnlimited(c)
 
 	reading, err := h.svc.CreateQuick(c.Request.Context(), userID, in)
 	if err != nil {

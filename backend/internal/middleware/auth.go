@@ -43,7 +43,7 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 
 		// 单设备登录：比对 DB 中的 current_token_id
 		var user model.User
-		if err := m.db.Select("current_token_id, role, active").First(&user, claims.UserID).Error; err != nil {
+		if err := m.db.Select("current_token_id, role, active, unlimited").First(&user, claims.UserID).Error; err != nil {
 			response.Fail(c, response.CodeUnauthorized, "user not found")
 			c.Abort()
 			return
@@ -65,6 +65,7 @@ func (m *AuthMiddleware) Handler() gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("token_id", claims.TokenID)
 		c.Set("role", user.Role)
+		c.Set("unlimited", user.Unlimited)
 		c.Next()
 	}
 }
@@ -86,7 +87,7 @@ func (m *AuthMiddleware) OptionalHandler() gin.HandlerFunc {
 
 		// 单设备检查（可选鉴权时同样校验）
 		var user model.User
-		if err := m.db.Select("current_token_id, role, active").First(&user, claims.UserID).Error; err != nil {
+		if err := m.db.Select("current_token_id, role, active, unlimited").First(&user, claims.UserID).Error; err != nil {
 			c.Next()
 			return
 		}
@@ -102,6 +103,7 @@ func (m *AuthMiddleware) OptionalHandler() gin.HandlerFunc {
 		c.Set("user_id", claims.UserID)
 		c.Set("token_id", claims.TokenID)
 		c.Set("role", user.Role)
+		c.Set("unlimited", user.Unlimited)
 		c.Next()
 	}
 }
@@ -127,6 +129,16 @@ func GetRole(c *gin.Context) string {
 // IsAdmin 判断当前请求用户是否为管理员。
 func IsAdmin(c *gin.Context) bool {
 	return GetRole(c) == model.RoleAdmin
+}
+
+// IsUnlimited 判断当前请求用户是否为无限体验用户。
+func IsUnlimited(c *gin.Context) bool {
+	v, _ := c.Get("unlimited")
+	if v == nil {
+		return false
+	}
+	b, ok := v.(bool)
+	return ok && b
 }
 
 // JSONAbort 返回 JSON 并 abort。

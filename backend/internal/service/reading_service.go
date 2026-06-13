@@ -68,20 +68,21 @@ func NewReadingService(
 
 // CreateQuickInput 简单测算请求参数。
 type CreateQuickInput struct {
-	ProfileID uint64 `json:"profile_id"`
-	Locale    string `json:"locale"`
-	IsAdmin   bool   `json:"-"` // admin 豁免额度检查
+	ProfileID   uint64 `json:"profile_id"`
+	Locale      string `json:"locale"`
+	IsAdmin     bool   `json:"-"` // admin 豁免额度检查
+	IsUnlimited bool   `json:"-"` // 无限体验用户豁免额度检查
 }
 
 // CreateQuick 编排完整简单测算链路：额度→排盘→LLM→渲染→存储→落库。
 func (s *ReadingService) CreateQuick(ctx context.Context, userID uint64, in CreateQuickInput) (*model.Reading, error) {
-	// 1. 额度校验（admin 豁免）
-	if !in.IsAdmin {
+	// 1. 额度校验（admin / 无限体验用户豁免）
+	if in.IsAdmin || in.IsUnlimited {
+		logger.FromCtx(ctx).Info("quota bypassed", "user_id", userID, "is_admin", in.IsAdmin, "is_unlimited", in.IsUnlimited)
+	} else {
 		if err := s.quotaService.CheckAndConsume(ctx, userID); err != nil {
 			return nil, err
 		}
-	} else {
-		logger.FromCtx(ctx).Info("admin bypassed quota", "user_id", userID)
 	}
 
 	// 2. 取 Profile + 排盘（确定性，绝不走 LLM — P1）
