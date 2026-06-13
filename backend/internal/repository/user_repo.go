@@ -121,6 +121,11 @@ func (r *UserRepo) SetUserActive(id uint64, active bool) error {
 		Update("active", active).Error
 }
 
+func (r *UserRepo) SetUserUnlimited(id uint64, unlimited bool) error {
+	return r.db.Model(&model.User{}).Where("id = ?", id).
+		Update("unlimited", unlimited).Error
+}
+
 // FindByEmail 按 email 查找用户（邮箱密码登录用）。
 func (r *UserRepo) FindByEmail(email string) (*model.User, error) {
 	var user model.User

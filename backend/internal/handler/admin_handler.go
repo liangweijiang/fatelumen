@@ -20,6 +20,7 @@ type adminUserService interface {
 	ListUsers(ctx context.Context, keyword string, page, pageSize int) (*service.AdminUsersPage, error)
 	GetUserDetail(ctx context.Context, userID uint64) (*service.AdminUserDetail, error)
 	SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error
+	SetUserUnlimited(ctx context.Context, operatorID, targetUserID uint64, unlimited bool) error
 }
 
 type adminOrderService interface {
@@ -122,6 +123,35 @@ func (h *AdminHandler) SetActive(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"id": id, "active": body.Active})
+}
+
+// SetUnlimited PATCH /api/v1/admin/users/:id/unlimited
+func (h *AdminHandler) SetUnlimited(c *gin.Context) {
+	operatorID := middleware.GetUserID(c)
+	if operatorID == 0 {
+		response.Fail(c, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid user id")
+		return
+	}
+
+	var body struct {
+		Unlimited bool `json:"unlimited"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid request body")
+		return
+	}
+
+	if err := h.userSvc.SetUserUnlimited(c.Request.Context(), operatorID, id, body.Unlimited); err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"id": id, "unlimited": body.Unlimited})
 }
 
 // ListOrders GET /api/v1/admin/orders — 订单列表（支持筛选）。

@@ -19,6 +19,7 @@ type AdminUserItem struct {
 	Name      string    `json:"name"`
 	Role      string    `json:"role"`
 	Active    bool      `json:"active"`
+	Unlimited bool      `json:"unlimited"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -51,6 +52,7 @@ type adminUserStore interface {
 	ListUsers(keyword string, limit, offset int) ([]model.User, int64, error)
 	GetUserByID(id uint64) (*model.User, error)
 	SetUserActive(id uint64, active bool) error
+	SetUserUnlimited(id uint64, unlimited bool) error
 	ClearCurrentToken(userID uint64) error
 }
 
@@ -154,6 +156,24 @@ func (s *AdminUserService) SetUserActive(ctx context.Context, operatorID, target
 	return nil
 }
 
+// SetUserUnlimited 授予/取消用户的无限体验权限，带审计日志。
+func (s *AdminUserService) SetUserUnlimited(ctx context.Context, operatorID, targetUserID uint64, unlimited bool) error {
+	if err := s.userRepo.SetUserUnlimited(targetUserID, unlimited); err != nil {
+		logger.FromCtx(ctx).Error("admin set user unlimited failed",
+			"err", err,
+			"operator_id", operatorID,
+			"target_user_id", targetUserID,
+		)
+		return err
+	}
+	logger.FromCtx(ctx).Info("admin set user unlimited",
+		"operator_id", operatorID,
+		"target_user_id", targetUserID,
+		"unlimited", unlimited,
+	)
+	return nil
+}
+
 // ---------- helpers ----------
 
 // toAdminUserItem 将 model.User 转换为脱敏列表项。
@@ -164,6 +184,7 @@ func toAdminUserItem(u model.User) AdminUserItem {
 		Name:      u.Name,
 		Role:      u.Role,
 		Active:    u.Active,
+		Unlimited: u.Unlimited,
 		CreatedAt: u.CreatedAt,
 	}
 }

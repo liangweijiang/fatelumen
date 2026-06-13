@@ -13,6 +13,7 @@ export interface AdminUserItem {
   name: string;
   role: string;
   active: boolean;
+  unlimited: boolean;
   created_at: string;
 }
 
@@ -35,4 +36,8 @@ export async function fetchStats(): Promise<Stats> {
 export async function fetchUsers(keyword = "", page = 1, pageSize = 20): Promise<AdminUsersPage> {
   const { data } = await api.get("/admin/users", { params: { keyword, page, page_size: pageSize } });
   return unwrap<AdminUsersPage>(data);
+}
+
+export async function setUserUnlimited(id: number, unlimited: boolean): Promise<void> {
+  await api.patch(`/admin/users/${id}/unlimited`, { unlimited });
 }

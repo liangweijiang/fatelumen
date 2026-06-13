@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { fetchUsers, type AdminUserItem } from "@/lib/admin-api";
+import { fetchUsers, setUserUnlimited, type AdminUserItem } from "@/lib/admin-api";
 
 export default function AdminUsers() {
   const [items, setItems] = useState<AdminUserItem[]>([]);
@@ -19,6 +19,26 @@ export default function AdminUsers() {
   }, [keyword, page]);
 
   useEffect(() => { load(); }, [load]);
+
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const toggleUnlimited = useCallback(async (u: AdminUserItem) => {
+    const next = !u.unlimited;
+    const tip = next
+      ? `确认为「${u.name}」开启无限体验？该命主将无须额度、无须付费即可遍览全部命理推演。`
+      : `确认收回「${u.name}」的无限体验？`;
+    if (!window.confirm(tip)) return;
+    setBusyId(u.id);
+    setErr("");
+    try {
+      await setUserUnlimited(u.id, next);
+      setItems((prev) => prev.map((it) => (it.id === u.id ? { ...it, unlimited: next } : it)));
+    } catch (e: unknown) {
+      setErr((e as { message?: string })?.message || "授权未能落定");
+    } finally {
+      setBusyId(null);
+    }
+  }, []);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
@@ -46,6 +66,7 @@ export default function AdminUsers() {
               <th className="px-4 py-3 text-left font-medium">称谓</th>
               <th className="px-4 py-3 text-left font-medium">身份</th>
               <th className="px-4 py-3 text-left font-medium">状态</th>
+              <th className="px-4 py-3 text-left font-medium">无限体验</th>
               <th className="px-4 py-3 text-left font-medium">入阁时间</th>
             </tr>
           </thead>
@@ -57,11 +78,24 @@ export default function AdminUsers() {
                 <td className="px-4 py-3">{u.name}</td>
                 <td className="px-4 py-3">{u.role === "admin" ? "阁主" : "命主"}</td>
                 <td className="px-4 py-3">{u.active ? "在册" : "已封"}</td>
+                <td className="px-4 py-3">
+                  <button
+                    type="button"
+                    disabled={busyId === u.id}
+                    onClick={() => toggleUnlimited(u)}
+                    className="rounded-md px-3 py-1.5 text-[13px] disabled:opacity-40"
+                    style={u.unlimited
+                      ? { background: "var(--gold-deep)", color: "var(--bg)" }
+                      : { background: "var(--bg-soft)", color: "var(--ink-soft)", border: "1px solid var(--line)" }}
+                  >
+                    {busyId === u.id ? "推演中…" : u.unlimited ? "已通玄 · 收回" : "赐予通玄"}
+                  </button>
+                </td>
                 <td className="px-4 py-3" style={{ color: "var(--ink-faint)" }}>{u.created_at?.slice(0, 10)}</td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center" style={{ color: "var(--ink-faint)" }}>暂无命主</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center" style={{ color: "var(--ink-faint)" }}>暂无命主</td></tr>
             )}
           </tbody>
         </table>

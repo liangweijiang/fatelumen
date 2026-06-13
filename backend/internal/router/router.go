@@ -163,6 +163,7 @@ func Setup(app *App) *gin.Engine {
 				admin.GET("/users", app.AdminHandler.ListUsers)
 				admin.GET("/users/:id", app.AdminHandler.GetUser)
 				admin.PATCH("/users/:id/active", app.AdminHandler.SetActive)
+				admin.PATCH("/users/:id/unlimited", app.AdminHandler.SetUnlimited)
 				admin.GET("/orders", app.AdminHandler.ListOrders)
 				admin.GET("/orders/:id", app.AdminHandler.GetOrder)
 				admin.GET("/reports", app.AdminHandler.ListReports)
