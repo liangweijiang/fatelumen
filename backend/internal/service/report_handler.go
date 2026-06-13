@@ -76,7 +76,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 			logger.FromCtx(ctx).Error("finalize failed report: payload parse failed", "err", e, "job_id", j.ID)
 			return
 		}
-		if e := h.reportRepo.UpdateStatus(payload.ReportID, "failed", err.Error()); e != nil {
+		if e := h.reportRepo.UpdateStatus(payload.ReportID, model.ReportStatusFailed, err.Error()); e != nil {
 			logger.FromCtx(ctx).Error("finalize failed report: update status failed",
 				"err", e, "report_id", payload.ReportID)
 			return
@@ -104,7 +104,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	// 场景：进程崩溃后 ReclaimStale 将孤儿 job 重置为 pending 重新调度，
 	// 但原 handler 已达成 done 状态（report 已写库），此时无需重新跑全链路。
 	existingReport, reportErr := h.reportRepo.GetByID(reportID, userID)
-	if reportErr == nil && existingReport != nil && existingReport.Status == "done" {
+	if reportErr == nil && existingReport != nil && existingReport.Status == model.ReportStatusDone {
 		logger.FromCtx(ctx).Info("report already completed, idempotent skip",
 			"report_id", reportID)
 		return existingReport.PDFURL, nil
@@ -170,7 +170,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	}
 
 	// 3. UpdateStatus → processing
-	if err := h.reportRepo.UpdateStatus(reportID, "processing", ""); err != nil {
+	if err := h.reportRepo.UpdateStatus(reportID, model.ReportStatusProcessing, ""); err != nil {
 		logger.FromCtx(ctx).Error("report status update to processing failed", "err", err,
 			"report_id", reportID)
 		return "", fmt.Errorf("update status processing: %w", err)
@@ -231,7 +231,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		return "", fmt.Errorf("update result: %w", err)
 	}
 
-	if err := h.reportRepo.UpdateStatus(reportID, "done", ""); err != nil {
+	if err := h.reportRepo.UpdateStatus(reportID, model.ReportStatusDone, ""); err != nil {
 		logger.FromCtx(ctx).Error("report status update to done failed", "err", err, "report_id", reportID)
 		return "", fmt.Errorf("update status done: %w", err)
 	}

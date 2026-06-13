@@ -73,6 +73,14 @@ func (c *ReportContent) Scan(value interface{}) error {
 	return json.Unmarshal(b, c)
 }
 
+// 报告状态机：pending → processing → done，失败置 failed。
+const (
+	ReportStatusPending    = "pending"
+	ReportStatusProcessing = "processing"
+	ReportStatusDone       = "done"
+	ReportStatusFailed     = "failed"
+)
+
 // ---------- Report Model ----------
 
 // Report 完整测算报告（异步状态机）。

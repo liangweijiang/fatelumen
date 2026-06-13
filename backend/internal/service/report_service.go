@@ -57,7 +57,7 @@ func (s *ReportService) CreateReport(ctx context.Context, userID, profileID uint
 		ProfileID: profileID,
 		ChartID:   0, // handler 排盘后回写
 		Locale:    locale,
-		Status:    "pending",
+		Status:    model.ReportStatusPending,
 		PayMethod: "credit",
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),

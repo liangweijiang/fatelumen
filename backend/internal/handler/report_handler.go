@@ -72,7 +72,7 @@ func buildReportDetail(r *model.Report, unlocked bool) reportDetailResponse {
 	}
 
 	// 报告未完成时不触发门控，直接返回生成状态
-	if r.Status != "done" {
+	if r.Status != model.ReportStatusDone {
 		return resp
 	}
 
