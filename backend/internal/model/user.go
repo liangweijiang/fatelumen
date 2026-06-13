@@ -11,8 +11,9 @@ const (
 // User 用户（Google OAuth 登录）。
 type User struct {
 	ID             uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
-	GoogleSub      string    `gorm:"type:varchar(64);uniqueIndex;not null" json:"google_sub"`
-	Email          string    `gorm:"type:varchar(255);not null;index" json:"email"`
+	GoogleSub      string    `gorm:"type:varchar(64);uniqueIndex;default:null" json:"google_sub"`
+	Email          string    `gorm:"type:varchar(255);not null;uniqueIndex" json:"email"`
+	PasswordHash   string    `gorm:"type:varchar(255)" json:"-"`
 	Name           string    `gorm:"type:varchar(128)" json:"name"`
 	AvatarURL      string    `gorm:"type:varchar(512)" json:"avatar_url"`
 	Credits        int       `gorm:"not null;default:0" json:"credits"`

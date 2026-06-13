@@ -135,10 +135,10 @@ func TestReportPDFTemplate_Render(t *testing.T) {
 	if !strings.Contains(html, "page-break") {
 		t.Error("rendered HTML missing page breaks")
 	}
-	if !strings.Contains(html, "#ede8e0") {
+	if !strings.Contains(html, "oklch(86% 0.039 80)") {
 		t.Error("rendered HTML missing bg color token")
 	}
-	if !strings.Contains(html, "#a8851a") {
+	if !strings.Contains(html, "oklch(56% 0.120 80)") {
 		t.Error("rendered HTML missing gold token")
 	}
 

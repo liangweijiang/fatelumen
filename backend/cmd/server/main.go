@@ -289,6 +289,7 @@ func main() {
 func autoMigrate(db *gorm.DB) error {
 	return db.AutoMigrate(
 		&model.User{},
+		&model.UserIdentity{},
 		&model.BirthProfile{},
 		&model.Chart{},
 		&model.Reading{},

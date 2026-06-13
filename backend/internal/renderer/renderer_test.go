@@ -53,8 +53,8 @@ func TestRenderTemplate(t *testing.T) {
 		"未",
 		"1080px",
 		"1350px",
-		"#ede8e0",
-		"#a8851a",
+		"oklch(86% 0.039 80)",
+		"oklch(56% 0.120 80)",
 		"Personality",
 		"Element Note",
 	}
