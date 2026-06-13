@@ -2,78 +2,94 @@
 <!doctype html>
 <html lang="{{.Locale}}">
 <head>
-<meta charset="utf-8">
-<style>
-  @page { size: 1080px 1350px; margin: 0; }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    width: 1080px; height: 1350px;
-    background: #ede8e0; color: #1a1715;
-    font-family: 'Inter', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap {
-    padding: 72px 80px;
-    display: flex; flex-direction: column;
-    height: 1350px;
-  }
-  .brand {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 34px; color: #a8851a;
-    letter-spacing: 1px;
-  }
-  .summary {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 54px; line-height: 1.25;
-    margin: 40px 0 48px; color: #1a1715;
-  }
-  .pillars {
-    display: flex; gap: 20px; margin-bottom: 48px;
-  }
-  .pillar {
-    flex: 1; text-align: center;
-    background: #f5f1ea;
-    border: 1px solid #cec6b8;
-    border-radius: 16px; padding: 28px 0;
-  }
-  .pillar .gz {
-    font-size: 48px;
-    font-family: 'Playfair Display', Georgia, serif;
-  }
-  .pillar .label {
-    font-size: 18px; color: #8a8178; margin-top: 8px;
-  }
-  .section { margin-bottom: 32px; }
-  .section h3 {
-    font-size: 22px; color: #a8851a;
-    margin: 0 0 10px;
-    font-family: 'Playfair Display', Georgia, serif;
-  }
-  .section p {
-    font-size: 26px; line-height: 1.6; color: #5a544c; margin: 0;
-  }
-  .section ul {
-    list-style: none; display: flex; flex-wrap: wrap; gap: 12px;
-    font-size: 22px; color: #5a544c;
-  }
-  .section ul li {
-    background: #f5f1ea; border: 1px solid #cec6b8;
-    border-radius: 10px; padding: 8px 20px;
-  }
-  .foot {
-    margin-top: auto; font-size: 18px; color: #8a8178;
-    display: flex; justify-content: space-between;
-    padding-top: 20px; border-top: 1px solid #ddd6ca;
-  }
-</style></head>
+  <meta charset="utf-8">
+  <style>
+    @page { size: 1080px 1350px; margin: 0; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 1080px; height: 1350px;
+      background: oklch(86% 0.039 80);
+      color: oklch(25% 0.018 58);
+      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', 'Noto Serif CJK JP', 'Noto Serif CJK KR', serif;
+      -webkit-font-smoothing: antialiased;
+      position: relative;
+    }
+    body::before {
+      content: ""; position: absolute; inset: 0; z-index: 9999;
+      pointer-events: none; mix-blend-mode: soft-light; opacity: 0.42;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+      background-size: 220px 220px;
+    }
+    body::after {
+      content: ""; position: absolute; inset: 0; z-index: 9998;
+      pointer-events: none; mix-blend-mode: multiply; opacity: 0.1;
+      background-image:
+              url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='110'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='110' height='110' filter='url(%23f)' opacity='0.5'/%3E%3C/svg%3E"),
+              url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018 0.05' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='520' height='520' filter='url(%23g)' opacity='0.6'/%3E%3C/svg%3E");
+      background-size: 110px 110px, 520px 520px;
+    }
+    .wrap {
+      padding: 72px 80px;
+      display: flex; flex-direction: column;
+      height: 1350px;
+      position: relative; z-index: 1;
+    }
+    .brand {
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      font-size: 34px; color: oklch(56% 0.120 80);
+      letter-spacing: 1px;
+    }
+    .summary {
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      font-size: 54px; line-height: 1.25;
+      margin: 40px 0 48px; color: oklch(25% 0.018 58);
+    }
+    .pillars { display: flex; gap: 20px; margin-bottom: 48px; }
+    .pillar {
+      flex: 1; text-align: center;
+      background: oklch(89% 0.034 80);
+      border: 1px solid oklch(77% 0.044 79);
+      border-radius: 16px; padding: 28px 0;
+    }
+    .pillar .gz {
+      font-size: 48px;
+      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', serif;
+    }
+    .pillar .label {
+      font-size: 18px; color: oklch(60% 0.016 64); margin-top: 8px;
+    }
+    .section { margin-bottom: 32px; }
+    .section h3 {
+      font-size: 22px; color: oklch(56% 0.120 80);
+      margin: 0 0 10px;
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+    }
+    .section p {
+      font-size: 26px; line-height: 1.6; color: oklch(46% 0.018 62); margin: 0;
+    }
+    .section ul {
+      list-style: none; display: flex; flex-wrap: wrap; gap: 12px;
+      font-size: 22px; color: oklch(46% 0.018 62);
+    }
+    .section ul li {
+      background: oklch(89% 0.034 80); border: 1px solid oklch(77% 0.044 79);
+      border-radius: 999px; padding: 8px 18px;
+    }
+    .foot {
+      margin-top: auto;
+      display: flex; justify-content: space-between;
+      font-size: 18px; color: oklch(60% 0.016 64);
+      border-top: 1px solid oklch(81% 0.040 80); padding-top: 24px;
+    }
+  </style></head>
 <body><div class="wrap">
   <div class="brand">{{.Brand}} · {{.DayMasterLabel}}</div>
   <div class="summary">{{.Content.SummaryLine}}</div>
   <div class="pillars">
     {{range .Pillars}}<div class="pillar">
-      <div class="gz" style="color:{{.ElementColor}}">{{.Stem}}{{.Branch}}</div>
-      <div class="label">{{.PositionLabel}}</div>
-    </div>{{end}}
+    <div class="gz" style="color:{{.ElementColor}}">{{.Stem}}{{.Branch}}</div>
+    <div class="label">{{.PositionLabel}}</div>
+  </div>{{end}}
   </div>
   <div class="section">
     <h3>{{.T.personality}}</h3>
