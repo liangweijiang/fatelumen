@@ -3,162 +3,162 @@
 <html lang="{{.Locale}}">
 <head>
 <meta charset="utf-8">
-<style>
-  @page {
-    size: A4;
-    margin: 24mm 20mm 28mm 20mm;
-    @bottom-center {
-      content: counter(page);
-      font-family: 'Inter', sans-serif;
-      font-size: 10px;
-      color: #8a8178;
+  <style>
+    @page {
+      size: A4;
+      margin: 24mm 20mm 28mm 20mm;
+      @bottom-center {
+        content: counter(page);
+        font-family: 'Noto Serif SC', serif;
+        font-size: 10px;
+        color: oklch(60% 0.016 64);
+      }
+      @bottom-left {
+        content: "FateLumen";
+        font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+        font-size: 9px;
+        color: oklch(56% 0.120 80);
+      }
     }
-    @bottom-left {
-      content: "FateLumen";
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: 9px;
-      color: #a8851a;
+    @page:first {
+      @bottom-center { content: none; }
+      @bottom-left { content: none; }
     }
-  }
-  @page:first {
-    @bottom-center { content: none; }
-    @bottom-left { content: none; }
-  }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: 'Inter', 'Noto Sans CJK SC', 'Noto Sans CJK JP', 'Noto Sans CJK KR', sans-serif;
-    font-size: 11px;
-    line-height: 1.75;
-    color: #1a1715;
-    background: #fff;
-    -webkit-font-smoothing: antialiased;
-  }
-  h1, h2, h3 {
-    font-family: 'Playfair Display', Georgia, 'Noto Serif CJK SC', serif;
-    color: #1a1715;
-  }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', 'Noto Serif CJK JP', 'Noto Serif CJK KR', serif;
+      font-size: 11px;
+      line-height: 1.75;
+      color: oklch(25% 0.018 58);
+      background: oklch(86% 0.039 80);
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3 {
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      color: oklch(25% 0.018 58);
+    }
 
-  /* ── 封面 ── */
-  .cover {
-    page-break-after: always;
-    display: flex; flex-direction: column;
-    justify-content: center;
-    height: 100vh;
-    background: #ede8e0;
-    padding: 60px;
-    text-align: center;
-  }
-  .cover .brand {
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 28px; color: #a8851a;
-    letter-spacing: 2px; margin-bottom: 48px;
-  }
-  .cover h1 {
-    font-size: 36px; margin-bottom: 24px; color: #1a1715;
-  }
-  .cover .subtitle {
-    font-size: 16px; color: #5a544c; margin-bottom: 40px;
-  }
-  .cover .meta {
-    font-size: 12px; color: #8a8178; line-height: 2;
-  }
-  .cover .meta span { display: block; }
-  .cover .divider {
-    width: 80px; height: 1px;
-    background: #a8851a; margin: 32px auto;
-  }
-  .cover .strength-badge {
-    display: inline-block;
-    background: #f5f1ea; border: 1px solid #cec6b8;
-    border-radius: 20px; padding: 6px 24px;
-    font-size: 14px; color: #1a1715;
-    margin-top: 16px;
-  }
+    /* ── 封面 ── */
+    .cover {
+      page-break-after: always;
+      display: flex; flex-direction: column;
+      justify-content: center;
+      height: 100vh;
+      background: oklch(86% 0.039 80);
+      padding: 60px;
+      text-align: center;
+    }
+    .cover .brand {
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      font-size: 28px; color: oklch(56% 0.120 80);
+      letter-spacing: 2px; margin-bottom: 48px;
+    }
+    .cover h1 {
+      font-size: 36px; margin-bottom: 24px; color: oklch(25% 0.018 58);
+    }
+    .cover .subtitle {
+      font-size: 16px; color: oklch(46% 0.018 62); margin-bottom: 40px;
+    }
+    .cover .meta {
+      font-size: 12px; color: oklch(60% 0.016 64); line-height: 2;
+    }
+    .cover .meta span { display: block; }
+    .cover .divider {
+      width: 80px; height: 1px;
+      background: oklch(56% 0.120 80); margin: 32px auto;
+    }
+    .cover .strength-badge {
+      display: inline-block;
+      background: oklch(89% 0.034 80); border: 1px solid oklch(77% 0.044 79);
+      border-radius: 20px; padding: 6px 24px;
+      font-size: 14px; color: oklch(25% 0.018 58);
+      margin-top: 16px;
+    }
 
-  /* ── 章节 ── */
-  .chapter {
-    page-break-before: always;
-    padding: 20px 0;
-  }
-  .chapter h2 {
-    font-size: 22px;
-    color: #a8851a;
-    margin-bottom: 20px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #ede8e0;
-  }
-  .chapter p {
-    margin-bottom: 12px;
-    text-align: justify;
-  }
+    /* ── 章节 ── */
+    .chapter {
+      page-break-before: always;
+      padding: 20px 0;
+    }
+    .chapter h2 {
+      font-size: 22px;
+      color: oklch(56% 0.120 80);
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid oklch(77% 0.044 79);
+    }
+    .chapter p {
+      margin-bottom: 12px;
+      text-align: justify;
+    }
 
-  /* ── 四柱摘要 ── */
-  .pillar-summary {
-    display: flex; gap: 12px; margin-bottom: 32px;
-  }
-  .pillar-box {
-    flex: 1; text-align: center;
-    background: #faf8f5;
-    border: 1px solid #ddd6ca;
-    border-radius: 10px; padding: 16px 8px;
-  }
-  .pillar-box .stem-branch {
-    font-family: 'Playfair Display', Georgia, 'Noto Serif CJK SC', serif;
-    font-size: 22px;
-  }
-  .pillar-box .label {
-    font-size: 10px; color: #8a8178; margin-top: 4px;
-  }
+    /* ── 四柱摘要 ── */
+    .pillar-summary {
+      display: flex; gap: 12px; margin-bottom: 32px;
+    }
+    .pillar-box {
+      flex: 1; text-align: center;
+      background: oklch(89% 0.034 80);
+      border: 1px solid oklch(77% 0.044 79);
+      border-radius: 10px; padding: 16px 8px;
+    }
+    .pillar-box .stem-branch {
+      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', serif;
+      font-size: 22px;
+    }
+    .pillar-box .label {
+      font-size: 10px; color: oklch(60% 0.016 64); margin-top: 4px;
+    }
 
-  /* ── 五行条 ── */
-  .element-bars {
-    display: flex; align-items: flex-end; gap: 8px;
-    height: 60px; margin-bottom: 20px; padding: 0 4px;
-  }
-  .element-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; }
-  .element-bar {
-    width: 100%; border-radius: 4px 4px 0 0; transition: height .3s;
-  }
-  .element-label {
-    font-size: 10px; color: #8a8178; margin-top: 4px;
-  }
+    /* ── 五行条 ── */
+    .element-bars {
+      display: flex; align-items: flex-end; gap: 8px;
+      height: 60px; margin-bottom: 20px; padding: 0 4px;
+    }
+    .element-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; }
+    .element-bar {
+      width: 100%; border-radius: 4px 4px 0 0; transition: height .3s;
+    }
+    .element-label {
+      font-size: 10px; color: oklch(60% 0.016 64); margin-top: 4px;
+    }
 
-  /* ── 流年表格 ── */
-  .fortune-table {
-    width: 100%; border-collapse: collapse; margin-bottom: 20px;
-  }
-  .fortune-table th {
-    background: #ede8e0; color: #a8851a;
-    font-family: 'Playfair Display', Georgia, serif;
-    font-size: 11px; padding: 10px 14px; text-align: left;
-  }
-  .fortune-table td {
-    padding: 10px 14px; border-bottom: 1px solid #ede8e0;
-    font-size: 11px; vertical-align: top;
-  }
-  .fortune-table .year {
-    white-space: nowrap; color: #a8851a; font-weight: 600;
-  }
+    /* ── 流年表格 ── */
+    .fortune-table {
+      width: 100%; border-collapse: collapse; margin-bottom: 20px;
+    }
+    .fortune-table th {
+      background: oklch(89% 0.034 80); color: oklch(56% 0.120 80);
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      font-size: 11px; padding: 10px 14px; text-align: left;
+    }
+    .fortune-table td {
+      padding: 10px 14px; border-bottom: 1px solid oklch(81% 0.040 80);
+      font-size: 11px; vertical-align: top;
+    }
+    .fortune-table .year {
+      white-space: nowrap; color: oklch(56% 0.120 80); font-weight: 600;
+    }
 
-  /* ── 建议列表 ── */
-  .suggestion-list {
-    list-style: none; counter-reset: sug;
-  }
-  .suggestion-list li {
-    counter-increment: sug;
-    padding: 8px 0 8px 32px;
-    position: relative;
-    border-bottom: 1px solid #f5f1ea;
-  }
-  .suggestion-list li::before {
-    content: counter(sug);
-    position: absolute; left: 0; top: 8px;
-    width: 22px; height: 22px;
-    line-height: 22px; text-align: center;
-    background: #a8851a; color: #fff;
-    border-radius: 50%; font-size: 11px; font-weight: 600;
-  }
-</style>
+    /* ── 建议列表 ── */
+    .suggestion-list {
+      list-style: none; counter-reset: sug;
+    }
+    .suggestion-list li {
+      counter-increment: sug;
+      padding: 8px 0 8px 32px;
+      position: relative;
+      border-bottom: 1px solid oklch(81% 0.040 80);
+    }
+    .suggestion-list li::before {
+      content: counter(sug);
+      position: absolute; left: 0; top: 8px;
+      width: 22px; height: 22px;
+      line-height: 22px; text-align: center;
+      background: oklch(56% 0.120 80); color: oklch(89% 0.034 80);
+      border-radius: 50%; font-size: 11px; font-weight: 600;
+    }
+  </style>
 </head>
 <body>
 
