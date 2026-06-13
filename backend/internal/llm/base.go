@@ -70,7 +70,13 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 	}
 
 	if !json.Valid([]byte(content)) {
-		logger.FromCtx(ctx).Error("llm returned invalid JSON", "provider", p.name, "model", p.model)
+		preview := content
+		if len(preview) > 300 {
+			preview = preview[:300]
+		}
+		logger.FromCtx(ctx).Error("llm returned invalid JSON",
+			"provider", p.name, "model", p.model,
+			"content_len", len(content), "content_preview", preview)
 		return "", errors.New("llm returned invalid JSON")
 	}
 	return content, nil

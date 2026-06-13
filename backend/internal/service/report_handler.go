@@ -162,7 +162,10 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (string, error) 
 	}
 
 	llmStart := time.Now()
-	llmResult, err := h.llmProvider.GenerateJSON(ctx, prompts.ReportSystemPrompt, userPrompt)
+	llmResult, err := h.llmProvider.GenerateJSON(ctx, prompts.ReportSystemPrompt, userPrompt,
+		llm.WithMaxTokens(4000),
+		llm.WithTemperature(0.5),
+	)
 	if err != nil {
 		logger.FromCtx(ctx).Error("llm generate failed", "err", err,
 			"provider", h.llmProvider.Name(), "report_id", reportID,
