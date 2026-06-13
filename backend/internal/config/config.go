@@ -2,24 +2,26 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
 
 // Config 全局配置。
 type Config struct {
-	LogLevel  string // debug / info / warn / error
+	LogLevel   string // debug / info / warn / error
 	AppEnv     string
 	AppPort    string
 	AppBaseURL string
 	WebBaseURL string
 
-	DBHost    string
-	DBPort    string
-	DBUser    string
+	DBHost     string
+	DBPort     string
+	DBUser     string
 	DBPassword string
-	DBName    string
+	DBName     string
 
 	RedisAddr     string
 	RedisPassword string
@@ -30,22 +32,22 @@ type Config struct {
 	AdminJWTSecret      string
 	AdminJWTExpireHours int
 
-	AuthProviders  []string
-	GoogleClientID string
+	AuthProviders      []string
+	GoogleClientID     string
 	GoogleClientSecret string
-	GoogleRedirectURL string
+	GoogleRedirectURL  string
 
-	Renderer    string
+	Renderer     string
 	ChromiumPath string
 
-	JobQueue          string
-	JobWorkers        int
-	JobPollIntervalMs int
+	JobQueue                 string
+	JobWorkers               int
+	JobPollIntervalMs        int
 	JobStaleThresholdMinutes int
 
-	Notifier    string
+	Notifier     string
 	ResendAPIKey string
-	NotifyFrom  string
+	NotifyFrom   string
 
 	LLMProvider     string
 	DeepSeekAPIKey  string
@@ -54,20 +56,20 @@ type Config struct {
 	OpenAIAPIKey    string
 	OpenAIModel     string
 
-	PaymentProviders     []string
-	PaymentSuccessURL    string
-	PaymentCancelURL     string
+	PaymentProviders      []string
+	PaymentSuccessURL     string
+	PaymentCancelURL      string
 	OrderReportPriceCents int
-	StripeSecretKey      string
-	StripeWebhookSecret  string
+	StripeSecretKey       string
+	StripeWebhookSecret   string
 
 	QuotaDailyLimit int
 
-	RateLimitEnabled         bool
-	RateLimitReadingPerMin   int
-	RateLimitOrderPerMin     int
-	RateLimitAuthPerMin      int
-	RateLimitDefaultPerMin   int
+	RateLimitEnabled       bool
+	RateLimitReadingPerMin int
+	RateLimitOrderPerMin   int
+	RateLimitAuthPerMin    int
+	RateLimitDefaultPerMin int
 
 	AdminEmails []string
 
@@ -110,7 +112,15 @@ func (c *Config) Validate() []string {
 }
 
 // Load 从 .env / 环境变量加载配置。
+// 若工作目录存在 .env 文件则先加载，仅补充未设置的变量，已有环境变量优先，符合 12-factor；
+// 生产环境无 .env 时静默跳过，依赖容器或 systemd 注入的真实环境变量。
 func Load() (*Config, error) {
+	if _, err := os.Stat(".env"); err == nil {
+		if err := godotenv.Load(".env"); err != nil {
+			fmt.Printf("warning: failed to load .env file: %v\n", err)
+		}
+	}
+
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
@@ -149,11 +159,11 @@ func Load() (*Config, error) {
 		AppBaseURL: viper.GetString("APP_BASE_URL"),
 		WebBaseURL: viper.GetString("WEB_BASE_URL"),
 
-		DBHost:    viper.GetString("DB_HOST"),
-		DBPort:    viper.GetString("DB_PORT"),
-		DBUser:    viper.GetString("DB_USER"),
+		DBHost:     viper.GetString("DB_HOST"),
+		DBPort:     viper.GetString("DB_PORT"),
+		DBUser:     viper.GetString("DB_USER"),
 		DBPassword: viper.GetString("DB_PASSWORD"),
-		DBName:    viper.GetString("DB_NAME"),
+		DBName:     viper.GetString("DB_NAME"),
 
 		RedisAddr:     viper.GetString("REDIS_ADDR"),
 		RedisPassword: viper.GetString("REDIS_PASSWORD"),
@@ -164,24 +174,24 @@ func Load() (*Config, error) {
 		AdminJWTSecret:      viper.GetString("ADMIN_JWT_SECRET"),
 		AdminJWTExpireHours: viper.GetInt("ADMIN_JWT_EXPIRE_HOURS"),
 
-		AuthProviders:  splitEnv("AUTH_PROVIDERS"),
-		GoogleClientID: viper.GetString("GOOGLE_CLIENT_ID"),
+		AuthProviders:      splitEnv("AUTH_PROVIDERS"),
+		GoogleClientID:     viper.GetString("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: viper.GetString("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL: viper.GetString("GOOGLE_REDIRECT_URL"),
+		GoogleRedirectURL:  viper.GetString("GOOGLE_REDIRECT_URL"),
 
-		Renderer:    viper.GetString("RENDERER"),
+		Renderer:     viper.GetString("RENDERER"),
 		ChromiumPath: viper.GetString("CHROMIUM_PATH"),
 
 		QuotaDailyLimit: viper.GetInt("QUOTA_DAILY_LIMIT"),
 
-		JobQueue:   viper.GetString("JOB_QUEUE"),
-		JobWorkers: viper.GetInt("JOB_WORKERS"),
-		JobPollIntervalMs: viper.GetInt("JOB_POLL_INTERVAL_MS"),
+		JobQueue:                 viper.GetString("JOB_QUEUE"),
+		JobWorkers:               viper.GetInt("JOB_WORKERS"),
+		JobPollIntervalMs:        viper.GetInt("JOB_POLL_INTERVAL_MS"),
 		JobStaleThresholdMinutes: viper.GetInt("JOB_STALE_THRESHOLD_MINUTES"),
 
-		Notifier:    viper.GetString("NOTIFIER"),
+		Notifier:     viper.GetString("NOTIFIER"),
 		ResendAPIKey: viper.GetString("RESEND_API_KEY"),
-		NotifyFrom:  viper.GetString("NOTIFY_FROM"),
+		NotifyFrom:   viper.GetString("NOTIFY_FROM"),
 
 		LLMProvider:     viper.GetString("LLM_PROVIDER"),
 		DeepSeekAPIKey:  viper.GetString("DEEPSEEK_API_KEY"),
@@ -190,19 +200,19 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:    viper.GetString("OPENAI_API_KEY"),
 		OpenAIModel:     viper.GetString("OPENAI_MODEL"),
 
-		PaymentProviders:  splitEnv("PAYMENT_PROVIDERS"),
-		PaymentSuccessURL: viper.GetString("PAYMENT_SUCCESS_URL"),
-		PaymentCancelURL:  viper.GetString("PAYMENT_CANCEL_URL"),
+		PaymentProviders:      splitEnv("PAYMENT_PROVIDERS"),
+		PaymentSuccessURL:     viper.GetString("PAYMENT_SUCCESS_URL"),
+		PaymentCancelURL:      viper.GetString("PAYMENT_CANCEL_URL"),
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
-		StripeSecretKey:   viper.GetString("STRIPE_SECRET_KEY"),
+		StripeSecretKey:       viper.GetString("STRIPE_SECRET_KEY"),
 
-		RateLimitEnabled:         viper.GetBool("RATELIMIT_ENABLED"),
-		RateLimitReadingPerMin:   viper.GetInt("RATELIMIT_READING_PER_MIN"),
-		RateLimitOrderPerMin:     viper.GetInt("RATELIMIT_ORDER_PER_MIN"),
-		RateLimitAuthPerMin:      viper.GetInt("RATELIMIT_AUTH_PER_MIN"),
-		RateLimitDefaultPerMin:   viper.GetInt("RATELIMIT_DEFAULT_PER_MIN"),
+		RateLimitEnabled:       viper.GetBool("RATELIMIT_ENABLED"),
+		RateLimitReadingPerMin: viper.GetInt("RATELIMIT_READING_PER_MIN"),
+		RateLimitOrderPerMin:   viper.GetInt("RATELIMIT_ORDER_PER_MIN"),
+		RateLimitAuthPerMin:    viper.GetInt("RATELIMIT_AUTH_PER_MIN"),
+		RateLimitDefaultPerMin: viper.GetInt("RATELIMIT_DEFAULT_PER_MIN"),
 
-		AdminEmails: splitEnv("ADMIN_EMAILS"),
+		AdminEmails:         splitEnv("ADMIN_EMAILS"),
 		StripeWebhookSecret: viper.GetString("STRIPE_WEBHOOK_SECRET"),
 
 		R2AccountID:       viper.GetString("R2_ACCOUNT_ID"),
