@@ -35,7 +35,6 @@ export default async function LocaleLayout({
     <NextIntlClientProvider messages={messages}>
       <ThemeProvider>
         <Providers>
-          <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
           <StickyHeader locale={locale} />
           <main className="relative z-[2]">{children}</main>
           <footer className="border-t border-[var(--line)] px-0 py-14 pb-11">
