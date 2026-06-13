@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SITE } from "@/lib/site";
 import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import "@/styles/themes.css";
@@ -12,9 +13,11 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "FateLumen",
+  metadataBase: new URL(SITE.url),
+  title: { default: "FateLumen", template: "%s · FateLumen" },
   description:
     "Decode your Chinese birth chart — precise Bazi readings, beautifully explained.",
+  alternates: { canonical: "/" },
 };
 
 export const viewport: Viewport = {
