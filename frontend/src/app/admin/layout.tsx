@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getToken, removeToken } from "@/lib/auth-storage";
+import { fetchMe } from "@/lib/admin-api";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -15,7 +16,21 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       router.replace("/login");
       return;
     }
-    setReady(true);
+    let alive = true;
+    fetchMe()
+      .then((me) => {
+        if (!alive) return;
+        if (me.role !== "admin") {
+          router.replace("/");
+          return;
+        }
+        setReady(true);
+      })
+      .catch(() => {
+        if (!alive) return;
+        router.replace("/login");
+      });
+    return () => { alive = false; };
   }, [router]);
 
   if (!ready) return null;

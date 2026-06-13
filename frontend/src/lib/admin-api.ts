@@ -1,5 +1,18 @@
 import api from "@/lib/api/client";
 
+export interface Me {
+  id: number;
+  email: string;
+  name: string;
+  role: string;
+  unlimited: boolean;
+}
+
+export async function fetchMe(): Promise<Me> {
+  const { data } = await api.get("/me");
+  return unwrap<Me>(data);
+}
+
 export interface Stats {
   users: { total: number; today_new: number };
   orders: { total: number; by_status: Record<string, number> };
