@@ -41,12 +41,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        style={{
-          background: "var(--bg)",
-          color: "var(--ink)",
-        }}
-      >
+      <body>
         {children}
       </body>
     </html>
