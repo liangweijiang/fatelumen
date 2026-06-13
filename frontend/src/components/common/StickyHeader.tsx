@@ -91,6 +91,9 @@ export default function StickyHeader({ locale }: { locale: string }) {
             />
             {me ? (
               <>
+                <span className="text-[13px] tracking-[.3px] text-[var(--ink-soft)]">
+                  {me.name || me.email.split("@")[0]}
+                </span>
                 <Link
                   href={`/${locale}/dashboard`}
                   className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
