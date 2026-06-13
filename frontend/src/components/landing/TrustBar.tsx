@@ -7,53 +7,46 @@ export function TrustBar() {
   return (
     <div
       className="border-y"
-      style={{ background: "var(--bg-soft)", borderColor: "var(--line)" }}
+      style={{ borderColor: "var(--line-soft)" }}
     >
-      <div className="mx-auto flex max-w-[var(--maxw)] items-center justify-center gap-14 px-5 md:px-10 py-9 flex-wrap max-md:gap-6 max-md:py-6">
-        <div className="text-center">
+      <div className="mx-auto grid max-w-[var(--maxw)] grid-cols-4 max-md:grid-cols-2 px-5 md:px-10">
+        <div className="text-center py-[34px] px-3" style={{ borderRight: "1px solid var(--line-soft)" }}>
           <div
-            className="gold-embossed font-[var(--serif)] text-[38px] font-medium leading-none tracking-[-.5px] max-md:text-[30px]"
-            style={{ color: "var(--ink)" }}
+            className="font-[var(--serif)] text-[32px] text-[var(--ink)]"
           >
             48,200+
           </div>
-          <div className="mt-2 text-[11px] tracking-[2px] uppercase text-[var(--ink-faint)]">
+          <div className="mt-[7px] text-xs tracking-[1.5px] text-[var(--ink-faint)]">
             {t("readings")}
           </div>
         </div>
-        <span className="h-10 w-px bg-[var(--line)] max-md:hidden" />
-        <div className="text-center">
+        <div className="text-center py-[34px] px-3 max-md:border-r-0" style={{ borderRight: "1px solid var(--line-soft)" }}>
           <div
-            className="gold-embossed font-[var(--serif)] text-[38px] font-medium leading-none tracking-[-.5px] max-md:text-[30px]"
-            style={{ color: "var(--ink)" }}
+            className="font-[var(--serif)] text-[32px] text-[var(--ink)]"
           >
             12
           </div>
-          <div className="mt-2 text-[11px] tracking-[2px] uppercase text-[var(--ink-faint)]">
+          <div className="mt-[7px] text-xs tracking-[1.5px] text-[var(--ink-faint)]">
             {t("categories")}
           </div>
         </div>
-        <span className="h-10 w-px bg-[var(--line)] max-md:hidden" />
-        <div className="text-center">
+        <div className="text-center py-[34px] px-3" style={{ borderRight: "1px solid var(--line-soft)" }}>
           <div
-            className="gold-embossed font-[var(--serif)] text-[38px] font-medium leading-none tracking-[-.5px] max-md:text-[30px]"
-            style={{ color: "var(--ink)" }}
+            className="font-[var(--serif)] text-[32px] text-[var(--ink)]"
           >
             Stripe
           </div>
-          <div className="mt-2 text-[11px] tracking-[2px] uppercase text-[var(--ink-faint)]">
+          <div className="mt-[7px] text-xs tracking-[1.5px] text-[var(--ink-faint)]">
             {t("payment")}
           </div>
         </div>
-        <span className="h-10 w-px bg-[var(--line)] max-md:hidden" />
-        <div className="text-center">
+        <div className="text-center py-[34px] px-3">
           <div
-            className="gold-embossed font-[var(--serif)] text-[38px] font-medium leading-none tracking-[-.5px] max-md:text-[30px]"
-            style={{ color: "var(--ink)" }}
+            className="font-[var(--serif)] text-[32px] text-[var(--ink)]"
           >
             4.8★
           </div>
-          <div className="mt-2 text-[11px] tracking-[2px] uppercase text-[var(--ink-faint)]">
+          <div className="mt-[7px] text-xs tracking-[1.5px] text-[var(--ink-faint)]">
             {t("rating")}
           </div>
         </div>

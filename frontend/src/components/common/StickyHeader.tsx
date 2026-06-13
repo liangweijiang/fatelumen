@@ -6,6 +6,7 @@ import { Menu } from "lucide-react";
 import ThemeSwitcher from "@/components/theme/ThemeSwitcher";
 import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
 import MobileDrawer from "@/components/common/MobileDrawer";
+import BrandMark from "@/components/common/BrandMark";
 import Link from "next/link";
 
 export default function StickyHeader({ locale }: { locale: string }) {
@@ -39,12 +40,7 @@ export default function StickyHeader({ locale }: { locale: string }) {
             href={`/${locale}`}
             className="flex items-center gap-2.5 font-[var(--serif)] text-[21px] font-semibold tracking-[.3px] text-[var(--ink)] shrink-0"
           >
-            <span
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--ink)] font-sans text-[17px] font-semibold"
-              style={{ color: "var(--bg)" }}
-            >
-              八
-            </span>
+            <BrandMark size={36} />
             FateLumen
           </Link>
 
@@ -68,26 +64,27 @@ export default function StickyHeader({ locale }: { locale: string }) {
             />
             <Link
               href={`/${locale}/login`}
-              className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-medium transition-all"
+              className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
               style={{
                 background: "var(--gold-deep)",
                 color: "var(--bg-card)",
                 borderRadius: "9999px",
-                height: "36px",
-                padding: "0 20px",
+                height: "37px",
+                padding: "0 22px",
                 display: "inline-flex",
                 alignItems: "center",
                 border: "none",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--gold)";
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.15)";
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.15)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "var(--gold-deep)";
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
               }}
               onMouseDown={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";

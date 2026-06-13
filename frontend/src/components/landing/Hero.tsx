@@ -25,7 +25,7 @@ export function Hero() {
               <span className="h-px w-6 bg-[var(--line)]" />
               {t("eyebrow")}
             </span>
-            <h1 className="mb-6 font-[var(--serif)] font-medium leading-[1.12] tracking-[-.3px] text-[clamp(36px,5vw,64px)]">
+            <h1 className="mb-6 font-[var(--serif)] font-semibold leading-[1.08] tracking-[.5px] text-[clamp(44px,5.6vw,70px)]">
               {t("title")}{" "}
               <em className="gold-embossed italic" style={{ color: "var(--gold-deep)" }}>
                 {t("titleEm")}
@@ -56,24 +56,13 @@ export function Hero() {
 
           {/* Right: letterpress chart */}
           <div ref={chartRef} className="reveal relative">
-            {/* Seal stamp */}
             <div
-              className="absolute -right-1 -top-2 z-10 select-none rounded-sm border px-1.5 py-0.5 text-[13px] font-bold leading-none tracking-wider opacity-85"
-              style={{
-                borderColor: "var(--seal-red)",
-                color: "var(--seal-red)",
-                fontFamily: "var(--serif)",
-                transform: "rotate(6deg)",
-              }}
-            >
-              命
-            </div>
-            <div
-              className="relative rounded-lg p-8 px-6"
+              className="relative rounded-[13px] p-9 px-8"
               style={{
                 background: "var(--bg-card)",
                 border: "2px solid var(--line)",
-                boxShadow: "inset 0 0 0 4px var(--bg-card), inset 0 0 0 5px var(--gold-soft)",
+                boxShadow:
+                  "inset 0 0 0 4px var(--bg-card), inset 0 0 0 5px var(--gold-soft), 0 26px 54px -28px oklch(35% 0.04 60 / .55), 0 6px 16px -10px oklch(35% 0.04 60 / .35)",
               }}
             >
               <div

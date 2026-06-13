@@ -9,7 +9,7 @@ export function SampleReport() {
   const textRef = useReveal();
   const docRef = useReveal();
   return (
-    <div className="border-y" style={{ background: "var(--bg-soft)", borderColor: "var(--line)" }}>
+    <div className="border-y" style={{ borderColor: "var(--line)" }}>
       <section id="report" className="px-0 py-[120px] max-md:py-[80px]">
         <div className="mx-auto max-w-[var(--maxw)] px-5 md:px-10">
           <div className="grid grid-cols-[1fr_1.1fr] items-center gap-14 max-md:grid-cols-1 max-md:gap-9">

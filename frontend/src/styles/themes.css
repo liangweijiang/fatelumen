@@ -2,107 +2,107 @@
 /* All components MUST reference these variables. Never hardcode hex/rgb. */
 
 [data-theme="kraft"] {
-  --bg: oklch(92% 0.012 70);
-  --bg-soft: oklch(89% 0.014 68);
-  --bg-card: oklch(95% 0.01 72);
+  --bg: oklch(86% 0.039 80);
+  --bg-soft: oklch(83% 0.041 79);
+  --bg-card: oklch(89% 0.034 80);
   --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55);
-  --ink-soft: oklch(45% 0.012 58);
-  --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62);
-  --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85);
-  --gold-deep: oklch(58% 0.12 80);
-  --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82);
-  --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --ink: oklch(25% 0.018 58);
+  --ink-soft: oklch(46% 0.018 62);
+  --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79);
+  --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84);
+  --gold-deep: oklch(56% 0.120 80);
+  --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82);
+  --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6);
   --seal-red: oklch(48% 0.16 28);
   --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160);
-  --wuxing-fire: oklch(55% 0.15 28);
-  --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85);
-  --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
+  --wuxing-wood: #5c7060;
+  --wuxing-fire: #b8473e;
+  --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486;
+  --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
   --radius: 10px;
-  --maxw: 1120px;
+  --maxw: 1140px;
 }
 
 /* theme2–theme6: reserved slots — values copied from kraft as placeholder */
 [data-theme="theme2"] {
-  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --bg: oklch(86% 0.039 80); --bg-soft: oklch(83% 0.041 79); --bg-card: oklch(89% 0.034 80); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(25% 0.018 58); --ink-soft: oklch(46% 0.018 62); --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79); --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84); --gold-deep: oklch(56% 0.120 80); --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82); --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --radius: 10px; --maxw: 1120px;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486; --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
+  --radius: 10px; --maxw: 1140px;
 }
 
 [data-theme="theme3"] {
-  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --bg: oklch(86% 0.039 80); --bg-soft: oklch(83% 0.041 79); --bg-card: oklch(89% 0.034 80); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(25% 0.018 58); --ink-soft: oklch(46% 0.018 62); --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79); --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84); --gold-deep: oklch(56% 0.120 80); --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82); --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --radius: 10px; --maxw: 1120px;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486; --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
+  --radius: 10px; --maxw: 1140px;
 }
 
 [data-theme="theme4"] {
-  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --bg: oklch(86% 0.039 80); --bg-soft: oklch(83% 0.041 79); --bg-card: oklch(89% 0.034 80); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(25% 0.018 58); --ink-soft: oklch(46% 0.018 62); --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79); --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84); --gold-deep: oklch(56% 0.120 80); --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82); --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --radius: 10px; --maxw: 1120px;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486; --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
+  --radius: 10px; --maxw: 1140px;
 }
 
 [data-theme="theme5"] {
-  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --bg: oklch(86% 0.039 80); --bg-soft: oklch(83% 0.041 79); --bg-card: oklch(89% 0.034 80); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(25% 0.018 58); --ink-soft: oklch(46% 0.018 62); --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79); --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84); --gold-deep: oklch(56% 0.120 80); --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82); --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --radius: 10px; --maxw: 1120px;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486; --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
+  --radius: 10px; --maxw: 1140px;
 }
 
 [data-theme="theme6"] {
-  --bg: oklch(92% 0.012 70); --bg-soft: oklch(89% 0.014 68); --bg-card: oklch(95% 0.01 72); --bg-dark: oklch(22% 0.015 60);
-  --ink: oklch(24% 0.012 55); --ink-soft: oklch(45% 0.012 58); --ink-faint: oklch(62% 0.01 60);
-  --line: oklch(80% 0.014 62); --line-soft: oklch(86% 0.012 64);
-  --gold: oklch(68% 0.11 85); --gold-deep: oklch(58% 0.12 80); --gold-soft: oklch(90% 0.05 88);
-  --gold-matte: oklch(64% 0.085 82); --gold-grad: linear-gradient(135deg, oklch(68% 0.11 85) 0%, oklch(58% 0.12 80) 100%);
+  --bg: oklch(86% 0.039 80); --bg-soft: oklch(83% 0.041 79); --bg-card: oklch(89% 0.034 80); --bg-dark: oklch(22% 0.015 60);
+  --ink: oklch(25% 0.018 58); --ink-soft: oklch(46% 0.018 62); --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79); --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84); --gold-deep: oklch(56% 0.120 80); --gold-soft: oklch(88% 0.055 86);
+  --gold-matte: oklch(62% 0.10 82); --gold-grad: linear-gradient(135deg, oklch(66% 0.115 84) 0%, oklch(56% 0.120 80) 100%);
   --gold-text-shadow: 0 1px 0 oklch(98% 0.01 80 / 0.6); --seal-red: oklch(48% 0.16 28); --jade: oklch(52% 0.05 160);
-  --wuxing-wood: oklch(52% 0.05 160); --wuxing-fire: oklch(55% 0.15 28); --wuxing-earth: oklch(60% 0.1 80);
-  --wuxing-metal: oklch(64% 0.04 85); --wuxing-water: oklch(48% 0.06 235);
-  --serif: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --body: var(--font-newsreader), "Noto Serif SC", Georgia, serif;
-  --sans: var(--font-fraunces), "Noto Serif SC", "Songti SC", serif;
-  --radius: 10px; --maxw: 1120px;
+  --wuxing-wood: #5c7060; --wuxing-fire: #b8473e; --wuxing-earth: #b89048;
+  --wuxing-metal: #9a9486; --wuxing-water: #3f5a6b;
+  --serif: var(--font-playfair), "Noto Serif SC", serif;
+  --body: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --sans: var(--font-playfair), "Noto Serif SC", serif;
+  --radius: 10px; --maxw: 1140px;
 }

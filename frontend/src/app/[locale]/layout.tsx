@@ -6,6 +6,7 @@ import ThemeProvider from "@/components/theme/ThemeProvider";
 import StickyHeader from "@/components/common/StickyHeader";
 import WhatsAppFab from "@/components/common/WhatsAppFab";
 import Providers from "@/app/providers";
+import BrandMark from "@/components/common/BrandMark";
 import Link from "next/link";
 
 export function generateStaticParams() {
@@ -34,20 +35,16 @@ export default async function LocaleLayout({
     <NextIntlClientProvider messages={messages}>
       <ThemeProvider>
         <Providers>
+          <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500;1,600&family=Noto+Serif+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
           <StickyHeader locale={locale} />
           <main className="relative z-[2]">{children}</main>
           <footer className="border-t border-[var(--line)] px-0 py-14 pb-11">
             <div className="mx-auto flex max-w-[var(--maxw)] flex-wrap items-center justify-between gap-6 px-5 md:px-10">
               <Link
                 href={`/${locale}`}
-                className="flex items-center gap-2.5 font-[var(--serif)] text-[21px] font-semibold tracking-[.3px] text-[var(--ink)]"
+                className="flex items-center gap-3 font-[var(--serif)] text-[22px] font-semibold tracking-[.4px] text-[var(--ink)]"
               >
-                <span
-                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--ink)] font-sans text-[17px] font-semibold"
-                  style={{ color: "var(--bg)" }}
-                >
-                  八
-                </span>
+                <BrandMark size={36} />
                 FateLumen
               </Link>
               <div className="flex flex-wrap gap-[26px]">

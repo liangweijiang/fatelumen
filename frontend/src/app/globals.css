@@ -1,4 +1,21 @@
 @import "@/styles/themes.css";
+
+:root {
+  --serif-d: "Playfair Display", "Noto Serif SC", serif;
+  --serif-c: "Noto Serif SC", serif;
+  --bg: oklch(86% 0.039 80);
+  --bg-soft: oklch(83% 0.041 79);
+  --bg-card: oklch(89% 0.034 80);
+  --ink: oklch(25% 0.018 58);
+  --ink-soft: oklch(46% 0.018 62);
+  --ink-faint: oklch(60% 0.016 64);
+  --line: oklch(77% 0.044 79);
+  --line-soft: oklch(81% 0.040 80);
+  --gold: oklch(66% 0.115 84);
+  --gold-deep: oklch(56% 0.120 80);
+  --gold-soft: oklch(88% 0.055 86);
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,37 +27,41 @@
   }
 
   body {
-    font-family: var(--body), "Noto Serif SC", Georgia, serif;
+    position: relative;
+    min-height: 100vh;
+    font-family: var(--serif-c);
     color: var(--ink);
-    background: var(--bg);
-    line-height: 1.65;
+    background-color: var(--bg);
+    background-image:
+      radial-gradient(135% 90% at 8% -8%, oklch(89% 0.034 82 / .6), transparent 56%),
+      radial-gradient(135% 95% at 108% 112%, oklch(80% 0.044 74 / .55), transparent 54%);
+    background-attachment: fixed;
+    line-height: 1.7;
     -webkit-font-smoothing: antialiased;
     font-size: 16px;
+    overflow-x: hidden;
   }
 
-  /* Paper grain: single layer multiply, always on top of bg */
+  /* Paper grain main layer — exact benchmark recipe */
   body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    mix-blend-mode: multiply;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.10'/%3E%3C/svg%3E");
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    mix-blend-mode:soft-light; opacity:.42;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    background-size:220px 220px;
   }
 
-  /* Vignette: radial dark corners */
+  /* Fiber + irregular mottle layer — exact benchmark recipe */
   body::after {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: 0;
-    pointer-events: none;
-    background-image: radial-gradient(ellipse at 50% 50%, transparent 55%, oklch(20% 0.02 60 / 0.10) 100%);
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+    mix-blend-mode:multiply; opacity:.1;
+    background-image:
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='110' height='110'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E"),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='520'%3E%3Cfilter id='b'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018 0.05' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23b)' opacity='0.6'/%3E%3C/svg%3E");
+    background-size:110px 110px, 520px 520px;
   }
 
   h1, h2, h3, h4 {
-    font-family: var(--serif), "Noto Serif SC", "Songti SC", serif;
+    font-family: var(--serif-d);
   }
   a {
     color: inherit;
@@ -50,11 +71,16 @@
     font-style: italic;
   }
 
+  footer {
+    position: relative;
+    z-index: 1;
+  }
+
   /* Reveal animation */
   .reveal {
     opacity: 0;
-    transform: translateY(20px);
-    transition: opacity 0.7s ease, transform 0.7s ease;
+    transform: translateY(22px);
+    transition: opacity 0.8s cubic-bezier(.22,1,.36,1), transform 0.8s cubic-bezier(.22,1,.36,1);
   }
   .reveal.in {
     opacity: 1;
@@ -63,22 +89,17 @@
 }
 
 @layer components {
-  /* ── Matte gold button ── */
+  /* ── Matte gold button (benchmark shadow) ── */
   .btn-gold {
-    background: var(--gold-matte);
-    color: #fff;
+    background: var(--gold-deep);
+    color: var(--bg-card);
     border: none;
-    box-shadow:
-      inset 0 1px 0 oklch(85% 0.06 88 / 0.6),
-      inset 0 -2px 4px oklch(40% 0.08 60 / 0.25);
-    transition: all .2s ease;
+    box-shadow: 0 10px 24px -12px oklch(56% 0.12 80 / .8);
+    transition: transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s cubic-bezier(.22,1,.36,1);
   }
   .btn-gold:hover {
-    background: var(--gold-deep);
-    transform: translateY(-1px);
-    box-shadow:
-      inset 0 1px 0 oklch(85% 0.06 88 / 0.5),
-      inset 0 -3px 8px oklch(40% 0.08 60 / 0.35);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 30px -12px oklch(56% 0.12 80 / .9);
   }
 
   .btn-ghost {
@@ -150,9 +171,9 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-    height: 36px;
+    height: 37px;
     box-sizing: border-box;
-    padding: 0 13px;
+    padding: 0 15px;
     border: 1px solid var(--line-soft);
     border-radius: 9999px;
     background: var(--bg-card);
@@ -160,7 +181,7 @@
     font-size: 13px;
     color: var(--ink-soft);
     cursor: pointer;
-    transition: all 150ms ease;
+    transition: border-color .2s;
     outline: none;
     text-align: center;
     line-height: 1;

@@ -1,21 +1,20 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Newsreader } from "next/font/google";
+import { Playfair_Display, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import "@/styles/themes.css";
 
-const fraunces = Fraunces({
+const playfair = Playfair_Display({
   subsets: ["latin"],
-  variable: "--font-fraunces",
-  weight: ["400", "500", "600"],
+  variable: "--font-playfair",
+  weight: ["500", "600", "700"],
   style: ["normal", "italic"],
   display: "swap",
 });
 
-const newsreader = Newsreader({
+const notoSerifSC = Noto_Serif_SC({
   subsets: ["latin"],
-  variable: "--font-newsreader",
-  weight: ["400", "500"],
-  style: ["normal", "italic"],
+  variable: "--font-noto-serif-sc",
+  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -40,7 +39,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="kraft"
-      className={`${fraunces.variable} ${newsreader.variable}`}
+      className={`${playfair.variable} ${notoSerifSC.variable}`}
     >
       <head>
         <script
