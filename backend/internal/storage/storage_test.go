@@ -25,7 +25,9 @@ func TestReadingKeyUniqueness(t *testing.T) {
 	if k1 == k2 {
 		t.Error("different user/reading pairs should produce different keys")
 	}
-	if ReadingKey(1, 1) != ReadingKey(1, 1) {
+	k3 := ReadingKey(1, 1)
+	k4 := ReadingKey(1, 1)
+	if k3 != k4 {
 		t.Error("same input should produce same key")
 	}
 }

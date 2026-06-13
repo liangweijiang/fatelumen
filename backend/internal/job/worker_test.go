@@ -15,7 +15,6 @@ import (
 
 type controllableHandler struct {
 	mu         sync.Mutex
-	failCount  int
 	failUntil  int // fail this many times before succeeding
 	panicOn    int // panic on this attempt number (0-indexed)
 	attempts   int

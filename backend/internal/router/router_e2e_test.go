@@ -575,12 +575,6 @@ func (d *denyingLimiter) Allow(key string) (bool, time.Duration) {
 	return !d.denied, 2 * time.Second
 }
 
-func (d *denyingLimiter) callsFor(key string) int {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	return d.calls[key]
-}
-
 func createRateLimitedRouter(t *testing.T, db *gorm.DB) (*gin.Engine, *denyingLimiter) {
 	t.Helper()
 	authMW := middleware.NewAuthMiddleware(testJWTSecret, db)

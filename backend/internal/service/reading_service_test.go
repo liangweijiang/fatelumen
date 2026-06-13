@@ -185,13 +185,6 @@ func (f *fakeStorage) Put(ctx context.Context, key string, data []byte, contentT
 
 // ---------- tests ----------
 
-func fakeQuotaService(limit int) *QuotaService {
-	mc := cache.NewMemoryCache()
-	defer mc.Close()
-	// Don't close here — keep it alive for the test
-	return NewQuotaService(cache.NewMemoryCache(), limit)
-}
-
 func TestCreateQuick_Success(t *testing.T) {
 	mc := cache.NewMemoryCache()
 	quota := NewQuotaService(mc, 3)
