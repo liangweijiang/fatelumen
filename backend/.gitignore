@@ -1,2 +1,7 @@
 # Test output artifacts (chromedp screenshots/PDFs)
 **/testdata/output/
+
+cmd/smoke_p3/main.go
+*.exe
+server
+smoke_p3

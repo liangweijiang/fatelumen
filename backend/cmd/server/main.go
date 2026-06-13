@@ -55,7 +55,7 @@ func main() {
 	}
 
 	dbLogLevel := gormLogger.Warn
-	if cfg.AppEnv == "development" {
+	if cfg.AppEnv == "development" || cfg.AppEnv == "dev" {
 		dbLogLevel = gormLogger.Info
 	}
 	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
@@ -68,7 +68,7 @@ func main() {
 	sqlDB.SetMaxOpenConns(25)
 	sqlDB.SetMaxIdleConns(10)
 
-	if cfg.AppEnv == "development" {
+	if cfg.AppEnv == "development" || cfg.AppEnv == "dev" {
 		if err := autoMigrate(db); err != nil {
 			log.Fatal("failed to auto migrate", "err", err)
 		}
