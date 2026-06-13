@@ -236,8 +236,12 @@ func main() {
 
 	addr := fmt.Sprintf(":%s", cfg.AppPort)
 	srv := &http.Server{
-		Addr:    addr,
-		Handler: engine,
+		Addr:              addr,
+		Handler:           engine,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start HTTP in goroutine

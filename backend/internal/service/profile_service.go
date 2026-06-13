@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/repository"
 )
 
@@ -42,6 +44,21 @@ func (s *ProfileService) Create(ctx context.Context, userID uint64, in CreatePro
 	minute := in.BirthMinute
 	if in.CalendarType == 0 && in.BirthHour < 0 {
 		minute = 0
+	}
+	if in.BirthYear < 1 || in.BirthYear > 9999 ||
+		in.BirthMonth < 1 || in.BirthMonth > 12 ||
+		in.BirthDay < 1 || in.BirthDay > 31 ||
+		in.BirthHour < -1 || in.BirthHour > 23 ||
+		in.BirthMinute < 0 || in.BirthMinute > 59 {
+		logger.FromCtx(ctx).Warn("invalid birth profile input",
+			"user_id", userID,
+			"birth_year", in.BirthYear,
+			"birth_month", in.BirthMonth,
+			"birth_day", in.BirthDay,
+			"birth_hour", in.BirthHour,
+			"birth_minute", in.BirthMinute,
+		)
+		return nil, fmt.Errorf("invalid birth date fields")
 	}
 	profile := &model.BirthProfile{
 		UserID:       userID,
