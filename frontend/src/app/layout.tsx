@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Playfair_Display, Noto_Serif_SC } from "next/font/google";
+import { Playfair_Display } from "next/font/google";
 import "./globals.css";
 import "@/styles/themes.css";
 
@@ -8,13 +8,6 @@ const playfair = Playfair_Display({
   variable: "--font-playfair",
   weight: ["500", "600", "700"],
   style: ["normal", "italic"],
-  display: "swap",
-});
-
-const notoSerifSC = Noto_Serif_SC({
-  subsets: ["latin"],
-  variable: "--font-noto-serif-sc",
-  weight: ["300", "400", "500", "600", "700"],
   display: "swap",
 });
 
@@ -39,7 +32,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="kraft"
-      className={`${playfair.variable} ${notoSerifSC.variable}`}
+      className={playfair.variable}
     >
       <head>
         <script

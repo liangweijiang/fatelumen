@@ -1,8 +1,8 @@
 @import "@/styles/themes.css";
 
 :root {
-  --serif-d: var(--font-playfair), var(--font-noto-serif-sc), "Playfair Display", "Noto Serif SC", serif;
-  --serif-c: var(--font-noto-serif-sc), "Noto Serif SC", serif;
+  --serif-d: var(--font-playfair), "Noto Serif SC", serif;
+  --serif-c: "Noto Serif SC", serif;
   --bg: oklch(86% 0.039 80);
   --bg-soft: oklch(83% 0.041 79);
   --bg-card: oklch(89% 0.034 80);
