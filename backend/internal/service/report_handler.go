@@ -97,7 +97,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	profileID := payload.ProfileID
 	locale := payload.Locale
 	if locale == "" {
-		locale = "en"
+		locale = "zh"
 	}
 
 	// 幂等保护：report 已完成则直接返回已有结果，避免重复生成。
@@ -205,6 +205,8 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		logger.FromCtx(ctx).Error("llm JSON parse failed", "err", err, "report_id", reportID)
 		return "", fmt.Errorf("llm JSON parse: %w", err)
 	}
+
+	content.Locale = locale
 
 	// 5. 渲染 PDF
 	pdfData := renderer.BuildReportPDFData(chartData, content, time.Now().UTC().Format("2006-01-02"))

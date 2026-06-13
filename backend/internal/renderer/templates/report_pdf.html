@@ -6,7 +6,7 @@
   <style>
     @page {
       size: A4;
-      margin: 24mm 20mm 28mm 20mm;
+      margin: 16mm 14mm 18mm 14mm;
       @bottom-center {
         content: counter(page);
         font-family: 'Noto Serif SC', serif;
@@ -26,13 +26,21 @@
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', 'Noto Serif CJK JP', 'Noto Serif CJK KR', serif;
+      position: relative;
+      font-family: 'Noto Serif SC', 'Noto Serif CJK SC', 'Noto Serif CJK JP', 'Noto Serif CJK KR', Georgia, 'Times New Roman', serif;
       font-size: 11px;
       line-height: 1.75;
       color: oklch(25% 0.018 58);
       background: oklch(86% 0.039 80);
       -webkit-font-smoothing: antialiased;
     }
+    body::before {
+      content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      mix-blend-mode: soft-light; opacity: .42;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.62' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+      background-size: 220px 220px;
+    }
+    .cover, .chapter { position: relative; z-index: 1; }
     h1, h2, h3 {
       font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
       color: oklch(25% 0.018 58);
@@ -42,17 +50,17 @@
     .cover {
       page-break-after: always;
       display: flex; flex-direction: column;
-      justify-content: center;
-      height: 100vh;
-      background: oklch(86% 0.039 80);
-      padding: 60px;
+      justify-content: center; align-items: center;
+      min-height: 250mm;
       text-align: center;
     }
     .cover .brand {
+      display: flex; align-items: center; justify-content: center; gap: 14px;
       font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
-      font-size: 28px; color: oklch(56% 0.120 80);
-      letter-spacing: 2px; margin-bottom: 48px;
+      font-size: 30px; color: oklch(25% 0.018 58);
+      letter-spacing: .5px; margin-bottom: 44px;
     }
+    .cover .brand svg { width: 48px; height: 48px; }
     .cover h1 {
       font-size: 36px; margin-bottom: 24px; color: oklch(25% 0.018 58);
     }
@@ -76,16 +84,37 @@
     }
 
     /* ── 章节 ── */
+    .page-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 12px; margin-bottom: 18px;
+      border-bottom: 1px solid oklch(81% 0.040 80);
+    }
+    .page-header .brand { display: flex; align-items: center; gap: 9px;
+      font-family: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+      font-size: 15px; color: oklch(25% 0.018 58); }
+    .page-header .brand svg { width: 27px; height: 27px; }
+    .page-header .tag { font-size: 10px; letter-spacing: 2px; color: oklch(60% 0.016 64); }
     .chapter {
-      page-break-before: always;
-      padding: 20px 0;
+      background: oklch(89% 0.034 80);
+      border: 1px solid oklch(77% 0.044 79);
+      border-radius: 12px;
+      padding: 32px 34px;
+      margin-bottom: 40px;
+      break-inside: auto;
+      box-shadow: 0 10px 26px -18px oklch(35% 0.04 60 / .4);
     }
     .chapter h2 {
       font-size: 22px;
-      color: oklch(56% 0.120 80);
-      margin-bottom: 20px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid oklch(77% 0.044 79);
+      color: oklch(25% 0.018 58);
+      margin-bottom: 18px;
+    }
+    .chapter h2::after {
+      content: "";
+      display: block;
+      width: 40px;
+      height: 2px;
+      background: oklch(66% 0.115 84);
+      margin-top: 12px;
     }
     .chapter p {
       margin-bottom: 12px;
@@ -94,17 +123,23 @@
 
     /* ── 四柱摘要 ── */
     .pillar-summary {
-      display: flex; gap: 12px; margin-bottom: 32px;
+      display: flex; gap: 12px;
+      max-width: 440px;
+      margin: 0 auto 36px;
+      background: oklch(89% 0.034 80);
+      padding: 34px 30px;
+      border: 2px solid oklch(77% 0.044 79);
+      border-radius: 13px;
+      box-shadow: inset 0 0 0 4px oklch(89% 0.034 80), inset 0 0 0 5px oklch(88% 0.055 86), 0 22px 46px -28px oklch(35% 0.04 60 / .5);
     }
     .pillar-box {
       flex: 1; text-align: center;
-      background: oklch(89% 0.034 80);
-      border: 1px solid oklch(77% 0.044 79);
-      border-radius: 10px; padding: 16px 8px;
+      padding: 16px 8px;
     }
     .pillar-box .stem-branch {
       font-family: 'Noto Serif SC', 'Noto Serif CJK SC', serif;
-      font-size: 22px;
+      font-size: 34px;
+      line-height: 1.25;
     }
     .pillar-box .label {
       font-size: 10px; color: oklch(60% 0.016 64); margin-top: 4px;
@@ -164,7 +199,7 @@
 
 {{/* ── 封面 ── */}}
 <div class="cover">
-  <div class="brand">{{.Brand}}</div>
+  <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="oklch(25% 0.018 58)"/><g transform="translate(4.36 6.4) scale(0.6)"><path d="M21.5 5.5a11 11 0 1 0 0 21 8.5 8.5 0 0 1 0-21z" fill="oklch(66% 0.115 84)"/><circle cx="22.5" cy="13" r="2.4" fill="oklch(66% 0.115 84)"/><g stroke="oklch(66% 0.115 84)" stroke-width="1.4" stroke-linecap="round"><path d="M22.5 7.2v2M22.5 16.8v2M16.7 13h2M26.3 13h2M18.6 9.1l1.4 1.4M25 9.1l-1.4 1.4"/></g></g></svg><span>{{.Brand}}</span></div>
   <h1>{{.ReportTitle}}</h1>
   <div class="subtitle">{{.Content.SummaryLine}}</div>
   <div class="divider"></div>
@@ -179,6 +214,7 @@
 
 {{/* ── 四柱摘要 ── */}}
 <div class="chapter">
+  <div class="page-header"><div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="9" fill="oklch(25% 0.018 58)"/><g transform="translate(4.36 6.4) scale(0.6)"><path d="M21.5 5.5a11 11 0 1 0 0 21 8.5 8.5 0 0 1 0-21z" fill="oklch(66% 0.115 84)"/><circle cx="22.5" cy="13" r="2.4" fill="oklch(66% 0.115 84)"/><g stroke="oklch(66% 0.115 84)" stroke-width="1.4" stroke-linecap="round"><path d="M22.5 7.2v2M22.5 16.8v2M16.7 13h2M26.3 13h2M18.6 9.1l1.4 1.4M25 9.1l-1.4 1.4"/></g></g></svg><span>{{.Brand}}</span></div><span class="tag">{{.ReportTitle}}</span></div>
   <h2>{{.SectionLabels.summary}}</h2>
   <div class="pillar-summary">
     {{range .Pillars}}<div class="pillar-box">
@@ -223,7 +259,7 @@
 <div class="chapter">
   <h2>{{.SectionLabels.yearly_fortune}}</h2>
   <table class="fortune-table">
-    <tr><th>Year</th><th>Analysis</th></tr>
+    <tr><th>流年</th><th>解读</th></tr>
     {{range .FortuneItems}}<tr>
       <td class="year">{{.Year}}</td>
       <td>{{.Note}}</td>
