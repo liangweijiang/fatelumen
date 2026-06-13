@@ -1,6 +1,6 @@
 {
   "meta": { "title": "FateLumen · 당신의 사주 명반을 해독하다", "description": "생년월일과 태어난 시간을 입력하고 정밀한 사주 명반(사주팔자) 해석을 받아보세요. 전통 명리학에 기반한 명쾌한 해석을 제공합니다." },
-  "nav": { "logo": "FateLumen", "howItWorks": "작동 방식", "sample": "샘플", "pricing": "가격", "faq": "자주 묻는 질문", "learn": "배우기", "cases": "사례", "signIn": "로그인", "getStarted": "시작하기" },
+  "nav": { "logo": "FateLumen", "howItWorks": "작동 방식", "sample": "샘플", "pricing": "가격", "faq": "자주 묻는 질문", "learn": "배우기", "cases": "사례", "signIn": "로그인", "getStarted": "시작하기", "enterHall": "명리각으로", "signOut": "나가기", "greeting": "객님" },
   "theme": { "kraft": "크라프트지", "slot2": "테마 2", "slot3": "테마 3", "slot4": "테마 4", "slot5": "테마 5", "slot6": "테마 6", "comingSoon": "곧 출시" },
   "lang": { "en": "English", "zh": "中文", "ja": "日本語", "ko": "한국어" },
   "hero": { "eyebrow": "중국 전통 명리학", "title": "당신의 사주를 해독하여,", "titleEm": "읽어내는", "titleEnd": "운명.", "sub": "생년월일과 태어난 시간을 입력하면 정밀한 사주팔자(사주 명반)를 계산하여 누구나 이해할 수 있는 명쾌한 해석으로 풀어드립니다.", "cta": "무료 사주 해석 받기", "secondary": "작동 방식 보기", "note": "신용카드 불필요 · 매일 3회 무료", "chartTitle": "당신의 사주 명반", "hour": "시주", "day": "일주", "month": "월주", "year": "년주", "wood": "목", "fire": "화", "earth": "토", "metal": "금", "water": "수" },

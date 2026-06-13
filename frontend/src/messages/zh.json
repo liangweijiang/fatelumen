@@ -1,7 +1,7 @@
 {
   "_TODO": "zh translation complete",
   "meta": { "title": "FateLumen · 解码你的八字命盘", "description": "输入你的出生信息，获取精密的八字命盘——四柱推命——转化为清晰易懂的专业解读。" },
-  "nav": { "logo": "FateLumen", "howItWorks": "运作方式", "sample": "报告样本", "pricing": "定价", "faq": "常见问题", "learn": "学习", "cases": "案例", "signIn": "登录", "getStarted": "开始使用" },
+  "nav": { "logo": "FateLumen", "howItWorks": "运作方式", "sample": "报告样本", "pricing": "定价", "faq": "常见问题", "learn": "学习", "cases": "案例", "signIn": "登录", "getStarted": "开始使用", "enterHall": "进入命理阁", "signOut": "离阁", "greeting": "阁下" },
   "theme": { "kraft": "牛皮纸", "slot2": "主题 2", "slot3": "主题 3", "slot4": "主题 4", "slot5": "主题 5", "slot6": "主题 6", "comingSoon": "即将推出" },
   "lang": { "en": "English", "zh": "中文", "ja": "日本語", "ko": "한국어" },
   "hero": { "eyebrow": "中国传统命理学", "title": "解码你的命盘，", "titleEm": "读懂", "titleEnd": "你的天命。", "sub": "输入出生信息，获取精密的八字命盘——四柱推命——转化为清晰易懂、让你真正理解的深度解读。", "cta": "免费获取命理解读", "secondary": "了解运作方式", "note": "无需信用卡 · 每日 3 次免费测算", "chartTitle": "您的四柱命盘", "hour": "时柱", "day": "日柱", "month": "月柱", "year": "年柱", "wood": "木", "fire": "火", "earth": "土", "metal": "金", "water": "水" },

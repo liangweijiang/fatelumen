@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
+import { getToken, removeToken } from "@/lib/auth-storage";
+import { fetchMe, type Me } from "@/lib/admin-api";
 import ThemeSwitcher from "@/components/theme/ThemeSwitcher";
 import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
 import MobileDrawer from "@/components/common/MobileDrawer";
@@ -13,6 +15,7 @@ export default function StickyHeader({ locale }: { locale: string }) {
   const t = useTranslations("nav");
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -20,6 +23,30 @@ export default function StickyHeader({ locale }: { locale: string }) {
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!getToken()) {
+      setMe(null);
+      return;
+    }
+    let alive = true;
+    fetchMe()
+      .then((data) => {
+        if (alive) setMe(data);
+      })
+      .catch(() => {
+        if (alive) setMe(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  function handleSignOut() {
+    removeToken();
+    setMe(null);
+    window.location.href = `/${locale}`;
+  }
 
   return (
     <>
@@ -62,36 +89,48 @@ export default function StickyHeader({ locale }: { locale: string }) {
               className="h-[18px] w-px"
               style={{ background: "var(--line-soft)" }}
             />
-            <Link
-              href={`/login?lang=${locale}`}
-              className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
-              style={{
-                background: "var(--gold-deep)",
-                color: "var(--bg-card)",
-                borderRadius: "9999px",
-                height: "37px",
-                padding: "0 22px",
-                display: "inline-flex",
-                alignItems: "center",
-                border: "none",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--gold)";
-                e.currentTarget.style.transform = "translateY(-2px)";
-                e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.15)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--gold-deep)";
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.1)";
-              }}
-              onMouseDown={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-              }}
-            >
-              {t("signIn")}
-            </Link>
+            {me ? (
+              <>
+                <Link
+                  href={`/${locale}/dashboard`}
+                  className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
+                  style={{
+                    background: "var(--gold-deep)",
+                    color: "var(--bg-card)",
+                    borderRadius: "9999px",
+                    height: "37px",
+                    padding: "0 22px",
+                    border: "none",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {t("enterHall")}
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="font-[var(--serif)] text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                >
+                  {t("signOut")}
+                </button>
+              </>
+            ) : (
+              <Link
+                href={`/login?lang=${locale}`}
+                className="inline-flex items-center justify-center font-[var(--serif)] text-[13px] font-semibold transition-all"
+                style={{
+                  background: "var(--gold-deep)",
+                  color: "var(--bg-card)",
+                  borderRadius: "9999px",
+                  height: "37px",
+                  padding: "0 22px",
+                  border: "none",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                }}
+              >
+                {t("signIn")}
+              </Link>
+            )}
           </div>
 
           {/* Mobile hamburger */}

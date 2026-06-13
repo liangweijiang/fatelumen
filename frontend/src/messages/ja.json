@@ -1,6 +1,6 @@
 {
   "meta": { "title": "FateLumen · あなたの四柱推命を解読", "description": "生年月日と出生時刻を入力すると、あなたの四柱推命（八字）の命式を正確に算出し、誰にでも理解できる明快な解読文にお届けします。" },
-  "nav": { "logo": "FateLumen", "howItWorks": "仕組み", "sample": "サンプル", "pricing": "料金", "faq": "よくある質問", "learn": "学ぶ", "cases": "事例", "signIn": "ログイン", "getStarted": "始める" },
+  "nav": { "logo": "FateLumen", "howItWorks": "仕組み", "sample": "サンプル", "pricing": "料金", "faq": "よくある質問", "learn": "学ぶ", "cases": "事例", "signIn": "ログイン", "getStarted": "始める", "enterHall": "命理閣へ", "signOut": "退出", "greeting": "閣下" },
   "theme": { "kraft": "クラフト紙", "slot2": "テーマ2", "slot3": "テーマ3", "slot4": "テーマ4", "slot5": "テーマ5", "slot6": "テーマ6", "comingSoon": "近日公開" },
   "lang": { "en": "English", "zh": "中文", "ja": "日本語", "ko": "한국어" },
   "hero": { "eyebrow": "中国伝統命理学", "title": "あなたの命式を解読し、", "titleEm": "読み解く", "titleEnd": "天命を知る。", "sub": "生年月日を入力するだけで、あなたの四柱推命——四柱命式——を正確に算出し、誰にでも理解できる明快な解読文に翻訳します。", "cta": "無料で命理解読を始める", "secondary": "仕組みを見る", "note": "クレジットカード不要 · 毎日3回無料", "chartTitle": "あなたの四柱命式", "hour": "時柱", "day": "日柱", "month": "月柱", "year": "年柱", "wood": "木", "fire": "火", "earth": "土", "metal": "金", "water": "水" },
