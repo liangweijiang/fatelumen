@@ -20,6 +20,8 @@ type fakeAdminUserStore struct {
 	getErr    error
 	activeSet map[uint64]bool
 	activeErr error
+	unlimitedSet map[uint64]bool
+	unlimitedErr error
 	tokenCleared map[uint64]bool
 	clearTokenErr error
 }
@@ -27,6 +29,7 @@ type fakeAdminUserStore struct {
 func newFakeAdminUserStore() *fakeAdminUserStore {
 	return &fakeAdminUserStore{
 		activeSet: make(map[uint64]bool),
+		unlimitedSet: make(map[uint64]bool),
 		tokenCleared: make(map[uint64]bool),
 	}
 }
@@ -60,6 +63,14 @@ func (f *fakeAdminUserStore) ClearCurrentToken(userID uint64) error {
 		return f.clearTokenErr
 	}
 	f.tokenCleared[userID] = true
+	return nil
+}
+
+func (f *fakeAdminUserStore) SetUserUnlimited(id uint64, unlimited bool) error {
+	if f.unlimitedErr != nil {
+		return f.unlimitedErr
+	}
+	f.unlimitedSet[id] = unlimited
 	return nil
 }
 

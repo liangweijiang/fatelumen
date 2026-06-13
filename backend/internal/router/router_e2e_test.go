@@ -78,6 +78,9 @@ func (f *fakeAllAdminServices) GetUserDetail(ctx context.Context, userID uint64)
 func (f *fakeAllAdminServices) SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error {
 	return nil
 }
+func (f *fakeAllAdminServices) SetUserUnlimited(ctx context.Context, operatorID, targetUserID uint64, unlimited bool) error {
+	return nil
+}
 func (f *fakeAllAdminServices) ListOrders(ctx context.Context, status string, userID uint64, page, pageSize int) (*service.AdminOrdersPage, error) {
 	return &service.AdminOrdersPage{Items: []service.AdminOrderItem{}, Total: 0, Page: page, PageSize: pageSize}, nil
 }
