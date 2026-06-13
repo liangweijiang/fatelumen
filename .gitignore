@@ -26,3 +26,4 @@ vendor/
 *.log
 .idea/
 .idea/
+/backend/storage_data/

@@ -78,6 +78,7 @@ type Config struct {
 	R2SecretAccessKey string
 	R2Bucket          string
 	R2PublicBase      string
+	LocalStorageDir   string
 }
 
 // Validate checks mandatory config fields and returns all missing keys.
@@ -220,6 +221,7 @@ func Load() (*Config, error) {
 		R2SecretAccessKey: viper.GetString("R2_SECRET_ACCESS_KEY"),
 		R2Bucket:          viper.GetString("R2_BUCKET"),
 		R2PublicBase:      viper.GetString("R2_PUBLIC_BASE"),
+		LocalStorageDir:   viper.GetString("LOCAL_STORAGE_DIR"),
 	}
 	return cfg, nil
 }

@@ -115,14 +115,22 @@ func main() {
 	log.Info("renderer initialized", "type", cfg.Renderer)
 
 	var fileStorage storage.Storage
-	if cfg.R2AccountID != "" {
+	switch {
+	case cfg.R2AccountID != "":
 		r2, err := storage.NewR2Storage(cfg.R2AccountID, cfg.R2AccessKeyID, cfg.R2SecretAccessKey, cfg.R2Bucket, cfg.R2PublicBase)
 		if err != nil {
 			log.Fatal("failed to init R2 storage", "err", err)
 		}
 		fileStorage = r2
 		log.Info("storage initialized", "type", "r2")
-	} else {
+	case cfg.LocalStorageDir != "":
+		lfs, err := storage.NewLocalFSStorage(cfg.LocalStorageDir)
+		if err != nil {
+			log.Fatal("failed to init local storage", "err", err)
+		}
+		fileStorage = lfs
+		log.Info("storage initialized", "type", "localfs", "dir", cfg.LocalStorageDir)
+	default:
 		fileStorage = &storage.NoopStorage{}
 		log.Info("storage initialized", "type", "noop")
 	}

@@ -61,7 +61,30 @@ func NewReportHandler(
 }
 
 // Handle 执行异步报告生成全链路。每步失败 return err 让 worker 走重试/降级。
-func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (string, error) {
+func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, err error) {
+	// 永久失败兜底：重试耗尽仍失败时，把 report 状态同步为 failed，
+	// 避免 job 框架只收尾 job、reports 表却永远卡在 processing。
+	defer func() {
+		if err == nil {
+			return
+		}
+		if j.Attempts+1 < j.MaxAttempts {
+			return // 还会重试，先不终结 report
+		}
+		var payload reportPayload
+		if e := json.Unmarshal([]byte(j.Payload), &payload); e != nil {
+			logger.FromCtx(ctx).Error("finalize failed report: payload parse failed", "err", e, "job_id", j.ID)
+			return
+		}
+		if e := h.reportRepo.UpdateStatus(payload.ReportID, "failed", err.Error()); e != nil {
+			logger.FromCtx(ctx).Error("finalize failed report: update status failed",
+				"err", e, "report_id", payload.ReportID)
+			return
+		}
+		logger.FromCtx(ctx).Error("report permanently failed, status set to failed",
+			"report_id", payload.ReportID, "attempts", j.Attempts+1, "reason", err.Error())
+	}()
+
 	// 1. 解析 payload
 	var payload reportPayload
 	if err := json.Unmarshal([]byte(j.Payload), &payload); err != nil {
