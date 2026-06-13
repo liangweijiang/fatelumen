@@ -17,7 +17,7 @@ type LocalFSStorage struct {
 
 // NewLocalFSStorage 创建本地文件存储，baseDir 为根目录（不存在则创建）。
 func NewLocalFSStorage(baseDir string) (*LocalFSStorage, error) {
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		return nil, fmt.Errorf("create local storage dir: %w", err)
 	}
 	return &LocalFSStorage{baseDir: baseDir}, nil
@@ -25,11 +25,11 @@ func NewLocalFSStorage(baseDir string) (*LocalFSStorage, error) {
 
 func (s *LocalFSStorage) Put(ctx context.Context, key string, data []byte, contentType string) (string, error) {
 	fullPath := filepath.Join(s.baseDir, key)
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0o750); err != nil {
 		logger.FromCtx(ctx).Error("local storage mkdir failed", "err", err, "key", key)
 		return "", fmt.Errorf("local storage mkdir: %w", err)
 	}
-	if err := os.WriteFile(fullPath, data, 0o644); err != nil {
+	if err := os.WriteFile(fullPath, data, 0o600); err != nil {
 		logger.FromCtx(ctx).Error("local storage write failed", "err", err, "key", key)
 		return "", fmt.Errorf("local storage write: %w", err)
 	}
