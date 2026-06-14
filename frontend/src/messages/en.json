@@ -86,5 +86,22 @@
     "error": "Something went wrong, please retry",
     "profileFailed": "Profile creation failed",
     "reportFailed": "Report creation failed"
+  },
+  "report": {
+    "loading": "Generating your chart reading…",
+    "failed": "Reading generation failed, please retry",
+    "retry": "Retry",
+    "chapterPrefix": "Chapter ",
+    "chapterSuffix": "",
+    "downloadPdf": "Download PDF",
+    "generating": "Generating PDF…",
+    "publishDate": "Generated",
+    "dayMaster": "Day Master",
+    "strength": "Strength",
+    "fiveElements": "Five Elements",
+    "pillars": "Four Pillars",
+    "summary": "Destiny Overview",
+    "cycleTitle": "Luck Cycle",
+    "yearTitle": "Yearly Fortune"
   }
 }

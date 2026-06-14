@@ -86,5 +86,22 @@
     "error": "エラーが発生しました。再試行してください",
     "profileFailed": "プロファイル作成失敗",
     "reportFailed": "レポート作成失敗"
+  },
+  "report": {
+    "loading": "命式を推演中です…",
+    "failed": "推演に失敗しました。再試行してください",
+    "retry": "再試行",
+    "chapterPrefix": "第",
+    "chapterSuffix": "章",
+    "downloadPdf": "PDF ダウンロード",
+    "generating": "PDF 生成中…",
+    "publishDate": "作成日時",
+    "dayMaster": "日主",
+    "strength": "強弱",
+    "fiveElements": "五行",
+    "pillars": "四柱",
+    "summary": "命式総論",
+    "cycleTitle": "大運",
+    "yearTitle": "年運"
   }
 }

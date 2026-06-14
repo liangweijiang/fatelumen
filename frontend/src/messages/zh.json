@@ -87,5 +87,22 @@
     "error": "推演出错，请重试",
     "profileFailed": "档案创建失败",
     "reportFailed": "报告创建失败"
+  },
+  "report": {
+    "loading": "正在为您推演命盘…",
+    "failed": "命盘推演失败，请重试",
+    "retry": "重新推演",
+    "chapterPrefix": "第",
+    "chapterSuffix": "章",
+    "downloadPdf": "下载 PDF",
+    "generating": "正在生成 PDF…",
+    "publishDate": "生成时间",
+    "dayMaster": "日主",
+    "strength": "强弱",
+    "fiveElements": "五行",
+    "pillars": "四柱",
+    "summary": "命格总论",
+    "cycleTitle": "大运",
+    "yearTitle": "流年"
   }
 }

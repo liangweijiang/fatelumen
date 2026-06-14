@@ -86,5 +86,22 @@
     "error": "오류가 발생했습니다. 다시 시도해 주세요",
     "profileFailed": "프로필 생성 실패",
     "reportFailed": "리포트 생성 실패"
+  },
+  "report": {
+    "loading": "명반을 추연 중입니다…",
+    "failed": "추연에 실패했습니다. 다시 시도해 주세요",
+    "retry": "재시도",
+    "chapterPrefix": "제",
+    "chapterSuffix": "장",
+    "downloadPdf": "PDF 다운로드",
+    "generating": "PDF 생성 중…",
+    "publishDate": "생성 일시",
+    "dayMaster": "일주",
+    "strength": "강약",
+    "fiveElements": "오행",
+    "pillars": "사주",
+    "summary": "명격 총론",
+    "cycleTitle": "대운",
+    "yearTitle": "세운"
   }
 }
