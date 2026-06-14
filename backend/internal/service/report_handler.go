@@ -208,25 +208,8 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 
 	content.Locale = locale
 
-	// 5. 渲染 PDF
-	pdfData := renderer.BuildReportPDFData(chartData, content, time.Now().UTC().Format("2006-01-02"))
-	pdf, err := renderer.RenderReportPDF(ctx, h.renderer, pdfData)
-	if err != nil {
-		logger.FromCtx(ctx).Error("report pdf render failed", "err", err, "report_id", reportID)
-		return "", fmt.Errorf("render pdf: %w", err)
-	}
-
-	// 6. 上传 R2
-	key := storage.ReportKey(userID, reportID)
-	pdfURL, err := h.storage.Put(ctx, key, pdf, "application/pdf")
-	if err != nil {
-		logger.FromCtx(ctx).Error("storage upload failed", "err", err,
-			"key", key, "report_id", reportID)
-		return "", fmt.Errorf("storage upload: %w", err)
-	}
-
-	// 7. 落库结果 + 状态 done
-	if err := h.reportRepo.UpdateResult(reportID, content, pdfURL); err != nil {
+	// 5. 落库内容（PDF 改为按需懒生成，此处不再渲染/上传 PDF）
+	if err := h.reportRepo.UpdateResult(reportID, content, ""); err != nil {
 		logger.FromCtx(ctx).Error("report result update failed", "err", err, "report_id", reportID)
 		return "", fmt.Errorf("update result: %w", err)
 	}
@@ -241,7 +224,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		"user_id", userID,
 		"profile_id", profileID,
 	)
-	return pdfURL, nil
+	return "", nil
 }
 
 // 编译期接口校验

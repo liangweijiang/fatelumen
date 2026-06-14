@@ -124,6 +124,12 @@ func (f *fakeUserReportSvc) GetReport(ctx context.Context, userID, reportID uint
 func (f *fakeUserReportSvc) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
 	return []model.Report{}, nil
 }
+func (f *fakeUserReportSvc) ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error) {
+	return "https://cdn.example.com/report/1.pdf", nil
+}
+func (f *fakeUserReportSvc) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
+	return "<html>report</html>", nil
+}
 
 func createTestRouter(t *testing.T, db *gorm.DB, userReportID, userUserID uint64) *gin.Engine {
 	t.Helper()

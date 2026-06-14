@@ -20,6 +20,8 @@ type fakeReportSvc struct {
 	createFn func(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	getFn    func(ctx context.Context, userID, reportID uint64) (*model.Report, error)
 	listFn   func(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
+	exportFn func(ctx context.Context, userID, reportID uint64) (string, error)
+	htmlFn   func(ctx context.Context, userID, reportID uint64) (string, error)
 }
 
 func (f *fakeReportSvc) CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error) {
@@ -32,6 +34,14 @@ func (f *fakeReportSvc) GetReport(ctx context.Context, userID, reportID uint64) 
 
 func (f *fakeReportSvc) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
 	return f.listFn(ctx, userID, limit, offset)
+}
+
+func (f *fakeReportSvc) ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error) {
+	return f.exportFn(ctx, userID, reportID)
+}
+
+func (f *fakeReportSvc) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
+	return f.htmlFn(ctx, userID, reportID)
 }
 
 func testHandler(svc reportSvc) *ReportHandler {

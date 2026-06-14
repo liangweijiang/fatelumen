@@ -3,12 +3,15 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"fatelumen/backend/internal/job"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/logger"
+	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
+	"fatelumen/backend/internal/storage"
 )
 
 // 私有接口：ReportService 内部仅依赖接口，便于单测 fake
@@ -24,6 +27,10 @@ type reportQueue interface {
 	Enqueue(ctx context.Context, job *job.Job) error
 }
 
+type chartFinder interface {
+	FindByID(uint64) (*model.Chart, error)
+}
+
 // reportPayload job 载荷。
 type reportPayload struct {
 	ReportID  uint64 `json:"report_id"`
@@ -32,16 +39,28 @@ type reportPayload struct {
 	Locale    string `json:"locale"`
 }
 
-// ReportService 深度报告业务编排（入队侧）。
+// ReportService 深度报告业务编排（入队侧 + 按需渲染）。
 type ReportService struct {
-	reportRepo reportStore
-	queue      reportQueue
+	reportRepo  reportStore
+	chartRepo   chartFinder
+	renderer    renderer.Renderer
+	fileStorage storage.Storage
+	queue       reportQueue
 }
 
-func NewReportService(reportRepo *repository.ReportRepo, queue job.Queue) *ReportService {
+func NewReportService(
+	reportRepo *repository.ReportRepo,
+	chartRepo *repository.ChartRepo,
+	imgRenderer renderer.Renderer,
+	fileStorage storage.Storage,
+	queue job.Queue,
+) *ReportService {
 	return &ReportService{
-		reportRepo: reportRepo,
-		queue:      queue,
+		reportRepo:  reportRepo,
+		chartRepo:   chartRepo,
+		renderer:    imgRenderer,
+		fileStorage: fileStorage,
+		queue:       queue,
 	}
 }
 
@@ -106,4 +125,77 @@ func (s *ReportService) GetReport(ctx context.Context, userID, reportID uint64) 
 // ListReports 列出用户报告。
 func (s *ReportService) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
 	return s.reportRepo.ListByUser(userID, limit, offset)
+}
+
+// ExportReportPDF 按需懒生成 PDF：若已有缓存 URL 直接返回，否则渲染→上传→回写→返回。
+func (s *ReportService) ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error) {
+	report, err := s.GetReport(ctx, userID, reportID)
+	if err != nil {
+		return "", fmt.Errorf("report not found: %w", err)
+	}
+	if report.Status != model.ReportStatusDone {
+		return "", fmt.Errorf("report not ready, status: %s", report.Status)
+	}
+	if report.PDFURL != "" {
+		return report.PDFURL, nil
+	}
+
+	chart, err := s.chartRepo.FindByID(report.ChartID)
+	if err != nil {
+		logger.FromCtx(ctx).Error("chart not found for export pdf", "err", err, "chart_id", report.ChartID, "report_id", reportID)
+		return "", fmt.Errorf("chart not found: %w", err)
+	}
+
+	pdfData := renderer.BuildReportPDFData(&chart.ChartData, report.Content, time.Now().UTC().Format("2006-01-02"))
+	pdf, err := renderer.RenderReportPDF(ctx, s.renderer, pdfData)
+	if err != nil {
+		return "", fmt.Errorf("render pdf: %w", err)
+	}
+
+	key := storage.ReportKey(userID, reportID)
+	pdfURL, err := s.fileStorage.Put(ctx, key, pdf, "application/pdf")
+	if err != nil {
+		logger.FromCtx(ctx).Error("storage upload failed for export pdf", "err", err, "key", key, "report_id", reportID)
+		return "", fmt.Errorf("storage upload: %w", err)
+	}
+
+	if err := s.reportRepo.UpdateResult(reportID, report.Content, pdfURL); err != nil {
+		logger.FromCtx(ctx).Error("report pdf_url update failed", "err", err, "report_id", reportID)
+		return "", fmt.Errorf("update pdf_url: %w", err)
+	}
+
+	logger.FromCtx(ctx).Info("report pdf exported lazily",
+		"report_id", reportID,
+		"user_id", userID,
+	)
+	return pdfURL, nil
+}
+
+// RenderReportHTML 在线报告 HTML：从库读内容 + 排盘数据，渲染完整 HTML。
+func (s *ReportService) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
+	report, err := s.GetReport(ctx, userID, reportID)
+	if err != nil {
+		return "", fmt.Errorf("report not found: %w", err)
+	}
+	if report.Status != model.ReportStatusDone {
+		return "", fmt.Errorf("report not ready, status: %s", report.Status)
+	}
+
+	chart, err := s.chartRepo.FindByID(report.ChartID)
+	if err != nil {
+		logger.FromCtx(ctx).Error("chart not found for view html", "err", err, "chart_id", report.ChartID, "report_id", reportID)
+		return "", fmt.Errorf("chart not found: %w", err)
+	}
+
+	pdfData := renderer.BuildReportPDFData(&chart.ChartData, report.Content, time.Now().UTC().Format("2006-01-02"))
+	html, err := renderer.RenderReportHTML(ctx, pdfData)
+	if err != nil {
+		return "", fmt.Errorf("render html: %w", err)
+	}
+
+	logger.FromCtx(ctx).Info("report html rendered",
+		"report_id", reportID,
+		"user_id", userID,
+	)
+	return html, nil
 }

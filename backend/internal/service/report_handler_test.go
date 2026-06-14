@@ -202,14 +202,10 @@ func TestReportHandler_Success(t *testing.T) {
 	h, _, chartSaver, reportGetter, _, _, _ := newHandlerWithFakes()
 
 	job := buildReportJob(1, 42, 1, "en")
-	result, err := h.Handle(context.Background(), job)
+	_, err := h.Handle(context.Background(), job)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result == "" {
-		t.Fatal("expected result (pdfURL), got empty")
-	}
-
 	// 验证 report 状态为 done
 	r := reportGetter.getReport(1)
 	if r == nil {
@@ -217,9 +213,6 @@ func TestReportHandler_Success(t *testing.T) {
 	}
 	if r.Status != "done" {
 		t.Fatalf("expected status 'done', got '%s'", r.Status)
-	}
-	if r.PDFURL == "" {
-		t.Fatal("expected pdf_url non-empty")
 	}
 	if r.Content.SummaryLine == "" {
 		t.Fatal("expected content with summary_line")
@@ -295,28 +288,6 @@ func TestReportHandler_LLMCallFailure(t *testing.T) {
 	_, err := h.Handle(context.Background(), job)
 	if err == nil {
 		t.Fatal("expected error for LLM call failure")
-	}
-}
-
-func TestReportHandler_PDFRenderFailure(t *testing.T) {
-	h, _, _, _, _, renderer, _ := newHandlerWithFakes()
-	renderer.err = errors.New("chromedp failed")
-
-	job := buildReportJob(1, 42, 1, "en")
-	_, err := h.Handle(context.Background(), job)
-	if err == nil {
-		t.Fatal("expected error for PDF render failure")
-	}
-}
-
-func TestReportHandler_StorageFailure(t *testing.T) {
-	h, _, _, _, _, _, storage := newHandlerWithFakes()
-	storage.err = errors.New("r2 upload failed")
-
-	job := buildReportJob(1, 42, 1, "en")
-	_, err := h.Handle(context.Background(), job)
-	if err == nil {
-		t.Fatal("expected error for storage failure")
 	}
 }
 

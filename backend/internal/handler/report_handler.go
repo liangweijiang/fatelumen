@@ -19,6 +19,8 @@ type reportSvc interface {
 	CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	GetReport(ctx context.Context, userID, reportID uint64) (*model.Report, error)
 	ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
+	ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error)
+	RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error)
 }
 
 // ReportHandler 深度报告 HTTP 处理器。
@@ -162,4 +164,49 @@ func (h *ReportHandler) List(c *gin.Context) {
 		return
 	}
 	response.OK(c, reports)
+}
+
+// ExportPDF POST /api/v1/reports/:id/pdf —— 按需懒生成 PDF，已生成则直接返回缓存 URL。
+func (h *ReportHandler) ExportPDF(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Fail(c, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid report id")
+		return
+	}
+
+	url, err := h.svc.ExportReportPDF(c.Request.Context(), userID, id)
+	if err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"pdf_url": url})
+}
+
+// ViewHTML GET /api/v1/reports/:id/html —— 在线报告 HTML（懒：直接读库内容渲染）。
+func (h *ReportHandler) ViewHTML(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Fail(c, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid report id")
+		return
+	}
+
+	html, err := h.svc.RenderReportHTML(c.Request.Context(), userID, id)
+	if err != nil {
+		response.Error(c, err.Error())
+		return
+	}
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	c.String(200, html)
 }
