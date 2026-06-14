@@ -196,10 +196,22 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 				"elapsed_ms", time.Since(gStart).Milliseconds())
 			return "", fmt.Errorf("llm group %s: %w", g.Name, gerr)
 		}
+		existingChapters := content.Chapters
+		var part2 model.ReportContent
+		if uerr := json.Unmarshal([]byte(part), &part2); uerr != nil {
+			logger.FromCtx(ctx).Error("llm group JSON parse failed", "err", uerr,
+				"group", g.Name, "report_id", reportID)
+			return "", fmt.Errorf("llm group %s parse: %w", g.Name, uerr)
+		}
 		if uerr := json.Unmarshal([]byte(part), &content); uerr != nil {
 			logger.FromCtx(ctx).Error("llm group JSON parse failed", "err", uerr,
 				"group", g.Name, "report_id", reportID)
 			return "", fmt.Errorf("llm group %s parse: %w", g.Name, uerr)
+		}
+		if len(part2.Chapters) > 0 {
+			content.Chapters = append(existingChapters, part2.Chapters...)
+		} else {
+			content.Chapters = existingChapters
 		}
 		logger.FromCtx(ctx).Info("llm group completed",
 			"group", g.Name, "report_id", reportID,

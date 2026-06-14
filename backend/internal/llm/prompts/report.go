@@ -140,12 +140,11 @@ covering the current year and the next 9 years (10 consecutive years). For each 
 }`,
 		},
 		{
-			Name: "chapters",
+			Name: "chapters_a",
 			System: reportCommonRules + `
-Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 12 entries,
-no=1..12 in order, using EXACTLY these keys:
-1 chart_detail, 2 destiny_depth, 3 ten_gods_full, 4 luck_cycle, 5 ten_year_years,
-6 career_depth, 7 wealth_depth, 8 love_depth, 9 health_depth, 10 remedies, 11 fortune_guide, 12 life_plan.
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 6 entries,
+no=1..6 in order, using EXACTLY these keys:
+1 chart_detail, 2 destiny_depth, 3 ten_gods_full, 4 luck_cycle, 5 ten_year_years, 6 career_depth.
 Each "title" in the target locale; each "body" >=200 words, chart-specific.
 For chapter no=5 (ten_year_years) you MUST ALSO fill its "years" array with EXACTLY 10 entries,
 one per year (current year + next 9), each {"year": YYYY, "ganzhi": "干支", "note": "career/wealth/relationship/health"}.
@@ -153,6 +152,20 @@ one per year (current year + next 9), each {"year": YYYY, "ganzhi": "干支", "n
   "chapters": [
     {"no": 1, "key": "chart_detail", "title": "...", "body": "..."},
     {"no": 5, "key": "ten_year_years", "title": "...", "body": "...", "years": [{"year": YYYY, "ganzhi": "甲子", "note": "..."}]}
+  ]
+}`,
+		},
+		{
+			Name: "chapters_b",
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 6 entries,
+no=7..12 in order, using EXACTLY these keys:
+7 wealth_depth, 8 love_depth, 9 health_depth, 10 remedies, 11 fortune_guide, 12 life_plan.
+Each "title" in the target locale; each "body" >=200 words, chart-specific.
+{
+  "chapters": [
+    {"no": 7, "key": "wealth_depth", "title": "...", "body": "..."},
+    {"no": 12, "key": "life_plan", "title": "...", "body": "..."}
   ]
 }`,
 		},
