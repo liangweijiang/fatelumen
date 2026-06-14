@@ -13,6 +13,7 @@ export default function ReportPage() {
   const params = useParams();
   const locale = (params?.locale as string) || "en";
   const id = Number(params?.id);
+  const idValid = Number.isInteger(id) && id > 0;
 
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +21,11 @@ export default function ReportPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   const poll = useCallback(async () => {
+    if (!idValid) {
+      setError(true);
+      setLoading(false);
+      return true;
+    }
     try {
       const r = await getReport(id);
       setReport(r);
@@ -34,7 +40,7 @@ export default function ReportPage() {
       setLoading(false);
       return true;
     }
-  }, [id]);
+  }, [id, idValid]);
 
   useEffect(() => {
     let alive = true;

@@ -30,7 +30,7 @@ export default function CalculatePage() {
   const [birthDay, setBirthDay] = useState(1);
   const [birthHour, setBirthHour] = useState(12);
   const [birthMinute, setBirthMinute] = useState(0);
-  const [isLeapMonth, setIsLeapMonth] = useState(0);
+  const [isLeapMonth, setIsLeapMonth] = useState(false);
   const [timezone, setTimezone] = useState("Asia/Shanghai");
   const [displayName, setDisplayName] = useState("");
   const [depth, setDepth] = useState<"quick" | "deep">("deep");
@@ -51,17 +51,31 @@ export default function CalculatePage() {
         display_name: displayName || undefined,
       });
 
+      const profileId = (profile as { id?: number }).id;
+      if (!profileId) {
+        toast.error(t("error"));
+        return;
+      }
+
       if (depth === "quick") {
-        router.push(`/${locale}/reading/${profile.id}`);
+        router.push(`/${locale}/reading/${profileId}`);
         return;
       }
 
       const report = await createReport({
-        profile_id: profile.id,
+        profile_id: profileId,
         locale,
       });
 
-      router.push(`/${locale}/reports/${report.id}`);
+      const reportId =
+        (report as { report_id?: number; id?: number }).report_id ??
+        (report as { id?: number }).id;
+      if (!reportId) {
+        toast.error(t("error"));
+        return;
+      }
+
+      router.push(`/${locale}/reports/${reportId}`);
     } catch {
       toast.error(t("error"));
     } finally {
@@ -241,7 +255,7 @@ export default function CalculatePage() {
               </label>
               <button
                 type="button"
-                onClick={() => setIsLeapMonth(isLeapMonth ? 0 : 1)}
+                onClick={() => setIsLeapMonth(!isLeapMonth)}
                 className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all"
                 style={{
                   background: isLeapMonth ? "var(--gold)" : "var(--bg)",
