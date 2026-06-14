@@ -43,6 +43,7 @@ type App struct {
 	DB             *gorm.DB
 	Auth           *middleware.AuthMiddleware
 	HealthChecker  HealthChecker
+	StaticDir      string
 	AuthHandler    *handler.AuthHandler
 	ProfHandler    *handler.ProfileHandler
 	ChartHandler   *handler.ChartHandler
@@ -87,6 +88,10 @@ func Setup(app *App) *gin.Engine {
 		}
 		response.OK(c, gin.H{"status": "ok"})
 	})
+
+	if app.StaticDir != "" {
+		r.Static("/static", app.StaticDir)
+	}
 
 	v1 := r.Group("/api/v1")
 	{

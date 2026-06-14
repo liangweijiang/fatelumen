@@ -124,7 +124,11 @@ func main() {
 		fileStorage = r2
 		log.Info("storage initialized", "type", "r2")
 	case cfg.LocalStorageDir != "":
-		lfs, err := storage.NewLocalFSStorage(cfg.LocalStorageDir)
+		publicBase := cfg.AppBaseURL
+		if publicBase == "" {
+			publicBase = "http://localhost:" + cfg.AppPort
+		}
+		lfs, err := storage.NewLocalFSStorage(cfg.LocalStorageDir, publicBase)
 		if err != nil {
 			log.Fatal("failed to init local storage", "err", err)
 		}
@@ -225,6 +229,7 @@ func main() {
 	}
 
 	app := &router.App{
+		StaticDir: cfg.LocalStorageDir,
 		DB:              db,
 		Auth:            authMW,
 		HealthChecker:   router.NewDBHealthChecker(db),
