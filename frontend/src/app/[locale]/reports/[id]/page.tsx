@@ -11,7 +11,6 @@ import api from "@/lib/api/client";
 export default function ReportPage() {
   const t = useTranslations("report");
   const params = useParams();
-  const locale = (params?.locale as string) || "en";
   const id = Number(params?.id);
   const idValid = Number.isInteger(id) && id > 0;
 

@@ -49,7 +49,7 @@ export default function CalculatePage() {
         is_leap_month: isLeapMonth,
         timezone,
         display_name: displayName || undefined,
-      });
+      } as unknown as Parameters<typeof createProfile>[0]);
 
       const profileId = (profile as { id?: number }).id;
       if (!profileId) {
