@@ -196,25 +196,45 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 				"elapsed_ms", time.Since(gStart).Milliseconds())
 			return "", fmt.Errorf("llm group %s: %w", g.Name, gerr)
 		}
-		existingChapters := content.Chapters
 		var part2 model.ReportContent
 		if uerr := json.Unmarshal([]byte(part), &part2); uerr != nil {
 			logger.FromCtx(ctx).Error("llm group JSON parse failed", "err", uerr,
 				"group", g.Name, "report_id", reportID)
 			return "", fmt.Errorf("llm group %s parse: %w", g.Name, uerr)
 		}
-		if uerr := json.Unmarshal([]byte(part), &content); uerr != nil {
-			logger.FromCtx(ctx).Error("llm group JSON parse failed", "err", uerr,
-				"group", g.Name, "report_id", reportID)
-			return "", fmt.Errorf("llm group %s parse: %w", g.Name, uerr)
+		if part2.SummaryLine != "" {
+			content.SummaryLine = part2.SummaryLine
+		}
+		if part2.Summary != "" {
+			content.Summary = part2.Summary
+		}
+		if part2.Personality != "" {
+			content.Personality = part2.Personality
+		}
+		if part2.Career != "" {
+			content.Career = part2.Career
+		}
+		if part2.Relationship != "" {
+			content.Relationship = part2.Relationship
+		}
+		if part2.Health != "" {
+			content.Health = part2.Health
+		}
+		if len(part2.Suggestions) > 0 {
+			content.Suggestions = part2.Suggestions
+		}
+		if len(part2.YearlyFortune) > 0 {
+			content.YearlyFortune = part2.YearlyFortune
 		}
 		if len(part2.Chapters) > 0 {
-			content.Chapters = append(existingChapters, part2.Chapters...)
-		} else {
-			content.Chapters = existingChapters
+			merged := make([]model.Chapter, 0, len(content.Chapters)+len(part2.Chapters))
+			merged = append(merged, content.Chapters...)
+			merged = append(merged, part2.Chapters...)
+			content.Chapters = merged
 		}
 		logger.FromCtx(ctx).Info("llm group completed",
-			"group", g.Name, "report_id", reportID,
+			"group", g.Name, "report_id", reportID, "group_chapters", len(part2.Chapters),
+			"total_chapters", len(content.Chapters),
 			"elapsed_ms", time.Since(gStart).Milliseconds())
 	}
 

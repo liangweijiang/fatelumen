@@ -54,6 +54,7 @@ type reportDetailResponse struct {
 	Content     *model.ReportContent  `json:"content,omitempty"`
 	PDFURL      string                `json:"pdf_url,omitempty"`
 	ProfileID   uint64                `json:"profile_id"`
+	ChartID     uint64                `json:"chart_id"`
 	CreatedAt   interface{}           `json:"created_at"`
 	UpdatedAt   interface{}           `json:"updated_at"`
 }
@@ -69,6 +70,7 @@ func buildReportDetail(r *model.Report, unlocked bool) reportDetailResponse {
 		SummaryLine: r.Content.SummaryLine,
 		Summary:     r.Content.Summary,
 		ProfileID:   r.ProfileID,
+		ChartID:     r.ChartID,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
 	}
