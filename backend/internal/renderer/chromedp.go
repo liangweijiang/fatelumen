@@ -103,6 +103,7 @@ func (r *ChromedpRenderer) renderPDF(ctx context.Context, html string) ([]byte, 
 		chromedp.NoSandbox,
 		chromedp.DisableGPU,
 		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Env("FONTCONFIG_PATH="),
 	)
 	if r.chromiumPath != "" {
 		opts = append(opts, chromedp.ExecPath(r.chromiumPath))
