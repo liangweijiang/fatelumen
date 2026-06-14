@@ -103,5 +103,17 @@
     "summary": "명격 총론",
     "cycleTitle": "대운",
     "yearTitle": "세운"
+  },
+  "dashboard": {
+    "title": "내 페이지",
+    "sub": "추연 기록",
+    "credits": "포인트 잔액",
+    "newReading": "새로운 추연 시작",
+    "status_pending": "추연 중",
+    "status_processing": "추연 중",
+    "status_done": "완료됨",
+    "status_failed": "실패",
+    "empty": "추연 기록이 없습니다",
+    "viewReport": "리포트 보기"
   }
 }

@@ -103,5 +103,17 @@
     "summary": "命式総論",
     "cycleTitle": "大運",
     "yearTitle": "年運"
+  },
+  "dashboard": {
+    "title": "マイページ",
+    "sub": "推演履歴",
+    "credits": "ポイント残高",
+    "newReading": "新しい推演を開始",
+    "status_pending": "推演中",
+    "status_processing": "推演中",
+    "status_done": "完了",
+    "status_failed": "失敗",
+    "empty": "推演履歴がありません",
+    "viewReport": "レポートを見る"
   }
 }

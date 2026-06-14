@@ -103,5 +103,17 @@
     "summary": "Destiny Overview",
     "cycleTitle": "Luck Cycle",
     "yearTitle": "Yearly Fortune"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "sub": "Your reading history",
+    "credits": "Credits",
+    "newReading": "New Reading",
+    "status_pending": "Generating",
+    "status_processing": "Generating",
+    "status_done": "Completed",
+    "status_failed": "Failed",
+    "empty": "No readings yet",
+    "viewReport": "View Report"
   }
 }

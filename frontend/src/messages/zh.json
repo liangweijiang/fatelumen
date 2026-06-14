@@ -104,5 +104,17 @@
     "summary": "命格总论",
     "cycleTitle": "大运",
     "yearTitle": "流年"
+  },
+  "dashboard": {
+    "title": "个人台",
+    "sub": "您的命盘推演记录",
+    "credits": "命点余额",
+    "newReading": "开始新的推演",
+    "status_pending": "推演中",
+    "status_processing": "推演中",
+    "status_done": "已完成",
+    "status_failed": "已失败",
+    "empty": "暂无推演记录",
+    "viewReport": "查看报告"
   }
 }
