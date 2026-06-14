@@ -57,6 +57,7 @@ func (r *ChromedpRenderer) renderPNG(ctx context.Context, html string) ([]byte, 
 		chromedp.DisableGPU,
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.WindowSize(1080, 1350),
+		chromedp.Env("FONTCONFIG_PATH="),
 	)
 	if r.chromiumPath != "" {
 		opts = append(opts, chromedp.ExecPath(r.chromiumPath))
