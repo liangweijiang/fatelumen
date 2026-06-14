@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { getReport } from "@/lib/api/endpoints";
-import type { Report } from "@/types/api";
+import { getReport, getChart } from "@/lib/api/endpoints";
+import type { Report, Chart } from "@/types/api";
 import api from "@/lib/api/client";
 
 export default function ReportPage() {
@@ -16,6 +16,7 @@ export default function ReportPage() {
   const idValid = Number.isInteger(id) && id > 0;
 
   const [report, setReport] = useState<Report | null>(null);
+  const [chart, setChart] = useState<Chart | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -32,6 +33,14 @@ export default function ReportPage() {
       if (r.status === "done" || r.status === "failed") {
         setLoading(false);
         setError(r.status === "failed");
+        if (r.status === "done" && r.chart_id) {
+          try {
+            const c = await getChart(r.chart_id);
+            setChart(c);
+          } catch {
+            // 命盘拉取失败不阻断报告展示
+          }
+        }
         return true;
       }
       return false;
@@ -173,40 +182,105 @@ export default function ReportPage() {
         </div>
 
         {/* Overview: Pillars */}
-        {report.chart_id && (
+        {report.chart_id && chart?.chart_data && (
           <div
             className="mb-10 rounded-2xl border p-8"
-            style={{
-              background: "var(--bg-card)",
-              borderColor: "var(--line)",
-            }}
+            style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}
           >
             <h2
-              className="mb-4 text-[18px] font-semibold"
+              className="mb-1 text-center text-[18px] font-semibold"
               style={{ fontFamily: "var(--serif-d)", color: "var(--ink)" }}
             >
               {t("pillars")}
             </h2>
+            <div className="mb-5 text-center text-[12px]" style={{ color: "var(--ink-faint)" }}>
+              {chart.chart_data.meta?.solar_date}
+              {chart.chart_data.meta?.lunar_date ? ` · 农历 ${chart.chart_data.meta.lunar_date}` : ""}
+              {(chart.chart_data.meta as { zodiac?: string })?.zodiac ? ` · 属${(chart.chart_data.meta as { zodiac?: string }).zodiac}` : ""}
+            </div>
             <div className="grid grid-cols-4 gap-3 text-center">
-              {(["year", "month", "day", "hour"] as const).map((pos, i) => {
-                const colors = ["oklch(40% 0.08 140)", "oklch(45% 0.1 50)", "oklch(40% 0.06 250)", "oklch(40% 0.06 350)"];
+              {([
+                { pos: "hour", label: "时柱" },
+                { pos: "day", label: "日柱" },
+                { pos: "month", label: "月柱" },
+                { pos: "year", label: "年柱" },
+              ] as const).map(({ pos, label }) => {
+                const p = chart.chart_data.pillars[pos];
+                const wx: Record<string, string> = {
+                  "木": "#5c7060", "火": "#b8473e", "土": "#b89048", "金": "#9a9486", "水": "#3f5a6b",
+                };
                 return (
                   <div key={pos} className="flex flex-col items-center">
-                    <span className="text-[10px] uppercase tracking-[.5px]" style={{ color: "var(--ink-faint)" }}>
-                      {pos}
+                    <span className="mb-2 text-[11px] tracking-[1px]" style={{ color: "var(--ink-faint)" }}>
+                      {label}
                     </span>
-                    <span className="text-[28px] font-semibold" style={{ fontFamily: "var(--serif-c)", color: colors[i] }}>
-                      —
+                    <span
+                      className="text-[34px] leading-[1.1] font-semibold"
+                      style={{ fontFamily: "var(--serif-c)", color: wx[p?.stem_element] || "var(--ink)" }}
+                    >
+                      {p?.stem || "—"}
+                    </span>
+                    <span
+                      className="text-[34px] leading-[1.1] font-semibold"
+                      style={{ fontFamily: "var(--serif-c)", color: wx[p?.branch_element] || "var(--ink)" }}
+                    >
+                      {p?.branch || "—"}
                     </span>
                   </div>
                 );
               })}
             </div>
+            {chart.chart_data.five_elements_count && (
+              <div className="mt-5 flex items-center justify-center gap-5">
+                {(["木", "火", "土", "金", "水"] as const).map((e) => {
+                  const wx: Record<string, string> = {
+                    "木": "#5c7060", "火": "#b8473e", "土": "#b89048", "金": "#9a9486", "水": "#3f5a6b",
+                  };
+                  return (
+                    <span key={e} className="flex items-center gap-1 text-[12px]" style={{ color: wx[e] }}>
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: wx[e] }} />
+                      {e} {chart.chart_data.five_elements_count[e] ?? 0}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             {content?.summary && (
               <p className="mt-6 text-[14px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
                 {content.summary}
               </p>
             )}
+          </div>
+        )}
+
+        {/* Yearly Fortune */}
+        {content?.yearly_fortune && content.yearly_fortune.length > 0 && (
+          <div
+            className="mb-10 rounded-2xl border p-8"
+            style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}
+          >
+            <h2
+              className="mb-5 text-[18px] font-semibold"
+              style={{ fontFamily: "var(--serif-d)", color: "var(--ink)" }}
+            >
+              {t("yearlyTitle")}
+            </h2>
+            <div className="flex flex-col gap-3">
+              {content.yearly_fortune.map((y) => (
+                <div
+                  key={y.year}
+                  className="rounded-xl border-l-4 py-3 pl-4 pr-3"
+                  style={{ borderColor: "var(--gold)", background: "var(--bg-soft)" }}
+                >
+                  <div className="mb-1 text-[15px] font-semibold" style={{ color: "var(--gold-deep)" }}>
+                    {y.year}
+                  </div>
+                  <div className="text-[14px] leading-relaxed" style={{ color: "var(--ink-soft)" }}>
+                    {y.note}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

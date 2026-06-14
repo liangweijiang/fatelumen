@@ -82,3 +82,88 @@ Additionally produce the "chapters" array with EXACTLY 12 entries (no=1..12) usi
 defined in the system prompt. Every chapter title must be in locale "%[1]s", every body at least 300 words,
 deeply chart-specific, never inventing pillars, stems, branches, or numbers absent from the given chart.`, locale, string(chartJSON)), nil
 }
+
+// ===== 分段生成:把整份报告拆成多组,每组独立调用 LLM,避免单次输出超长被截断 =====
+
+// reportCommonRules 各分组共用的硬规则。
+const reportCommonRules = `You are a professional Chinese metaphysics (Bazi / Four Pillars) analyst.
+You are given a PRE-CALCULATED chart as JSON (deterministic ground truth). You MUST NOT
+recalculate or invent any pillar, stem, branch, element, ten-god, or luck cycle. Only INTERPRET.
+Rules:
+- Write ALL prose in the language given by "locale" (en/zh/ja/ko). Keep 干支 (e.g. 甲子) as-is.
+- Be specific to THIS chart; reference its actual elements, strength, ten-gods, luck cycles.
+- Tone: professional, insightful, warm. No doom, no fatalism, no absolute claims.
+- NO medical diagnosis, NO investment advice, NO life-expectancy predictions.
+- Output STRICT JSON only. No markdown, no code fences, no commentary.
+- NEVER use the word "AI" anywhere.`
+
+// ReportGroup 描述一个分组及其需要产出的字段。
+type ReportGroup struct {
+	Name   string
+	System string
+}
+
+// ReportGroups 返回多个分组的 system prompt。各组只产出自己的字段,合并后构成完整报告。
+func ReportGroups() []ReportGroup {
+	return []ReportGroup{
+		{
+			Name: "core",
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys):
+{
+  "summary_line": "one vivid sentence capturing this destiny essence",
+  "summary": "2-3 paragraphs holistic overview: day master, strength level, elemental balance (>=200 words)",
+  "personality": "deep personality from day master, ten gods, five elements (>=200 words)",
+  "suggestions": ["4 to 6 actionable specific suggestions"]
+}`,
+		},
+		{
+			Name: "life",
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys):
+{
+  "career": "career & wealth analysis referencing favorable elements and luck cycles (>=200 words)",
+  "relationship": "relationship & marriage via day branch, spouse palace, peach blossom (>=200 words)",
+  "health": "health & wellness via five-element balance, NO medical claims (>=200 words)"
+}`,
+		},
+		{
+			Name: "years",
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys). yearly_fortune MUST contain EXACTLY 10 entries
+covering the current year and the next 9 years (10 consecutive years). For each year give a
+"note" that within one string covers career, wealth, relationship, and health in a concise way:
+{
+  "yearly_fortune": [
+    {"year": YYYY, "note": "career/wealth/relationship/health for this year, chart-specific"}
+  ]
+}`,
+		},
+		{
+			Name: "chapters",
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 12 entries,
+no=1..12 in order, using EXACTLY these keys:
+1 chart_detail, 2 destiny_depth, 3 ten_gods_full, 4 luck_cycle, 5 ten_year_years,
+6 career_depth, 7 wealth_depth, 8 love_depth, 9 health_depth, 10 remedies, 11 fortune_guide, 12 life_plan.
+Each "title" in the target locale; each "body" >=200 words, chart-specific.
+For chapter no=5 (ten_year_years) you MUST ALSO fill its "years" array with EXACTLY 10 entries,
+one per year (current year + next 9), each {"year": YYYY, "ganzhi": "干支", "note": "career/wealth/relationship/health"}.
+{
+  "chapters": [
+    {"no": 1, "key": "chart_detail", "title": "...", "body": "..."},
+    {"no": 5, "key": "ten_year_years", "title": "...", "body": "...", "years": [{"year": YYYY, "ganzhi": "甲子", "note": "..."}]}
+  ]
+}`,
+		},
+	}
+}
+
+// BuildGroupUserPrompt 为某个分组构建 user prompt(注入命盘 JSON)。
+func BuildGroupUserPrompt(locale string, chart *model.ChartData) (string, error) {
+	chartJSON, err := json.Marshal(chart)
+	if err != nil {
+		return "", fmt.Errorf("marshal chart: %w", err)
+	}
+	return fmt.Sprintf("locale: %s\nchart: %s\n\nProduce STRICT JSON exactly as instructed. Interpret only the given chart; never invent.", locale, string(chartJSON)), nil
+}

@@ -63,6 +63,7 @@ type CurrentYearFortune struct {
 type ChartMeta struct {
 	SolarDate   string `json:"solar_date"`
 	LunarDate   string `json:"lunar_date"`
+	Zodiac      string `json:"zodiac"`
 	Gender      string `json:"gender"`
 	CalcLib     string `json:"calc_lib"`
 	CalcVersion string `json:"calc_version"`

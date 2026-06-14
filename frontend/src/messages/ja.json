@@ -102,7 +102,8 @@
     "pillars": "四柱",
     "summary": "命式総論",
     "cycleTitle": "大運",
-    "yearTitle": "年運"
+    "yearTitle": "年運",
+    "yearlyTitle": "今後十年の流年詳細"
   },
   "dashboard": {
     "title": "マイページ",

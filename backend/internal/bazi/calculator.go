@@ -130,6 +130,7 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 		Meta: model.ChartMeta{
 			SolarDate:   fmt.Sprintf("%04d-%02d-%02d %02d:%02d", solar.GetYear(), solar.GetMonth(), solar.GetDay(), solar.GetHour(), solar.GetMinute()),
 			LunarDate:   fmt.Sprintf("%s年%s月%s日", lunar.GetYearInChinese(), lunar.GetMonthInChinese(), lunar.GetDayInChinese()),
+			Zodiac:      lunar.GetYearShengXiao(),
 			Gender:      genderLabel(in.Gender),
 			CalcLib:     "lunar-go",
 			CalcVersion: CalcVersion,

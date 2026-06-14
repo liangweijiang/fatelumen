@@ -102,7 +102,8 @@
     "pillars": "Four Pillars",
     "summary": "Destiny Overview",
     "cycleTitle": "Luck Cycle",
-    "yearTitle": "Yearly Fortune"
+    "yearTitle": "Yearly Fortune",
+    "yearlyTitle": "Ten-Year Yearly Forecast"
   },
   "dashboard": {
     "title": "Dashboard",

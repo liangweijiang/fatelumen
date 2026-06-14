@@ -176,34 +176,34 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		return "", fmt.Errorf("update status processing: %w", err)
 	}
 
-	// 4. LLM 解读
-	userPrompt, err := prompts.BuildReportUserPrompt(locale, chartData)
+	// 4. LLM 分段解读:拆成多组,每组独立生成,避免单次输出超长被截断
+	groupUserPrompt, err := prompts.BuildGroupUserPrompt(locale, chartData)
 	if err != nil {
-		logger.FromCtx(ctx).Error("build report prompt failed", "err", err,
-			"report_id", reportID)
+		logger.FromCtx(ctx).Error("build group prompt failed", "err", err, "report_id", reportID)
 		return "", fmt.Errorf("build prompt: %w", err)
 	}
 
-	llmStart := time.Now()
-	llmResult, err := h.llmProvider.GenerateJSON(ctx, prompts.ReportSystemPrompt, userPrompt,
-		llm.WithMaxTokens(8192),
-		llm.WithTemperature(0.5),
-	)
-	if err != nil {
-		logger.FromCtx(ctx).Error("llm generate failed", "err", err,
-			"provider", h.llmProvider.Name(), "report_id", reportID,
-			"elapsed_ms", time.Since(llmStart).Milliseconds())
-		return "", fmt.Errorf("llm generate: %w", err)
-	}
-	logger.FromCtx(ctx).Info("llm generate completed",
-		"report_id", reportID,
-		"elapsed_ms", time.Since(llmStart).Milliseconds(),
-	)
-
 	var content model.ReportContent
-	if err := json.Unmarshal([]byte(llmResult), &content); err != nil {
-		logger.FromCtx(ctx).Error("llm JSON parse failed", "err", err, "report_id", reportID)
-		return "", fmt.Errorf("llm JSON parse: %w", err)
+	for _, g := range prompts.ReportGroups() {
+		gStart := time.Now()
+		part, gerr := h.llmProvider.GenerateJSON(ctx, g.System, groupUserPrompt,
+			llm.WithMaxTokens(4096),
+			llm.WithTemperature(0.5),
+		)
+		if gerr != nil {
+			logger.FromCtx(ctx).Error("llm group generate failed", "err", gerr,
+				"group", g.Name, "provider", h.llmProvider.Name(), "report_id", reportID,
+				"elapsed_ms", time.Since(gStart).Milliseconds())
+			return "", fmt.Errorf("llm group %s: %w", g.Name, gerr)
+		}
+		if uerr := json.Unmarshal([]byte(part), &content); uerr != nil {
+			logger.FromCtx(ctx).Error("llm group JSON parse failed", "err", uerr,
+				"group", g.Name, "report_id", reportID)
+			return "", fmt.Errorf("llm group %s parse: %w", g.Name, uerr)
+		}
+		logger.FromCtx(ctx).Info("llm group completed",
+			"group", g.Name, "report_id", reportID,
+			"elapsed_ms", time.Since(gStart).Milliseconds())
 	}
 
 	content.Locale = locale
