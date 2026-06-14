@@ -33,7 +33,7 @@ func TestReportSystemPrompt(t *testing.T) {
 	lower := strings.ToLower(ReportSystemPrompt)
 
 	// 关键约束词
-	for _, kw := range []string{"json", "summary", "personality", "career", "relationship", "health", "yearly_fortune", "suggestions"} {
+	for _, kw := range []string{"json", "summary", "personality", "career", "relationship", "health", "yearly_fortune", "suggestions", "chapters"} {
 		if !strings.Contains(lower, kw) {
 			t.Errorf("ReportSystemPrompt missing keyword: %s", kw)
 		}
@@ -94,7 +94,7 @@ func TestBuildReportUserPrompt(t *testing.T) {
 		}
 	}
 	// 要求章节
-	for _, kw := range []string{"summary", "personality", "career", "relationship", "health", "yearly_fortune", "suggestions"} {
+	for _, kw := range []string{"summary", "personality", "career", "relationship", "health", "yearly_fortune", "suggestions", "chapters"} {
 		if !strings.Contains(userPrompt, kw) {
 			t.Errorf("user prompt missing section: %s", kw)
 		}
@@ -136,6 +136,20 @@ func TestReportContentJSON_RoundTrip(t *testing.T) {
 			"Build a support network of Earth-element personalities who provide grounded perspective.",
 			"Schedule regular periods of quiet reflection to prevent Fire burnout.",
 		},
+		Chapters: []model.Chapter{
+			{No: 1, Key: "chart_detail", Title: "Refined Chart Reading", Body: "chapter 1 body..."},
+			{No: 2, Key: "destiny_depth", Title: "In-Depth Destiny Reading", Body: "chapter 2 body..."},
+			{No: 3, Key: "ten_gods_full", Title: "Full Ten-Gods Panorama", Body: "chapter 3 body..."},
+			{No: 4, Key: "luck_cycle", Title: "Lifelong Luck-Cycle Trend", Body: "chapter 4 body..."},
+			{No: 5, Key: "ten_year_years", Title: "Next Ten Years", Body: "chapter 5 body..."},
+			{No: 6, Key: "career_depth", Title: "Career Deep Dive", Body: "chapter 6 body..."},
+			{No: 7, Key: "wealth_depth", Title: "Wealth Deep Dive", Body: "chapter 7 body..."},
+			{No: 8, Key: "love_depth", Title: "Relationship Deep Dive", Body: "chapter 8 body..."},
+			{No: 9, Key: "health_depth", Title: "Health Deep Dive", Body: "chapter 9 body..."},
+			{No: 10, Key: "remedies", Title: "Remedies", Body: "chapter 10 body..."},
+			{No: 11, Key: "fortune_guide", Title: "Fortune Guide", Body: "chapter 11 body..."},
+			{No: 12, Key: "life_plan", Title: "Lifelong Guidance", Body: "chapter 12 body..."},
+		},
 	}
 
 	b, err := json.Marshal(content)
@@ -162,6 +176,20 @@ func TestReportContentJSON_RoundTrip(t *testing.T) {
 	}
 	if len(restored.Suggestions) != 5 {
 		t.Fatalf("expected 5 suggestions, got %d", len(restored.Suggestions))
+	}
+	if len(restored.Chapters) != 12 {
+		t.Fatalf("expected 12 chapters, got %d", len(restored.Chapters))
+	}
+	for i, ch := range restored.Chapters {
+		if ch.No != i+1 {
+			t.Errorf("chapter %d: expected No=%d, got %d", i, i+1, ch.No)
+		}
+		if ch.Key == "" {
+			t.Errorf("chapter %d: Key is empty", i)
+		}
+		if ch.Body == "" {
+			t.Errorf("chapter %d: Body is empty", i)
+		}
 	}
 }
 
@@ -198,7 +226,18 @@ func TestReportContent_WithChapters(t *testing.T) {
 		Summary:     "详细总论...",
 		Personality: "性格分析...",
 		Chapters: []model.Chapter{
-			{No: 1, Key: "overview", Title: "总览", Body: "命盘概览..."},
+			{No: 1, Key: "chart_detail", Title: "Refined Chart Reading", Body: "Chapter 1 body with at least 300 words of substantive analysis covering the four pillars, hidden stems, ten gods, nayin, and luck-cycle onset. This chapter must reference the actual stems, branches, and elements present in the given chart rather than generic descriptions. The analysis should trace how the heavenly stems interact with earthly branches to form the destiny pattern, noting any special combinations or clashes."},
+			{No: 2, Key: "destiny_depth", Title: "In-Depth Destiny Reading", Body: "Chapter 2 body with detailed strength scoring rationale and favorable/unfavorable god analysis. Explain the structural-pattern mechanics — the WHY behind the chart configuration. Cover the interaction between the day master's season, the month branch, and the overall element distribution. Discuss which gods are useful and why, referencing the actual ten-god derivations from the chart."},
+			{No: 3, Key: "ten_gods_full", Title: "Full Ten-Gods Panorama", Body: "Chapter 3 panoramic analysis of all ten gods including those from hidden stems if present. Examine their influence on personality traits, behavioral patterns, and family dynamics. Map each ten god to specific life domains and explain how their interactions shape the native's approach to relationships, career, and personal growth."},
+			{No: 4, Key: "luck_cycle", Title: "Lifelong Luck-Cycle Trend", Body: "Chapter 4 traces the lifelong luck-cycle trend year by year, identifying auspicious levels and pivotal turning years based on the chart's luck cycles. Provide a textual narrative of how each major luck cycle phase affects the native's life trajectory, highlighting key transition years and their significance."},
+			{No: 5, Key: "ten_year_years", Title: "Next Ten Years, Year by Year", Body: "Chapter 5 offers a per-year four-quadrant view for the next ten years, covering career, wealth, relationships, and health. For each year, identify key months that deserve attention and describe the dominant elemental influences shaping each quadrant."},
+			{No: 6, Key: "career_depth", Title: "Career Deep Dive", Body: "Chapter 6 deep-dives into career fit by industry, identifying optimal promotion years, job-change timing, entrepreneurship windows, and characteristics of beneficial mentors and partners. Align career recommendations with the chart's favorable elements and ten-god configuration."},
+			{No: 7, Key: "wealth_depth", Title: "Wealth Deep Dive", Body: "Chapter 7 analyzes wealth patterns including peak months for regular income and windfall wealth, saving cycles, caution years for financial decisions, and auspicious numbers and colors for wealth enhancement. Reference the chart's wealth star positions and interactions."},
+			{No: 8, Key: "love_depth", Title: "Relationship Deep Dive", Body: "Chapter 8 examines relationships in depth, describing ideal partner traits derived from the spouse palace and day branch, identifying the best years to meet significant partners, and offering compatibility insights using zodiac and chart matching principles."},
+			{No: 9, Key: "health_depth", Title: "Health Deep Dive", Body: "Chapter 9 provides health analysis through the five-element balance lens, noting predispositions and wellness prevention strategies without making any medical diagnosis. Identify high-risk months based on elemental clashes and recommend appropriate exercise and dietary styles."},
+			{No: 10, Key: "remedies", Title: "Remedies for Near-Term Challenges", Body: "Chapter 10 presents actionable remedies for near-term challenges with step-by-step approaches, auspicious-date guidance for important decisions, and five-element adjustment strategies. Tailor each remedy to the chart's specific elemental weaknesses and upcoming luck-cycle phases."},
+			{No: 11, Key: "fortune_guide", Title: "Five-Element Fortune Guide", Body: "Chapter 11 offers a five-element fortune guide covering auspicious colors, crystals, directions, home layout recommendations, optimal career directions, and benefactor zodiac signs. Ground each recommendation in the chart's actual element counts and favorable god analysis."},
+			{No: 12, Key: "life_plan", Title: "Lifelong Guidance & Planning", Body: "Chapter 12 provides lifelong guidance with custom planning for youth, midlife, and elder years. Cover key habits to cultivate, pitfalls to avoid, and milestone planning aligned with major luck-cycle transitions."},
 		},
 	}
 
@@ -212,8 +251,8 @@ func TestReportContent_WithChapters(t *testing.T) {
 		t.Fatalf("Unmarshal with chapters: %v", err)
 	}
 
-	if len(restored.Chapters) != 1 {
-		t.Fatalf("expected 1 chapter, got %d", len(restored.Chapters))
+	if len(restored.Chapters) != 12 {
+		t.Fatalf("expected 12 chapters, got %d", len(restored.Chapters))
 	}
 }
 
@@ -222,7 +261,7 @@ func TestReportSystemPrompt_JSONSchema(t *testing.T) {
 	requiredKeys := []string{
 		`"summary"`, `"summary_line"`, `"personality"`,
 		`"career"`, `"relationship"`, `"health"`,
-		`"yearly_fortune"`, `"suggestions"`,
+		`"yearly_fortune"`, `"suggestions"`, `"chapters"`,
 	}
 	for _, key := range requiredKeys {
 		if !strings.Contains(ReportSystemPrompt, key) {

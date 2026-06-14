@@ -135,6 +135,20 @@ func fakeReportContentJSON() string {
 			"Cultivate patience in relationships",
 			"Explore educational opportunities",
 		},
+		Chapters: []model.Chapter{
+			{No: 1, Key: "chart_detail", Title: "Refined Chart Reading", Body: "chapter 1 body..."},
+			{No: 2, Key: "destiny_depth", Title: "In-Depth Destiny Reading", Body: "chapter 2 body..."},
+			{No: 3, Key: "ten_gods_full", Title: "Full Ten-Gods Panorama", Body: "chapter 3 body..."},
+			{No: 4, Key: "luck_cycle", Title: "Lifelong Luck-Cycle Trend", Body: "chapter 4 body..."},
+			{No: 5, Key: "ten_year_years", Title: "Next Ten Years", Body: "chapter 5 body..."},
+			{No: 6, Key: "career_depth", Title: "Career Deep Dive", Body: "chapter 6 body..."},
+			{No: 7, Key: "wealth_depth", Title: "Wealth Deep Dive", Body: "chapter 7 body..."},
+			{No: 8, Key: "love_depth", Title: "Relationship Deep Dive", Body: "chapter 8 body..."},
+			{No: 9, Key: "health_depth", Title: "Health Deep Dive", Body: "chapter 9 body..."},
+			{No: 10, Key: "remedies", Title: "Remedies", Body: "chapter 10 body..."},
+			{No: 11, Key: "fortune_guide", Title: "Fortune Guide", Body: "chapter 11 body..."},
+			{No: 12, Key: "life_plan", Title: "Lifelong Guidance", Body: "chapter 12 body..."},
+		},
 	}
 	b, _ := json.Marshal(c)
 	return string(b)
@@ -209,6 +223,20 @@ func TestReportHandler_Success(t *testing.T) {
 	}
 	if r.Content.SummaryLine == "" {
 		t.Fatal("expected content with summary_line")
+	}
+	if len(r.Content.Chapters) != 12 {
+		t.Fatalf("expected 12 chapters in content, got %d", len(r.Content.Chapters))
+	}
+	for i, ch := range r.Content.Chapters {
+		if ch.No != i+1 {
+			t.Errorf("chapter %d: expected No=%d, got %d", i, i+1, ch.No)
+		}
+		if ch.Key == "" {
+			t.Errorf("chapter %d: Key is empty", i)
+		}
+		if ch.Body == "" {
+			t.Errorf("chapter %d: Body is empty", i)
+		}
 	}
 	if r.ChartID == 0 {
 		t.Fatal("expected chart_id > 0")

@@ -179,7 +179,7 @@ func TestGetReport_SuccessDone(t *testing.T) {
 				Status:  "done",
 				Paid:    true,
 				PDFURL:  "https://cdn.example.com/report/1.pdf",
-				Content: model.ReportContent{Locale: "en", SummaryLine: "preview line", Summary: "preview text", Chapters: []model.Chapter{{No: 1, Title: "ch1"}}},
+				Content: model.ReportContent{Locale: "en", SummaryLine: "preview line", Summary: "preview text", Chapters: []model.Chapter{{No: 1, Key: "chart_detail", Title: "ch1", Body: "b1"}, {No: 2, Key: "destiny_depth", Title: "ch2", Body: "b2"}, {No: 3, Key: "ten_gods_full", Title: "ch3", Body: "b3"}, {No: 4, Key: "luck_cycle", Title: "ch4", Body: "b4"}, {No: 5, Key: "ten_year_years", Title: "ch5", Body: "b5"}, {No: 6, Key: "career_depth", Title: "ch6", Body: "b6"}, {No: 7, Key: "wealth_depth", Title: "ch7", Body: "b7"}, {No: 8, Key: "love_depth", Title: "ch8", Body: "b8"}, {No: 9, Key: "health_depth", Title: "ch9", Body: "b9"}, {No: 10, Key: "remedies", Title: "ch10", Body: "b10"}, {No: 11, Key: "fortune_guide", Title: "ch11", Body: "b11"}, {No: 12, Key: "life_plan", Title: "ch12", Body: "b12"}}},
 			}, nil
 		},
 	}
@@ -478,7 +478,20 @@ func TestBuildReportDetail_Paid(t *testing.T) {
 			Summary:       "sum",
 			Personality:   "p",
 			Career:        "c",
-			Chapters:      []model.Chapter{{No: 1, Title: "t"}},
+			Chapters:      []model.Chapter{
+				{No: 1, Key: "chart_detail", Title: "t1", Body: "b1"},
+				{No: 2, Key: "destiny_depth", Title: "t2", Body: "b2"},
+				{No: 3, Key: "ten_gods_full", Title: "t3", Body: "b3"},
+				{No: 4, Key: "luck_cycle", Title: "t4", Body: "b4"},
+				{No: 5, Key: "ten_year_years", Title: "t5", Body: "b5"},
+				{No: 6, Key: "career_depth", Title: "t6", Body: "b6"},
+				{No: 7, Key: "wealth_depth", Title: "t7", Body: "b7"},
+				{No: 8, Key: "love_depth", Title: "t8", Body: "b8"},
+				{No: 9, Key: "health_depth", Title: "t9", Body: "b9"},
+				{No: 10, Key: "remedies", Title: "t10", Body: "b10"},
+				{No: 11, Key: "fortune_guide", Title: "t11", Body: "b11"},
+				{No: 12, Key: "life_plan", Title: "t12", Body: "b12"},
+			},
 			Suggestions:   []string{"s"},
 		},
 	}
@@ -493,8 +506,8 @@ func TestBuildReportDetail_Paid(t *testing.T) {
 	if resp.PDFURL != "https://cdn.example.com/r/1.pdf" {
 		t.Errorf("expected pdf_url, got %s", resp.PDFURL)
 	}
-	if len(resp.Content.Chapters) != 1 {
-		t.Errorf("expected 1 chapter, got %d", len(resp.Content.Chapters))
+	if len(resp.Content.Chapters) != 12 {
+		t.Errorf("expected 12 chapters, got %d", len(resp.Content.Chapters))
 	}
 }
 
@@ -510,7 +523,20 @@ func TestBuildReportDetail_Unpaid(t *testing.T) {
 			Summary:       "hook summary",
 			Personality:   "secret",
 			Career:        "secret",
-			Chapters:      []model.Chapter{{No: 1, Title: "secret"}},
+			Chapters:      []model.Chapter{
+				{No: 1, Key: "chart_detail", Title: "secret", Body: "s1"},
+				{No: 2, Key: "destiny_depth", Title: "secret", Body: "s2"},
+				{No: 3, Key: "ten_gods_full", Title: "secret", Body: "s3"},
+				{No: 4, Key: "luck_cycle", Title: "secret", Body: "s4"},
+				{No: 5, Key: "ten_year_years", Title: "secret", Body: "s5"},
+				{No: 6, Key: "career_depth", Title: "secret", Body: "s6"},
+				{No: 7, Key: "wealth_depth", Title: "secret", Body: "s7"},
+				{No: 8, Key: "love_depth", Title: "secret", Body: "s8"},
+				{No: 9, Key: "health_depth", Title: "secret", Body: "s9"},
+				{No: 10, Key: "remedies", Title: "secret", Body: "s10"},
+				{No: 11, Key: "fortune_guide", Title: "secret", Body: "s11"},
+				{No: 12, Key: "life_plan", Title: "secret", Body: "s12"},
+			},
 			Suggestions:   []string{"secret"},
 		},
 	}
@@ -560,7 +586,20 @@ func TestBuildReportDetail_AdminBypass(t *testing.T) {
 		Content: model.ReportContent{
 			SummaryLine:   "hook",
 			Summary:       "hook summary",
-			Chapters:      []model.Chapter{{No: 1, Title: "visible"}},
+			Chapters:      []model.Chapter{
+				{No: 1, Key: "chart_detail", Title: "visible", Body: "v1"},
+				{No: 2, Key: "destiny_depth", Title: "visible", Body: "v2"},
+				{No: 3, Key: "ten_gods_full", Title: "visible", Body: "v3"},
+				{No: 4, Key: "luck_cycle", Title: "visible", Body: "v4"},
+				{No: 5, Key: "ten_year_years", Title: "visible", Body: "v5"},
+				{No: 6, Key: "career_depth", Title: "visible", Body: "v6"},
+				{No: 7, Key: "wealth_depth", Title: "visible", Body: "v7"},
+				{No: 8, Key: "love_depth", Title: "visible", Body: "v8"},
+				{No: 9, Key: "health_depth", Title: "visible", Body: "v9"},
+				{No: 10, Key: "remedies", Title: "visible", Body: "v10"},
+				{No: 11, Key: "fortune_guide", Title: "visible", Body: "v11"},
+				{No: 12, Key: "life_plan", Title: "visible", Body: "v12"},
+			},
 		},
 	}
 
@@ -575,7 +614,7 @@ func TestBuildReportDetail_AdminBypass(t *testing.T) {
 	if resp.PDFURL != "https://cdn.example.com/r/1.pdf" {
 		t.Errorf("expected pdf_url for admin bypass, got %s", resp.PDFURL)
 	}
-	if resp.Content.Chapters == nil || len(resp.Content.Chapters) != 1 {
-		t.Error("expected chapters for admin bypass")
+	if resp.Content.Chapters == nil || len(resp.Content.Chapters) != 12 {
+		t.Error("expected 12 chapters for admin bypass")
 	}
 }
