@@ -186,7 +186,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 
 	llmStart := time.Now()
 	llmResult, err := h.llmProvider.GenerateJSON(ctx, prompts.ReportSystemPrompt, userPrompt,
-		llm.WithMaxTokens(4000),
+		llm.WithMaxTokens(8192),
 		llm.WithTemperature(0.5),
 	)
 	if err != nil {

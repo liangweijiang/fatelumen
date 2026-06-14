@@ -38,7 +38,7 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 	}
 
 	start := time.Now()
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
 
 	messages := []openai.ChatCompletionMessage{
