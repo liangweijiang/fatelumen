@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Check, Lock } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { THEMES } from "@/lib/theme/themes";
 import { useThemeStore } from "@/lib/theme/useThemeStore";
+import { getToken, removeToken } from "@/lib/auth-storage";
+import { fetchMe, type Me } from "@/lib/admin-api";
 import Link from "next/link";
 
 const langs: { code: string; label: string }[] = [
@@ -31,6 +33,7 @@ export default function MobileDrawer({
   const router = useRouter();
   const pathname = usePathname();
   const panelRef = useRef<HTMLDivElement>(null);
+  const [me, setMe] = useState<Me | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -51,6 +54,32 @@ export default function MobileDrawer({
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (!getToken()) {
+      setMe(null);
+      return;
+    }
+    let alive = true;
+    fetchMe()
+      .then((data) => {
+        if (alive) setMe(data);
+      })
+      .catch(() => {
+        if (alive) setMe(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
+
+  function handleSignOut() {
+    removeToken();
+    setMe(null);
+    onClose();
+    window.location.href = `/${locale}`;
+  }
 
   if (!open) return null;
 
@@ -154,18 +183,46 @@ export default function MobileDrawer({
         <div className="mx-5 h-px" style={{ background: "var(--line)" }} />
 
         <div className="px-5 py-5">
-          <Link
-            href={`/login?lang=${locale}`}
-            onClick={onClose}
-            className="flex items-center justify-center w-full py-3.5 rounded-full text-[15px] font-[var(--serif)] font-medium transition-all hover:translate-y-[-1px] active:translate-y-0"
-            style={{
-              background: "var(--gold-deep)",
-              color: "var(--bg-card)",
-              minHeight: "44px",
-            }}
-          >
-            {t("signIn")}
-          </Link>
+          {me ? (
+            <>
+              <div className="mb-3 text-center text-[14px]" style={{ color: "var(--ink-soft)" }}>
+                {me.name || me.email.split("@")[0]}
+              </div>
+              <Link
+                href={`/${locale}/dashboard`}
+                onClick={onClose}
+                className="flex items-center justify-center w-full py-3.5 rounded-full text-[15px] font-[var(--serif)] font-medium transition-all hover:translate-y-[-1px] active:translate-y-0"
+                style={{
+                  background: "var(--gold-deep)",
+                  color: "var(--bg-card)",
+                  minHeight: "44px",
+                }}
+              >
+                {t("enterHall")}
+              </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="mt-3 flex items-center justify-center w-full py-3 text-[14px] font-[var(--serif)]"
+                style={{ color: "var(--ink-soft)", minHeight: "44px" }}
+              >
+                {t("signOut")}
+              </button>
+            </>
+          ) : (
+            <Link
+              href={`/login?lang=${locale}`}
+              onClick={onClose}
+              className="flex items-center justify-center w-full py-3.5 rounded-full text-[15px] font-[var(--serif)] font-medium transition-all hover:translate-y-[-1px] active:translate-y-0"
+              style={{
+                background: "var(--gold-deep)",
+                color: "var(--bg-card)",
+                minHeight: "44px",
+              }}
+            >
+              {t("signIn")}
+            </Link>
+          )}
         </div>
       </div>
     </div>
