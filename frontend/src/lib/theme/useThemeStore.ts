@@ -17,6 +17,18 @@ export const useThemeStore = create<ThemeState>()(
         set({ theme: id });
       },
     }),
-    { name: "fatelumen-theme" }
+    {
+      name: "fatelumen-theme",
+      skipHydration: true,
+      onRehydrateStorage: () => (state) => {
+        if (state && typeof document !== "undefined") {
+          document.documentElement.setAttribute("data-theme", state.theme);
+        }
+      },
+    }
   )
 );
+
+export function rehydrateTheme() {
+  void useThemeStore.persist.rehydrate();
+}
