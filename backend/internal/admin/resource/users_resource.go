@@ -11,6 +11,8 @@ import (
 type userListSvc interface {
 	ListUsers(ctx context.Context, keyword string, page, pageSize int) (*service.AdminUsersPage, error)
 	GetUserDetail(ctx context.Context, userID uint64) (*service.AdminUserDetail, error)
+	SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error
+	SetUserUnlimited(ctx context.Context, operatorID, targetUserID uint64, unlimited bool) error
 }
 
 // UsersResource 用户资源(只读 + 后续可加 ban action)。
@@ -64,4 +66,67 @@ func (r *UsersResource) Update(ctx *AdminContext, id string, patch map[string]in
 	return nil, nil
 }
 
-func (r *UsersResource) Actions() []Action { return nil }
+func (r *UsersResource) Actions() []Action {
+	return []Action{
+		{
+			Name:  "ban",
+			Label: "封禁",
+			Perm:  "user:ban",
+			Handler: func(ctx *AdminContext, id string, params map[string]interface{}) (interface{}, error) {
+				uid, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				if err := r.svc.SetUserActive(context.Background(), ctx.AdminID, uid, false); err != nil {
+					return nil, err
+				}
+				return map[string]interface{}{"id": uid, "active": false}, nil
+			},
+		},
+		{
+			Name:  "unban",
+			Label: "解封",
+			Perm:  "user:ban",
+			Handler: func(ctx *AdminContext, id string, params map[string]interface{}) (interface{}, error) {
+				uid, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				if err := r.svc.SetUserActive(context.Background(), ctx.AdminID, uid, true); err != nil {
+					return nil, err
+				}
+				return map[string]interface{}{"id": uid, "active": true}, nil
+			},
+		},
+		{
+			Name:  "set_unlimited",
+			Label: "设为无限体验",
+			Perm:  "user:unlimited",
+			Handler: func(ctx *AdminContext, id string, params map[string]interface{}) (interface{}, error) {
+				uid, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				if err := r.svc.SetUserUnlimited(context.Background(), ctx.AdminID, uid, true); err != nil {
+					return nil, err
+				}
+				return map[string]interface{}{"id": uid, "unlimited": true}, nil
+			},
+		},
+		{
+			Name:  "unset_unlimited",
+			Label: "取消无限体验",
+			Perm:  "user:unlimited",
+			Handler: func(ctx *AdminContext, id string, params map[string]interface{}) (interface{}, error) {
+				uid, err := strconv.ParseUint(id, 10, 64)
+				if err != nil {
+					return nil, err
+				}
+				if err := r.svc.SetUserUnlimited(context.Background(), ctx.AdminID, uid, false); err != nil {
+					return nil, err
+				}
+				return map[string]interface{}{"id": uid, "unlimited": false}, nil
+			},
+		},
+	}
+}
