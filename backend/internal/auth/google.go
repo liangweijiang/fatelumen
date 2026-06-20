@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"fatelumen/backend/internal/pkg/logger"
+
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -13,9 +15,10 @@ import (
 // GoogleProvider 实现 AuthProvider 接口，接入 Google OAuth 2.0。
 type GoogleProvider struct {
 	config *oauth2.Config
+	log    *logger.Logger
 }
 
-func NewGoogleProvider(clientID, clientSecret, redirectURL string) *GoogleProvider {
+func NewGoogleProvider(clientID, clientSecret, redirectURL string, log *logger.Logger) *GoogleProvider {
 	return &GoogleProvider{
 		config: &oauth2.Config{
 			ClientID:     clientID,
@@ -27,6 +30,7 @@ func NewGoogleProvider(clientID, clientSecret, redirectURL string) *GoogleProvid
 			},
 			Endpoint: google.Endpoint,
 		},
+		log: log,
 	}
 }
 
@@ -44,17 +48,20 @@ func (p *GoogleProvider) Exchange(ctx context.Context, params map[string]string)
 
 	token, err := p.config.Exchange(ctx, code)
 	if err != nil {
+		p.log.Error("oauth token exchange failed", "provider", "google", "err", err)
 		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
 
 	client := p.config.Client(ctx, token)
 	resp, err := client.Get("https://www.googleapis.com/oauth2/v2/userinfo")
 	if err != nil {
+		p.log.Error("oauth userinfo request failed", "provider", "google", "err", err)
 		return nil, fmt.Errorf("userinfo request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		p.log.Error("oauth userinfo non-200", "provider", "google", "status", resp.StatusCode)
 		return nil, fmt.Errorf("userinfo returned status %d", resp.StatusCode)
 	}
 

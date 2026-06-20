@@ -91,10 +91,24 @@ func main() {
 			cfg.GoogleClientID,
 			cfg.GoogleClientSecret,
 			cfg.GoogleRedirectURL,
+			log,
 		))
 	}
 
-	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, cfg.AdminEmails, log)
+	var c cache.Cache
+	if cfg.RedisAddr != "" {
+		redisClient := redis.NewClient(&redis.Options{
+			Addr:     cfg.RedisAddr,
+			Password: cfg.RedisPassword,
+		})
+		c = cache.NewRedisCache(redisClient)
+		log.Info("cache initialized", "type", "redis")
+	} else {
+		c = cache.NewMemoryCache()
+		log.Info("cache initialized", "type", "memory")
+	}
+
+	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, cfg.AdminEmails, c, log)
 	profileSvc := service.NewProfileService(profileRepo)
 	chartSvc := service.NewChartService(chartRepo, profileRepo)
 
@@ -137,19 +151,6 @@ func main() {
 	default:
 		fileStorage = &storage.NoopStorage{}
 		log.Info("storage initialized", "type", "noop")
-	}
-
-	var c cache.Cache
-	if cfg.RedisAddr != "" {
-		redisClient := redis.NewClient(&redis.Options{
-			Addr:     cfg.RedisAddr,
-			Password: cfg.RedisPassword,
-		})
-		c = cache.NewRedisCache(redisClient)
-		log.Info("cache initialized", "type", "redis")
-	} else {
-		c = cache.NewMemoryCache()
-		log.Info("cache initialized", "type", "memory")
 	}
 
 	quotaSvc := service.NewQuotaService(c, cfg.QuotaDailyLimit)

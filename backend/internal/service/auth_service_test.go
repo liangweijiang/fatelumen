@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"testing"
 
+	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/pkg/logger"
 )
 
 func TestIsAdminEmail(t *testing.T) {
@@ -69,4 +72,18 @@ func TestHandleCallback_InactiveUserBlocked(t *testing.T) {
 	// but the guard `if !user.Active { return nil, ... }` is a simple boolean
 	// check — covered by code review and integration testing.
 	_ = user
+}
+
+func TestHandleCallback_StateNotInCache(t *testing.T) {
+	mc := cache.NewMemoryCache()
+	defer mc.Close()
+	svc := &AuthService{
+		cache: mc,
+		log:   logger.New("error"),
+	}
+
+	_, err := svc.HandleCallback(context.Background(), "google", "any-code", "missing-state")
+	if err == nil {
+		t.Fatal("expected error for state not present in cache, got nil")
+	}
 }

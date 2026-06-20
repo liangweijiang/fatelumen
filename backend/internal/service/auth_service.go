@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"fatelumen/backend/internal/auth"
+	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/hash"
 	"fatelumen/backend/internal/pkg/jwt"
@@ -33,8 +33,7 @@ type AuthService struct {
 	jwtSecret   string
 	jwtExpHrs   int
 	adminEmails []string
-	stateStore  map[string]time.Time
-	mu          sync.Mutex
+	cache       cache.Cache
 	log         *logger.Logger
 }
 
@@ -44,19 +43,18 @@ func NewAuthService(
 	jwtSecret string,
 	jwtExpHours int,
 	adminEmails []string,
+	c cache.Cache,
 	log *logger.Logger,
 ) *AuthService {
-	s := &AuthService{
+	return &AuthService{
 		userRepo:    userRepo,
 		authReg:     authReg,
 		jwtSecret:   jwtSecret,
 		jwtExpHrs:   jwtExpHours,
 		adminEmails: adminEmails,
-		stateStore:  make(map[string]time.Time),
+		cache:       c,
 		log:         log,
 	}
-	go s.stateGC()
-	return s
 }
 
 // GetLoginURL 返回 provider 的 OAuth 跳转 URL。
@@ -66,30 +64,39 @@ func (s *AuthService) GetLoginURL(ctx context.Context, providerID string) (strin
 		return "", fmt.Errorf("unknown provider: %s", providerID)
 	}
 	state := s.genState()
-	s.mu.Lock()
-	s.stateStore[state] = time.Now()
-	s.mu.Unlock()
+	if err := s.cache.Set(ctx, "oauth_state:"+state, "1", 10*time.Minute); err != nil {
+		s.log.Error("store oauth state failed", "provider", providerID, "err", err)
+		return "", fmt.Errorf("store state failed")
+	}
 	return p.AuthURL(state), nil
 }
 
 // HandleCallback 处理 OAuth 回调：验 state → 换用户信息 → upsert → 签发 JWT。
 func (s *AuthService) HandleCallback(ctx context.Context, providerID string, code, state string) (*LoginResult, error) {
-	// 校验 state
-	s.mu.Lock()
-	ts, ok := s.stateStore[state]
-	delete(s.stateStore, state)
-	s.mu.Unlock()
-	if !ok || time.Since(ts) > 10*time.Minute {
+	// 校验 state（存在即一次性删除；不存在/过期 → 失败）
+	stateKey := "oauth_state:" + state
+	v, err := s.cache.Get(ctx, stateKey)
+	if err != nil {
+		s.log.Error("read oauth state failed", "provider", providerID, "err", err)
 		return nil, fmt.Errorf("invalid or expired state")
+	}
+	if v == "" {
+		s.log.Warn("oauth state invalid or expired", "provider", providerID)
+		return nil, fmt.Errorf("invalid or expired state")
+	}
+	if err := s.cache.Del(ctx, stateKey); err != nil {
+		s.log.Error("delete oauth state failed", "provider", providerID, "err", err)
 	}
 
 	p, ok := s.authReg.Get(providerID)
 	if !ok {
+		s.log.Error("unknown auth provider", "provider", providerID)
 		return nil, fmt.Errorf("unknown provider: %s", providerID)
 	}
 
 	eu, err := p.Exchange(ctx, map[string]string{"code": code})
 	if err != nil {
+		s.log.Error("oauth exchange failed", "provider", providerID, "err", err)
 		return nil, fmt.Errorf("exchange failed: %w", err)
 	}
 
@@ -104,6 +111,7 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 	}
 	user, err = s.userRepo.UpsertByGoogleSub(user)
 	if err != nil {
+		s.log.Error("upsert user failed", "provider", providerID, "err", err)
 		return nil, fmt.Errorf("upsert user failed: %w", err)
 	}
 
@@ -166,20 +174,6 @@ func (s *AuthService) genState() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
-}
-
-// stateGC 定期清理过期 state。
-func (s *AuthService) stateGC() {
-	for {
-		time.Sleep(5 * time.Minute)
-		s.mu.Lock()
-		for k, ts := range s.stateStore {
-			if time.Since(ts) > 15*time.Minute {
-				delete(s.stateStore, k)
-			}
-		}
-		s.mu.Unlock()
-	}
 }
 
 func genTokenID() string {
