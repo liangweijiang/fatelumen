@@ -186,7 +186,7 @@ export default function MobileDrawer({
           {me ? (
             <>
               <div className="mb-3 text-center text-[14px]" style={{ color: "var(--ink-soft)" }}>
-                {me.name || me.email.split("@")[0]}
+                {me.name || (me.email ? me.email.split("@")[0] : "用户")}
               </div>
               <Link
                 href={`/${locale}/dashboard`}

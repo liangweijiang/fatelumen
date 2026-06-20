@@ -80,7 +80,7 @@ export default function DashboardPage() {
             </h1>
             {user && (
               <p className="mt-1 text-[14px]" style={{ color: "var(--ink-soft)" }}>
-                {user.name || user.email.split("@")[0]}
+                {user.name || (user.email ? user.email.split("@")[0] : "用户")}
                 {user.credits != null && (
                   <span className="ml-3" style={{ color: "var(--gold-deep)" }}>
                     {t("credits")}: {user.credits}

@@ -18,7 +18,17 @@ api.interceptors.request.use((config) => {
 
 // Response interceptor: handle 401 and extract errors
 api.interceptors.response.use(
-  (response) => response,
+    (response) => {
+        const body = response.data;
+        if (body && typeof body === "object" && "code" in body && body.code !== 0) {
+            if (typeof window !== "undefined" && body.code === 4011) {
+                removeToken();
+                window.location.href = "/login";
+            }
+            return Promise.reject(new Error(body.msg || "请求失败，请稍后再试"));
+        }
+        return response;
+    },
   (error) => {
     if (typeof window !== "undefined") {
       if (error.response?.status === 401) {
