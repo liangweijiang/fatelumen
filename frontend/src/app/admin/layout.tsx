@@ -36,15 +36,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!ready) return null;
 
   const nav = [
-    { href: "/admin", label: "命阁概览" },
-    { href: "/admin/users", label: "命主名册" },
+    { href: "/admin", label: "数据概览" },
+    { href: "/admin/users", label: "用户管理" },
+    { href: "/admin/orders", label: "订单管理" },
+    { href: "/admin/reports", label: "报告管理" },
   ];
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <header className="flex items-center justify-between border-b px-8 py-4" style={{ borderColor: "var(--line)" }}>
         <div className="flex items-center gap-8">
-          <span className="font-[var(--serif)] text-[20px] font-medium" style={{ color: "var(--ink)" }}>FateLumen 命阁</span>
+          <span className="font-[var(--serif)] text-[20px] font-medium" style={{ color: "var(--ink)" }}>FateLumen 管理后台</span>
           <nav className="flex gap-6">
             {nav.map((n) => (
               <Link key={n.href} href={n.href} className="text-[15px]" style={{ color: pathname === n.href ? "var(--gold-deep)" : "var(--ink-soft)" }}>
@@ -59,7 +61,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           className="text-[14px] font-light hover:underline"
           style={{ color: "var(--ink-faint)" }}
         >
-          离阁
+          退出登录
         </button>
       </header>
       <main className="px-8 py-8">{children}</main>
