@@ -54,3 +54,47 @@ export async function fetchUsers(keyword = "", page = 1, pageSize = 20): Promise
 export async function setUserUnlimited(id: number, unlimited: boolean): Promise<void> {
   await api.patch(`/admin/users/${id}/unlimited`, { unlimited });
 }
+
+// ---------- 资源驱动后台(对接 /admin/resources)----------
+
+export interface ResourceField {
+  key: string;
+  label: string;
+  type: string;
+  enum?: { value: string; label: string }[];
+  sortable?: boolean;
+  filterable?: boolean;
+  searchable?: boolean;
+  editable?: boolean;
+  hidden?: boolean;
+}
+
+export interface ResourceSchema {
+  name: string;
+  fields: ResourceField[];
+}
+
+export interface ResourceListResult<T = Record<string, unknown>> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
+export async function fetchResourceSchema(resource: string): Promise<ResourceSchema> {
+  const { data } = await api.get(`/admin/resources/${resource}/_schema`);
+  return unwrap<ResourceSchema>(data);
+}
+
+export async function fetchResourceList(
+  resource: string,
+  params: { page?: number; page_size?: number; search?: string; sort?: string } & Record<string, string | number> = {}
+): Promise<ResourceListResult> {
+  const { data } = await api.get(`/admin/resources/${resource}`, { params });
+  return unwrap<ResourceListResult>(data);
+}
+
+export async function fetchResourceDetail(resource: string, id: string | number): Promise<Record<string, unknown>> {
+  const { data } = await api.get(`/admin/resources/${resource}/${id}`);
+  return unwrap<Record<string, unknown>>(data);
+}
