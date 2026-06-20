@@ -11,7 +11,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchStats().then(setStats).catch((e: unknown) => {
-      setErr((e as { message?: string })?.message || "无权查阅命阁");
+      setErr((e as { message?: string })?.message || "无权限访问后台");
     });
   }, []);
 
@@ -19,23 +19,23 @@ export default function AdminDashboard() {
     return (
       <div className="mx-auto max-w-md text-center" style={{ color: "var(--ink-soft)" }}>
         <p className="mb-4">{err}</p>
-        <button type="button" onClick={() => router.replace("/login")} className="underline" style={{ color: "var(--gold-deep)" }}>返回登入</button>
+        <button type="button" onClick={() => router.replace("/login")} className="underline" style={{ color: "var(--gold-deep)" }}>返回登录</button>
       </div>
     );
   }
 
-  if (!stats) return <p style={{ color: "var(--ink-faint)" }}>推演中…</p>;
+  if (!stats) return <p style={{ color: "var(--ink-faint)" }}>加载中…</p>;
 
   const cards = [
-    { label: "命主总数", value: stats.users.total, sub: `今日新立 ${stats.users.today_new}` },
+    { label: "用户总数", value: stats.users.total, sub: `今日新增 ${stats.users.today_new}` },
     { label: "订单总数", value: stats.orders.total, sub: `状态分布 ${Object.keys(stats.orders.by_status).length} 类` },
-    { label: "进帐合计", value: `${(stats.revenue.total_cents / 100).toFixed(2)} ${stats.revenue.currency}`, sub: `今日 ${(stats.revenue.today_cents / 100).toFixed(2)}` },
-    { label: "命盘报告", value: stats.reports.total, sub: `已启 ${stats.reports.unlocked_count}` },
+    { label: "营收合计", value: `${(stats.revenue.total_cents / 100).toFixed(2)} ${stats.revenue.currency}`, sub: `今日 ${(stats.revenue.today_cents / 100).toFixed(2)}` },
+    { label: "报告总数", value: stats.reports.total, sub: `已解锁 ${stats.reports.unlocked_count}` },
   ];
 
   return (
     <div>
-      <h1 className="mb-6 font-[var(--serif)] text-[26px] font-medium" style={{ color: "var(--ink)" }}>命阁概览</h1>
+      <h1 className="mb-6 font-[var(--serif)] text-[26px] font-medium" style={{ color: "var(--ink)" }}>数据概览</h1>
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border p-6" style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}>
