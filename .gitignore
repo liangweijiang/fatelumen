@@ -27,3 +27,7 @@ vendor/
 .idea/
 .idea/
 /backend/storage_data/
+
+# 本地 Chromium 运行时二进制(绝不入库)
+/chrome-linux64/
+/chrome-linux64.zip
