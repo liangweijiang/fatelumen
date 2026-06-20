@@ -82,6 +82,14 @@ func (m *MemoryCache) Set(_ context.Context, key, val string, ttl time.Duration)
 	return nil
 }
 
+// Del 删除指定 key。
+func (m *MemoryCache) Del(_ context.Context, key string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.items, key)
+	return nil
+}
+
 // Close 停止后台清理协程。
 func (m *MemoryCache) Close() {
 	m.closeOnce.Do(func() {

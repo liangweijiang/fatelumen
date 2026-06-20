@@ -152,6 +152,28 @@ func TestMemoryCache_ConcurrentIncr(t *testing.T) {
 	}
 }
 
+func TestMemoryCache_Del(t *testing.T) {
+	mc := NewMemoryCache()
+	defer mc.Close()
+	ctx := context.Background()
+
+	if err := mc.Set(ctx, "test:del", "value", 10*time.Minute); err != nil {
+		t.Fatalf("Set failed: %v", err)
+	}
+
+	if err := mc.Del(ctx, "test:del"); err != nil {
+		t.Fatalf("Del failed: %v", err)
+	}
+
+	val, err := mc.Get(ctx, "test:del")
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	if val != "" {
+		t.Fatalf("expected empty string after Del, got '%s'", val)
+	}
+}
+
 func TestMemoryCache_SetOverwrite(t *testing.T) {
 	mc := NewMemoryCache()
 	defer mc.Close()

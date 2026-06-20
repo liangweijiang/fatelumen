@@ -35,3 +35,8 @@ func (r *RedisCache) Get(ctx context.Context, key string) (string, error) {
 func (r *RedisCache) Set(ctx context.Context, key, val string, ttl time.Duration) error {
 	return r.client.Set(ctx, key, val, ttl).Err()
 }
+
+// Del 删除指定 key。
+func (r *RedisCache) Del(ctx context.Context, key string) error {
+	return r.client.Del(ctx, key).Err()
+}
