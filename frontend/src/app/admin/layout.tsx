@@ -5,6 +5,11 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { getToken, removeToken } from "@/lib/auth-storage";
 import { fetchMe } from "@/lib/admin-api";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const adminQueryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
+});
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -43,6 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ];
 
   return (
+    <QueryClientProvider client={adminQueryClient}>
     <div className="min-h-screen" style={{ background: "var(--bg)" }}>
       <header className="flex items-center justify-between border-b px-8 py-4" style={{ borderColor: "var(--line)" }}>
         <div className="flex items-center gap-8">
@@ -66,5 +72,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </header>
       <main className="px-8 py-8">{children}</main>
     </div>
+    </QueryClientProvider>
   );
 }
