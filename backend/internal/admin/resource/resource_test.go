@@ -9,14 +9,20 @@ import (
 )
 
 type fakeUserListSvc struct {
-	page        *service.AdminUsersPage
-	listErr     error
-	detail      *service.AdminUserDetail
-	detailErr   error
-	gotKeyword  string
-	gotPage     int
-	gotPageSize int
-	gotUserID   uint64
+	page         *service.AdminUsersPage
+	listErr      error
+	detail       *service.AdminUserDetail
+	detailErr    error
+	gotKeyword   string
+	gotPage      int
+	gotPageSize  int
+	gotUserID    uint64
+	gotActiveID  uint64
+	gotActiveVal bool
+	gotUnlimID   uint64
+	gotUnlimVal  bool
+	setActiveErr error
+	setUnlimErr  error
 }
 
 func (f *fakeUserListSvc) ListUsers(ctx context.Context, keyword string, page, pageSize int) (*service.AdminUsersPage, error) {
@@ -29,6 +35,18 @@ func (f *fakeUserListSvc) ListUsers(ctx context.Context, keyword string, page, p
 func (f *fakeUserListSvc) GetUserDetail(ctx context.Context, userID uint64) (*service.AdminUserDetail, error) {
 	f.gotUserID = userID
 	return f.detail, f.detailErr
+}
+
+func (f *fakeUserListSvc) SetUserActive(ctx context.Context, operatorID, targetUserID uint64, active bool) error {
+	f.gotActiveID = targetUserID
+	f.gotActiveVal = active
+	return f.setActiveErr
+}
+
+func (f *fakeUserListSvc) SetUserUnlimited(ctx context.Context, operatorID, targetUserID uint64, unlimited bool) error {
+	f.gotUnlimID = targetUserID
+	f.gotUnlimVal = unlimited
+	return f.setUnlimErr
 }
 
 func TestUsersResource_List_Passthrough(t *testing.T) {
