@@ -37,7 +37,15 @@ func (h *ResourceHandler) Schema(c *gin.Context) {
 		response.Fail(c, response.CodeNotFound, "resource not found")
 		return
 	}
-	response.OK(c, gin.H{"name": res.Name(), "fields": res.Schema()})
+	type actionMeta struct {
+		Name  string `json:"name"`
+		Label string `json:"label"`
+	}
+	actions := make([]actionMeta, 0)
+	for _, a := range res.Actions() {
+		actions = append(actions, actionMeta{Name: a.Name, Label: a.Label})
+	}
+	response.OK(c, gin.H{"name": res.Name(), "fields": res.Schema(), "actions": actions})
 }
 
 // List GET /admin/resources/:resource
