@@ -69,9 +69,15 @@ export interface ResourceField {
   hidden?: boolean;
 }
 
+export interface ResourceAction {
+  name: string;
+  label: string;
+}
+
 export interface ResourceSchema {
   name: string;
   fields: ResourceField[];
+  actions?: ResourceAction[];
 }
 
 export interface ResourceListResult<T = Record<string, unknown>> {
@@ -97,4 +103,14 @@ export async function fetchResourceList(
 export async function fetchResourceDetail(resource: string, id: string | number): Promise<Record<string, unknown>> {
   const { data } = await api.get(`/admin/resources/${resource}/${id}`);
   return unwrap<Record<string, unknown>>(data);
+}
+
+export async function runResourceAction(
+  resource: string,
+  id: string | number,
+  action: string,
+  params: Record<string, unknown> = {}
+): Promise<unknown> {
+  const { data } = await api.post(`/admin/resources/${resource}/${id}/actions/${action}`, params);
+  return unwrap<unknown>(data);
 }
