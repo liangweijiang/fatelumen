@@ -27,6 +27,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     pwHint: "At least 8 characters",
     signIn: "Enter",
     signUp: "Inscribe",
+    googleLogin: "Sign in with Google",
     loading: "Divining…",
     toRegister: "No tablet yet? Inscribe one",
     toLogin: "Already have a tablet? Return to enter",
@@ -42,6 +43,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     pwHint: "至少 8 位",
     signIn: "登入",
     signUp: "立牒注册",
+    googleLogin: "使用 Google 登录",
     loading: "推演中…",
     toRegister: "尚无命牒？点此立牒注册",
     toLogin: "已有命牒？返回登入",
@@ -57,6 +59,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     pwHint: "8 文字以上",
     signIn: "入る",
     signUp: "命牒を記す",
+    googleLogin: "Google でログイン",
     loading: "推演中…",
     toRegister: "命牒をお持ちでない方はこちら",
     toLogin: "既に命牒をお持ちの方は入る",
@@ -72,6 +75,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     pwHint: "8자 이상",
     signIn: "입장",
     signUp: "명첩 등록",
+    googleLogin: "Google로 로그인",
     loading: "추연 중…",
     toRegister: "명첩이 없으신가요? 등록하기",
     toLogin: "이미 명첩이 있으신가요? 입장",
@@ -169,6 +173,21 @@ export default function LoginPage() {
             {loading ? t.loading : mode === "login" ? t.signIn : t.signUp}
           </Button>
         </form>
+        <div className="my-5 flex items-center gap-3">
+          <span className="h-px flex-1" style={{ background: "var(--line)" }} />
+          <span className="text-[12px]" style={{ color: "var(--ink-faint)" }}>or</span>
+          <span className="h-px flex-1" style={{ background: "var(--line)" }} />
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/google/login`;
+          }}
+          className="flex w-full items-center justify-center gap-2 rounded-md border py-2 text-[14px]"
+          style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
+        >
+          {t.googleLogin}
+        </button>
         <button
           type="button"
           onClick={() => { setMode(mode === "login" ? "register" : "login"); setErr(""); }}
