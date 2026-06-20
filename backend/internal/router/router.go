@@ -40,18 +40,19 @@ func (h *DBHealthChecker) Ping(ctx context.Context) error {
 
 // App 包含所有路由依赖的上下文。
 type App struct {
-	DB             *gorm.DB
-	Auth           *middleware.AuthMiddleware
-	HealthChecker  HealthChecker
-	StaticDir      string
-	AuthHandler    *handler.AuthHandler
-	ProfHandler    *handler.ProfileHandler
-	ChartHandler   *handler.ChartHandler
-	ReadingHandler *handler.ReadingHandler
-	ReportHandler  *handler.ReportHandler
-	OrderHandler   *handler.OrderHandler
-	WebhookHandler *handler.WebhookHandler
-	AdminHandler   *handler.AdminHandler
+	DB              *gorm.DB
+	Auth            *middleware.AuthMiddleware
+	HealthChecker   HealthChecker
+	StaticDir       string
+	AuthHandler     *handler.AuthHandler
+	ProfHandler     *handler.ProfileHandler
+	ChartHandler    *handler.ChartHandler
+	ReadingHandler  *handler.ReadingHandler
+	ReportHandler   *handler.ReportHandler
+	OrderHandler    *handler.OrderHandler
+	WebhookHandler  *handler.WebhookHandler
+	AdminHandler    *handler.AdminHandler
+	ResourceHandler *handler.ResourceHandler
 
 	// Pre-built rate-limit middleware (set by main)
 	RateLimitAuth    gin.HandlerFunc
@@ -176,6 +177,14 @@ func Setup(app *App) *gin.Engine {
 				admin.GET("/reports", app.AdminHandler.ListReports)
 				admin.GET("/reports/:id", app.AdminHandler.GetReport)
 				admin.POST("/reports/:id/unlock", app.AdminHandler.UnlockReport)
+
+				res := admin.Group("/resources")
+				{
+					res.GET("/:resource", app.ResourceHandler.List)
+					res.GET("/:resource/_schema", app.ResourceHandler.Schema)
+					res.GET("/:resource/:id", app.ResourceHandler.Detail)
+					res.POST("/:resource/:id/actions/:action", app.ResourceHandler.Action)
+				}
 			}
 		}
 	}

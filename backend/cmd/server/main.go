@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"fatelumen/backend/internal/admin/resource"
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/config"
@@ -207,6 +208,13 @@ func main() {
 	adminReportSvc := service.NewAdminReportService(reportRepo)
 	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc, adminReportSvc)
 
+	auditRepo := repository.NewAuditRepo(db)
+	adminRegistry := resource.NewRegistry()
+	adminRegistry.Register(resource.NewUsersResource(adminUserSvc))
+	adminRegistry.Register(resource.NewOrdersResource(adminOrderSvc))
+	adminRegistry.Register(resource.NewReportsResource(adminReportSvc))
+	resourceHandler := handler.NewResourceHandler(adminRegistry, auditRepo)
+
 	authHandler := handler.NewAuthHandler(authSvc, authReg)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
@@ -230,21 +238,22 @@ func main() {
 	}
 
 	app := &router.App{
-		StaticDir: cfg.LocalStorageDir,
-		DB:              db,
-		Auth:            authMW,
-		HealthChecker:   router.NewDBHealthChecker(db),
-		AuthHandler:     authHandler,
-		ProfHandler:     profileHandler,
-		ChartHandler:    chartHandler,
-		ReadingHandler:  readingHandler,
-		ReportHandler:   reportHTTPHandler,
-		OrderHandler:    orderHTTPHandler,
-		WebhookHandler:  webhookHandler,
-		AdminHandler:    adminHTTPHandler,
-		RateLimitAuth:   rlAuth,
+		StaticDir:        cfg.LocalStorageDir,
+		DB:               db,
+		Auth:             authMW,
+		HealthChecker:    router.NewDBHealthChecker(db),
+		AuthHandler:      authHandler,
+		ProfHandler:      profileHandler,
+		ChartHandler:     chartHandler,
+		ReadingHandler:   readingHandler,
+		ReportHandler:    reportHTTPHandler,
+		OrderHandler:     orderHTTPHandler,
+		WebhookHandler:   webhookHandler,
+		AdminHandler:     adminHTTPHandler,
+		ResourceHandler:  resourceHandler,
+		RateLimitAuth:    rlAuth,
 		RateLimitReading: rlReading,
-		RateLimitOrder:  rlOrder,
+		RateLimitOrder:   rlOrder,
 	}
 	engine := router.Setup(app)
 
