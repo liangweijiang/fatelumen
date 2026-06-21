@@ -193,13 +193,41 @@ func (r *OrderRepo) FulfillPaidOrder(provider, eventID string, orderID uint64) e
 			return err
 		}
 
-		// 4. 解锁报告
-		if order.ReportID > 0 {
-			if err := tx.Model(&model.Report{}).Where("id = ?", order.ReportID).Updates(map[string]interface{}{
-				"paid":     true,
-				"order_id": orderID,
-			}).Error; err != nil {
-				return err
+		// 4. 按订单类型履约
+		switch order.Type {
+		case "credits":
+			// 积分套餐：给用户加积分余额 + 记一笔流水（同事务保证幂等）
+			if order.CreditsGranted > 0 {
+				if err := tx.Model(&model.User{}).Where("id = ?", order.UserID).
+					Update("credits", gorm.Expr("credits + ?", order.CreditsGranted)).Error; err != nil {
+					return err
+				}
+				var u model.User
+				if err := tx.Select("credits").Where("id = ?", order.UserID).First(&u).Error; err != nil {
+					return err
+				}
+				refID := orderID
+				ledger := &model.CreditLedger{
+					UserID:       order.UserID,
+					Delta:        order.CreditsGranted,
+					BalanceAfter: u.Credits,
+					Reason:       "purchase",
+					RefID:        &refID,
+					CreatedAt:    time.Now(),
+				}
+				if err := tx.Create(ledger).Error; err != nil {
+					return err
+				}
+			}
+		default:
+			// report 单：解锁报告
+			if order.ReportID > 0 {
+				if err := tx.Model(&model.Report{}).Where("id = ?", order.ReportID).Updates(map[string]interface{}{
+					"paid":     true,
+					"order_id": orderID,
+				}).Error; err != nil {
+					return err
+				}
 			}
 		}
 

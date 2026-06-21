@@ -32,3 +32,21 @@ func PriceFor(sku, currency string) (int, bool) {
 	amount, ok := s.Prices[currency]
 	return amount, ok
 }
+
+// CreditsFor 返回某 SKU 的积分数（type=credits 时 >0，否则 0）。
+func CreditsFor(sku string) int {
+	s, ok := Catalog[sku]
+	if !ok {
+		return 0
+	}
+	return s.Credits
+}
+
+// SKUType 返回某 SKU 的类型（report / credits），不存在返回空串。
+func SKUType(sku string) string {
+	s, ok := Catalog[sku]
+	if !ok {
+		return ""
+	}
+	return s.Type
+}

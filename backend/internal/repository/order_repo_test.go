@@ -303,3 +303,82 @@ func TestFulfillPaidOrder_NoReport(t *testing.T) {
 		t.Errorf("expected 1 webhook event, got %d", count)
 	}
 }
+
+// ---------- TestFulfillPaidOrder_CreditsOrder ----------
+
+func TestFulfillPaidOrder_CreditsOrder(t *testing.T) {
+	repo, db := setupTestOrderRepo(t)
+	if err := db.AutoMigrate(&model.User{}, &model.CreditLedger{}); err != nil {
+		t.Fatalf("failed to migrate user/ledger: %v", err)
+	}
+
+	// 用户初始 0 积分
+	user := &model.User{ID: 1, Email: "u1@test.com", Credits: 0, CreatedAt: time.Now(), UpdatedAt: time.Now()}
+	if err := db.Create(user).Error; err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	// 积分套餐订单（pack_50 / 50 积分），无报告
+	order := &model.Order{
+		ID:             20,
+		UserID:         1,
+		ReportID:       0,
+		Type:           "credits",
+		SKU:            "pack_50",
+		AmountCents:    999,
+		Currency:       "usd",
+		CreditsGranted: 50,
+		Provider:       "stripe",
+		Status:         model.OrderStatusCreated,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	if err := db.Create(order).Error; err != nil {
+		t.Fatalf("failed to create credits order: %v", err)
+	}
+
+	if err := repo.FulfillPaidOrder("stripe", "evt_credits", 20); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// 用户积分 +50
+	var u model.User
+	db.First(&u, 1)
+	if u.Credits != 50 {
+		t.Errorf("user credits: want 50, got %d", u.Credits)
+	}
+
+	// 流水一条：Delta=50 BalanceAfter=50 Reason=purchase RefID=20
+	var ledgers []model.CreditLedger
+	db.Where("user_id = ?", 1).Find(&ledgers)
+	if len(ledgers) != 1 {
+		t.Fatalf("expected 1 ledger row, got %d", len(ledgers))
+	}
+	l := ledgers[0]
+	if l.Delta != 50 {
+		t.Errorf("ledger delta: want 50, got %d", l.Delta)
+	}
+	if l.BalanceAfter != 50 {
+		t.Errorf("ledger balance_after: want 50, got %d", l.BalanceAfter)
+	}
+	if l.Reason != "purchase" {
+		t.Errorf("ledger reason: want purchase, got %s", l.Reason)
+	}
+	if l.RefID == nil || *l.RefID != 20 {
+		t.Errorf("ledger ref_id: want 20, got %v", l.RefID)
+	}
+
+	// 重复事件：同 eventID → ErrDuplicateEvent，积分不再增加
+	if err := repo.FulfillPaidOrder("stripe", "evt_credits", 20); err != ErrDuplicateEvent {
+		t.Fatalf("expected ErrDuplicateEvent, got: %v", err)
+	}
+	db.First(&u, 1)
+	if u.Credits != 50 {
+		t.Errorf("user credits after duplicate: want 50, got %d", u.Credits)
+	}
+	var ledgerCount int64
+	db.Model(&model.CreditLedger{}).Where("user_id = ?", 1).Count(&ledgerCount)
+	if ledgerCount != 1 {
+		t.Errorf("expected 1 ledger row after duplicate, got %d", ledgerCount)
+	}
+}
