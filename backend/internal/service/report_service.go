@@ -21,6 +21,7 @@ type reportStore interface {
 	ListByUser(uint64, int, int) ([]model.Report, error)
 	UpdateStatus(uint64, string, string) error
 	UpdateResult(uint64, model.ReportContent, string) error
+	UnlockReportWithCredits(userID, reportID uint64, cost int) error
 }
 
 type reportQueue interface {
@@ -46,6 +47,7 @@ type ReportService struct {
 	renderer    renderer.Renderer
 	fileStorage storage.Storage
 	queue       reportQueue
+	unlockCost  int
 }
 
 func NewReportService(
@@ -54,6 +56,7 @@ func NewReportService(
 	imgRenderer renderer.Renderer,
 	fileStorage storage.Storage,
 	queue job.Queue,
+	unlockCost int,
 ) *ReportService {
 	return &ReportService{
 		reportRepo:  reportRepo,
@@ -61,6 +64,7 @@ func NewReportService(
 		renderer:    imgRenderer,
 		fileStorage: fileStorage,
 		queue:       queue,
+		unlockCost:  unlockCost,
 	}
 }
 
@@ -115,6 +119,30 @@ func (s *ReportService) CreateReport(ctx context.Context, userID, profileID uint
 		"job_id", reportJob.ID,
 	)
 	return report, nil
+}
+
+// UnlockWithCredits 用积分解锁报告。校验报告归属与状态后,委托 repo 在单事务内扣积分+写流水+标记解锁。
+// 报告不存在或非本人返回 gorm.ErrRecordNotFound;报告尚未生成完成(status != done)返回错误;余额不足返回 repository.ErrInsufficientCredits。
+func (s *ReportService) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
+	report, err := s.reportRepo.GetByID(reportID, userID)
+	if err != nil {
+		logger.FromCtx(ctx).Warn("unlock with credits: report not found", "err", err, "user_id", userID, "report_id", reportID)
+		return err
+	}
+	if report.Paid {
+		// 已解锁,幂等返回
+		return nil
+	}
+	if report.Status != model.ReportStatusDone {
+		logger.FromCtx(ctx).Warn("unlock with credits: report not ready", "report_id", reportID, "status", report.Status)
+		return fmt.Errorf("report not ready for unlock")
+	}
+	if err := s.reportRepo.UnlockReportWithCredits(userID, reportID, s.unlockCost); err != nil {
+		logger.FromCtx(ctx).Error("unlock with credits failed", "err", err, "user_id", userID, "report_id", reportID, "cost", s.unlockCost)
+		return err
+	}
+	logger.FromCtx(ctx).Info("report unlocked with credits", "user_id", userID, "report_id", reportID, "cost", s.unlockCost)
+	return nil
 }
 
 // GetReport 获取报告详情（带归属校验）。

@@ -76,10 +76,14 @@ func (f *fakeReportStore) UpdateResult(id uint64, content model.ReportContent, p
 	return nil
 }
 
+func (f *fakeReportStore) UnlockReportWithCredits(userID, reportID uint64, cost int) error {
+	return nil
+}
+
 type fakeReportQueue struct {
-	mu       sync.Mutex
-	jobs     []*job.Job
-	err      error
+	mu   sync.Mutex
+	jobs []*job.Job
+	err  error
 }
 
 func newFakeReportQueue() *fakeReportQueue {

@@ -169,7 +169,7 @@ func main() {
 	}
 
 	// Report service + handler
-	reportSvc := service.NewReportService(reportRepo, chartRepo, imgRenderer, fileStorage, jobQueue)
+	reportSvc := service.NewReportService(reportRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits)
 	reportHandler := service.NewReportHandler(profileRepo, chartRepo, llmProvider, imgRenderer, fileStorage, reportRepo)
 
 	// Handler registry + worker
