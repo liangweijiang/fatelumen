@@ -12,6 +12,7 @@ import type {
   CreateReportPayload,
   Order,
   CreateOrderPayload,
+  CreateOrderResult,
 } from "@/types/api";
 
 // ── Auth ──
@@ -98,7 +99,7 @@ export async function listReports(): Promise<Report[]> {
 }
 
 // ── Orders ──
-export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
+export async function createOrder(payload: CreateOrderPayload): Promise<CreateOrderResult> {
   const { data } = await api.post("/orders", payload);
   return data.data ?? data;
 }
