@@ -104,3 +104,11 @@ func (m *mockProvider) BuildCompletedEvent(orderID uint64) ([]byte, string, erro
 	}
 	return payload, m.Sign(payload), nil
 }
+
+// MockProviderRef 对外暴露 mock provider 的具体类型，供 dev 触发接口构造已签名回调。
+type MockProviderRef = mockProvider
+
+// NewMockProviderRef 返回具体类型指针（dev 触发接口用）。
+func NewMockProviderRef(secret, baseURL string) *MockProviderRef {
+	return &mockProvider{secret: secret, baseURL: baseURL}
+}

@@ -51,6 +51,7 @@ type App struct {
 	ReportHandler   *handler.ReportHandler
 	OrderHandler    *handler.OrderHandler
 	WebhookHandler  *handler.WebhookHandler
+	DevPayHandler   *handler.DevPayHandler
 	AdminHandler    *handler.AdminHandler
 	ResourceHandler *handler.ResourceHandler
 
@@ -118,6 +119,12 @@ func Setup(app *App) *gin.Engine {
 		v1.POST("/webhooks/stripe", app.WebhookHandler.Stripe)
 		v1.POST("/webhooks/alipay", app.WebhookHandler.Alipay)
 		v1.POST("/webhooks/paypal", app.WebhookHandler.Paypal)
+
+		// Dev-only 本地收银台（仅当 main 注入 DevPayHandler 时注册）
+		if app.DevPayHandler != nil {
+			v1.GET("/dev/pay/:id", app.DevPayHandler.Page)
+			v1.POST("/dev/pay/:id/complete", app.DevPayHandler.Complete)
+		}
 
 		// --- 需鉴权 ---
 		authed := v1.Group("")
