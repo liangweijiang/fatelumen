@@ -144,6 +144,7 @@ export default function ReportPage() {
 
   // Done state — render full report
   const content = report.content;
+  const locked = report.locked === true;
 
   return (
     <div
@@ -403,9 +404,49 @@ export default function ReportPage() {
           </div>
         ))}
 
-        <CheckoutBlock reportId={id} />
+        {locked && (
+          <div className="relative mb-2">
+            <div
+              className="pointer-events-none select-none rounded-2xl border p-8"
+              style={{
+                background: "var(--bg-card)",
+                borderColor: "var(--line)",
+                filter: "blur(4px)",
+                opacity: 0.55,
+              }}
+              aria-hidden="true"
+            >
+              {[88, 76, 92, 70, 84, 60].map((w, i) => (
+                <div
+                  key={i}
+                  className="mb-3 h-3 rounded-full"
+                  style={{ width: `${w}%`, background: "var(--line)" }}
+                />
+              ))}
+            </div>
+            <div
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 rounded-b-2xl"
+              style={{
+                background:
+                  "linear-gradient(to bottom, transparent, var(--bg) 85%)",
+              }}
+              aria-hidden="true"
+            />
+            <div className="absolute inset-x-0 bottom-6 text-center">
+              <p
+                className="text-[15px] font-semibold"
+                style={{ fontFamily: "var(--serif-d)", color: "var(--gold-deep)" }}
+              >
+                付费后查看大师级完整推演
+              </p>
+            </div>
+          </div>
+        )}
 
-        {/* Bottom action bar */}
+        {locked && <CheckoutBlock reportId={id} />}
+
+        {/* Bottom action bar — 仅解锁后可下载 */}
+        {!locked && (
         <div className="sticky bottom-4 mt-10">
           <div
             className="mx-auto flex max-w-[400px] items-center justify-center rounded-full border p-2"
@@ -431,6 +472,7 @@ export default function ReportPage() {
             </button>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
