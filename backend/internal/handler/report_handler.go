@@ -61,7 +61,7 @@ type reportDetailResponse struct {
 
 // reportUnlocked 三合一解锁判定:已付费 或 管理员 或 无限体验用户。
 // 无限体验是后台白名单赋予的特权,不付费即可解锁全部内容(全文/PDF/HTML)。
-func reportUnlocked(c *gin.Context, r *model.Report) bool {
+func (h *ReportHandler) reportUnlocked(c *gin.Context, r *model.Report) bool {
 	return r.Paid || middleware.IsAdmin(c) || middleware.IsUnlimited(c)
 }
 
@@ -151,7 +151,7 @@ func (h *ReportHandler) Get(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	unlocked := reportUnlocked(c, report)
+	unlocked := h.reportUnlocked(c, report)
 	response.OK(c, buildReportDetail(report, unlocked))
 }
 
@@ -197,8 +197,8 @@ func (h *ReportHandler) ExportPDF(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	if !reportUnlocked(c, report) {
-		response.Fail(c, response.CodeForbidden, "report locked")
+	if !h.reportUnlocked(c, report) {
+		response.Fail(c, response.CodeOrderUnpaid, "report not unlocked")
 		return
 	}
 
@@ -233,8 +233,8 @@ func (h *ReportHandler) ViewHTML(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	if !reportUnlocked(c, report) {
-		response.Fail(c, response.CodeForbidden, "report locked")
+	if !h.reportUnlocked(c, report) {
+		response.Fail(c, response.CodeOrderUnpaid, "report not unlocked")
 		return
 	}
 

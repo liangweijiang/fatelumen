@@ -60,7 +60,7 @@ func setupAuthedRouter(h *ReportHandler) *gin.Engine {
 	r.POST("/api/v1/reports", h.Create)
 	r.GET("/api/v1/reports/:id", h.Get)
 	r.GET("/api/v1/reports", h.List)
-	r.GET("/api/v1/reports/:id/pdf", h.ExportPDF)
+	r.POST("/api/v1/reports/:id/pdf", h.ExportPDF)
 	r.GET("/api/v1/reports/:id/html", h.ViewHTML)
 
 	return r
@@ -646,13 +646,13 @@ func TestExportPDF_Locked_Unpaid_403(t *testing.T) {
 	h := testHandler(svc)
 	router := setupAuthedRouter(h)
 
-	req := newReq("GET", "/api/v1/reports/1/pdf", "")
+	req := newReq("POST", "/api/v1/reports/1/pdf", "")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	resp := parseResp(t, w)
-	if resp.Code != response.CodeForbidden {
-		t.Fatalf("expected code %d, got %d", response.CodeForbidden, resp.Code)
+	if resp.Code != response.CodeOrderUnpaid {
+		t.Fatalf("expected code %d, got %d", response.CodeOrderUnpaid, resp.Code)
 	}
 }
 
@@ -668,7 +668,7 @@ func TestExportPDF_Paid_OK(t *testing.T) {
 	h := testHandler(svc)
 	router := setupAuthedRouter(h)
 
-	req := newReq("GET", "/api/v1/reports/1/pdf", "")
+	req := newReq("POST", "/api/v1/reports/1/pdf", "")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -696,8 +696,8 @@ func TestViewHTML_Locked_Unpaid_403(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	resp := parseResp(t, w)
-	if resp.Code != response.CodeForbidden {
-		t.Fatalf("expected code %d, got %d", response.CodeForbidden, resp.Code)
+	if resp.Code != response.CodeOrderUnpaid {
+		t.Fatalf("expected code %d, got %d", response.CodeOrderUnpaid, resp.Code)
 	}
 }
 
