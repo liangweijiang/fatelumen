@@ -1,6 +1,9 @@
 package repository
 
 import (
+	"errors"
+	"time"
+
 	"fatelumen/backend/internal/model"
 
 	"gorm.io/gorm"
@@ -10,6 +13,9 @@ import (
 type ReportRepo struct {
 	db *gorm.DB
 }
+
+// ErrInsufficientCredits 用户积分余额不足以解锁报告。
+var ErrInsufficientCredits = errors.New("insufficient credits")
 
 func NewReportRepo(db *gorm.DB) *ReportRepo {
 	return &ReportRepo{db: db}
@@ -118,4 +124,60 @@ func (r *ReportRepo) AdminGetReportByID(id uint64) (*model.Report, error) {
 		return nil, err
 	}
 	return &report, nil
+}
+
+// UnlockReportWithCredits 在单事务内用积分解锁报告:校验余额→扣积分→写负向流水→标记报告 paid(pay_method=credit)。
+// 报告已 paid 时幂等返回 nil;余额不足返回 ErrInsufficientCredits。
+func (r *ReportRepo) UnlockReportWithCredits(userID, reportID uint64, cost int) error {
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 1. 锁定报告行,校验归属与解锁前置条件
+		var report model.Report
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ? AND user_id = ?", reportID, userID).First(&report).Error; err != nil {
+			return err
+		}
+		// 幂等:已解锁直接返回
+		if report.Paid {
+			return nil
+		}
+		// 2. 锁定用户行,校验积分余额
+		var user model.User
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", userID).First(&user).Error; err != nil {
+			return err
+		}
+		if user.Credits < cost {
+			return ErrInsufficientCredits
+		}
+		// 3. 原子扣减积分
+		if err := tx.Model(&model.User{}).Where("id = ?", userID).
+			Update("credits", gorm.Expr("credits - ?", cost)).Error; err != nil {
+			return err
+		}
+		// 4. 重读余额,写负向流水
+		var after model.User
+		if err := tx.Select("credits").Where("id = ?", userID).First(&after).Error; err != nil {
+			return err
+		}
+		refID := reportID
+		ledger := &model.CreditLedger{
+			UserID:       userID,
+			Delta:        -cost,
+			BalanceAfter: after.Credits,
+			Reason:       "unlock_report",
+			RefID:        &refID,
+			CreatedAt:    time.Now(),
+		}
+		if err := tx.Create(ledger).Error; err != nil {
+			return err
+		}
+		// 5. 标记报告已解锁(积分渠道)
+		if err := tx.Model(&model.Report{}).Where("id = ?", reportID).Updates(map[string]interface{}{
+			"paid":       true,
+			"pay_method": "credit",
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }

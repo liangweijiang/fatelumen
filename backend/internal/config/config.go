@@ -60,6 +60,7 @@ type Config struct {
 	PaymentSuccessURL     string
 	PaymentCancelURL      string
 	OrderReportPriceCents int
+	ReportUnlockCredits   int
 	StripeSecretKey       string
 	StripeWebhookSecret   string
 
@@ -171,6 +172,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
+	viper.SetDefault("REPORT_UNLOCK_CREDITS", 30)
 	viper.SetDefault("MOCK_WEBHOOK_SECRET", "dev-mock-secret")
 	viper.SetDefault("RATELIMIT_ENABLED", true)
 	viper.SetDefault("RATELIMIT_READING_PER_MIN", 5)
@@ -230,6 +232,7 @@ func Load() (*Config, error) {
 		PaymentSuccessURL:     viper.GetString("PAYMENT_SUCCESS_URL"),
 		PaymentCancelURL:      viper.GetString("PAYMENT_CANCEL_URL"),
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
+		ReportUnlockCredits:   viper.GetInt("REPORT_UNLOCK_CREDITS"),
 		StripeSecretKey:       viper.GetString("STRIPE_SECRET_KEY"),
 
 		PaymentMockEnabled: viper.GetBool("PAYMENT_MOCK_ENABLED"),
