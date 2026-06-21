@@ -18,13 +18,13 @@ import (
 )
 
 type fakeOrderSvc struct {
-	createFn func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error)
+	createFn func(ctx context.Context, userID uint64, in service.CreateOrderInput) (*service.CreateOrderResult, error)
 	getFn    func(ctx context.Context, userID, orderID uint64) (*model.Order, error)
 	listFn   func(ctx context.Context, userID uint64) ([]model.Order, error)
 }
 
-func (f *fakeOrderSvc) CreateOrder(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
-	return f.createFn(ctx, userID, reportID, provider)
+func (f *fakeOrderSvc) CreateOrder(ctx context.Context, userID uint64, in service.CreateOrderInput) (*service.CreateOrderResult, error) {
+	return f.createFn(ctx, userID, in)
 }
 
 func (f *fakeOrderSvc) GetOrder(ctx context.Context, userID, orderID uint64) (*model.Order, error) {
@@ -65,9 +65,9 @@ func setupNoAuthOrderRouter(h *OrderHandler) *gin.Engine {
 
 func TestCreateOrder_Success_Handler(t *testing.T) {
 	svc := &fakeOrderSvc{
-		createFn: func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
+		createFn: func(ctx context.Context, userID uint64, in service.CreateOrderInput) (*service.CreateOrderResult, error) {
 			return &service.CreateOrderResult{
-				Order:       &model.Order{ID: 5, UserID: userID, ReportID: reportID, Status: "created"},
+				Order:       &model.Order{ID: 5, UserID: userID, ReportID: in.ReportID, Status: "created"},
 				CheckoutURL: "https://checkout.stripe.com/pay/test",
 			}, nil
 		},
@@ -130,7 +130,7 @@ func TestCreateOrder_MissingReportID_Handler(t *testing.T) {
 
 func TestCreateOrder_ServiceError_Handler(t *testing.T) {
 	svc := &fakeOrderSvc{
-		createFn: func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
+		createFn: func(ctx context.Context, userID uint64, in service.CreateOrderInput) (*service.CreateOrderResult, error) {
 			return nil, errors.New("report not found or not owned")
 		},
 	}

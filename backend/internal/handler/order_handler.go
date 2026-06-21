@@ -15,7 +15,7 @@ import (
 )
 
 type orderSvc interface {
-	CreateOrder(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error)
+	CreateOrder(ctx context.Context, userID uint64, in service.CreateOrderInput) (*service.CreateOrderResult, error)
 	GetOrder(ctx context.Context, userID, orderID uint64) (*model.Order, error)
 	ListOrders(ctx context.Context, userID uint64) ([]model.Order, error)
 }
@@ -56,7 +56,7 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.svc.CreateOrder(c.Request.Context(), userID, in.ReportID, in.Provider)
+	result, err := h.svc.CreateOrder(c.Request.Context(), userID, service.CreateOrderInput{ReportID: in.ReportID, Provider: in.Provider})
 	if err != nil {
 		if errors.Is(err, service.ErrReportAlreadyPurchased) {
 			response.Fail(c, response.CodeOrderUnpaid, "report already purchased")

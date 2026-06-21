@@ -13,12 +13,12 @@ import (
 // ---------- fakes for order service tests ----------
 
 type fakeOrderStore struct {
-	mu             sync.Mutex
-	orders         map[uint64]*model.Order
-	nextID         uint64
-	createErr      error
-	updateRefErr   error
-	providerRefs   map[uint64]string
+	mu           sync.Mutex
+	orders       map[uint64]*model.Order
+	nextID       uint64
+	createErr    error
+	updateRefErr error
+	providerRefs map[uint64]string
 }
 
 func newFakeOrderStore() *fakeOrderStore {
@@ -170,7 +170,7 @@ func TestCreateOrder_Success(t *testing.T) {
 	// Pre-create a report belonging to user 42
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 
-	result, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	result, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestCreateOrder_ReportNotOwned(t *testing.T) {
 	// Report 1 belongs to user 99, not user 42
 	reports.reports[1] = &model.Report{ID: 1, UserID: 99}
 
-	_, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected error for unowned report")
 	}
@@ -236,7 +236,7 @@ func TestCreateOrder_ReportNotOwned(t *testing.T) {
 func TestCreateOrder_ReportNotFound(t *testing.T) {
 	svc, _, _, pay := newTestOrderService()
 
-	_, err := svc.CreateOrder(context.Background(), 42, 999, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 999, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected error for non-existent report")
 	}
@@ -250,7 +250,7 @@ func TestCreateOrder_CreateFails(t *testing.T) {
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 	store.createErr = errors.New("db error")
 
-	_, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected error for create failure")
 	}
@@ -261,7 +261,7 @@ func TestCreateOrder_CheckoutFails(t *testing.T) {
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 	pay.checkoutErr = errors.New("stripe error")
 
-	_, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected error for checkout failure")
 	}
@@ -272,7 +272,7 @@ func TestCreateOrder_UpdateProviderRefFails(t *testing.T) {
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 	store.updateRefErr = errors.New("update error")
 
-	_, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected error for update provider ref failure")
 	}
@@ -321,7 +321,7 @@ func TestCreateOrder_RejectsWhenPaid(t *testing.T) {
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 	store.Create(&model.Order{ID: 1, UserID: 42, ReportID: 1, Status: model.OrderStatusPaid, AmountCents: 999, Currency: "usd"})
 
-	_, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	_, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err == nil {
 		t.Fatal("expected ErrReportAlreadyPurchased, got nil")
 	}
@@ -341,7 +341,7 @@ func TestCreateOrder_ReusesPendingOrder(t *testing.T) {
 		CheckoutURL: "https://checkout.example.com/reused",
 	}
 
-	result, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	result, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -362,7 +362,7 @@ func TestCreateOrder_AllowsWhenRefunded(t *testing.T) {
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 	store.Create(&model.Order{ID: 1, UserID: 42, ReportID: 1, Status: model.OrderStatusRefunded, AmountCents: 999, Currency: "usd"})
 
-	result, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	result, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestCreateOrder_NormalWhenNoExisting(t *testing.T) {
 	svc, _, reports, _ := newTestOrderService()
 	reports.reports[1] = &model.Report{ID: 1, UserID: 42}
 
-	result, err := svc.CreateOrder(context.Background(), 42, 1, "stripe")
+	result, err := svc.CreateOrder(context.Background(), 42, CreateOrderInput{ReportID: 1, Provider: "stripe"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
