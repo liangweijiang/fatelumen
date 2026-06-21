@@ -207,6 +207,7 @@ export interface Report {
   error_msg: string;
   retry_count: number;
   paid: boolean;
+  locked?: boolean;
   created_at: string;
   updated_at: string;
 }

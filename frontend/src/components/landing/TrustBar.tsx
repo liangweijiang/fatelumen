@@ -31,10 +31,27 @@ export function TrustBar() {
           </div>
         </div>
         <div className="text-center py-[34px] px-3" style={{ borderRight: "1px solid var(--line-soft)" }}>
-          <div
-            className="font-[var(--serif)] text-[32px] text-[var(--ink)]"
-          >
-            Stripe
+          <div className="flex items-center justify-center gap-3" style={{ height: 42 }}>
+            <img
+              src="/payment/alipay.svg"
+              alt="Alipay"
+              width={40}
+              height={27}
+              style={{ filter: "grayscale(1)", opacity: 0.7 }}
+            />
+            <img
+              src="/payment/paypal.svg"
+              alt="PayPal"
+              width={40}
+              height={27}
+              style={{ filter: "grayscale(1)", opacity: 0.7 }}
+            />
+            <span
+              className="font-[var(--serif)] text-[18px]"
+              style={{ color: "var(--ink-faint)", opacity: 0.7 }}
+            >
+              Stripe
+            </span>
           </div>
           <div className="mt-[7px] text-xs tracking-[1.5px] text-[var(--ink-faint)]">
             {t("payment")}
