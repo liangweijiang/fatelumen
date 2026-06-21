@@ -60,6 +60,8 @@ func setupAuthedRouter(h *ReportHandler) *gin.Engine {
 	r.POST("/api/v1/reports", h.Create)
 	r.GET("/api/v1/reports/:id", h.Get)
 	r.GET("/api/v1/reports", h.List)
+	r.GET("/api/v1/reports/:id/pdf", h.ExportPDF)
+	r.GET("/api/v1/reports/:id/html", h.ViewHTML)
 
 	return r
 }
@@ -626,5 +628,96 @@ func TestBuildReportDetail_AdminBypass(t *testing.T) {
 	}
 	if resp.Content.Chapters == nil || len(resp.Content.Chapters) != 12 {
 		t.Error("expected 12 chapters for admin bypass")
+	}
+}
+
+// --- PDF / HTML 付费门控测试 ---
+
+func TestExportPDF_Locked_Unpaid_403(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{ID: reportID, UserID: userID, Status: "done", Paid: false}, nil
+		},
+		exportFn: func(ctx context.Context, userID, reportID uint64) (string, error) {
+			t.Fatal("ExportReportPDF should NOT be called when locked")
+			return "", nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1/pdf", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeForbidden {
+		t.Fatalf("expected code %d, got %d", response.CodeForbidden, resp.Code)
+	}
+}
+
+func TestExportPDF_Paid_OK(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{ID: reportID, UserID: userID, Status: "done", Paid: true}, nil
+		},
+		exportFn: func(ctx context.Context, userID, reportID uint64) (string, error) {
+			return "https://cdn.example.com/report/1.pdf", nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1/pdf", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeOK {
+		t.Fatalf("expected code 0, got %d", resp.Code)
+	}
+}
+
+func TestViewHTML_Locked_Unpaid_403(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{ID: reportID, UserID: userID, Status: "done", Paid: false}, nil
+		},
+		htmlFn: func(ctx context.Context, userID, reportID uint64) (string, error) {
+			t.Fatal("RenderReportHTML should NOT be called when locked")
+			return "", nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1/html", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeForbidden {
+		t.Fatalf("expected code %d, got %d", response.CodeForbidden, resp.Code)
+	}
+}
+
+func TestViewHTML_Paid_OK(t *testing.T) {
+	svc := &fakeReportSvc{
+		getFn: func(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
+			return &model.Report{ID: reportID, UserID: userID, Status: "done", Paid: true}, nil
+		},
+		htmlFn: func(ctx context.Context, userID, reportID uint64) (string, error) {
+			return "<html>full</html>", nil
+		},
+	}
+	h := testHandler(svc)
+	router := setupAuthedRouter(h)
+
+	req := newReq("GET", "/api/v1/reports/1/html", "")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != 200 {
+		t.Fatalf("expected http 200, got %d", w.Code)
 	}
 }

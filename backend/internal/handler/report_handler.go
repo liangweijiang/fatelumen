@@ -59,6 +59,12 @@ type reportDetailResponse struct {
 	UpdatedAt   interface{}           `json:"updated_at"`
 }
 
+// reportUnlocked 三合一解锁判定:已付费 或 管理员 或 无限体验用户。
+// 无限体验是后台白名单赋予的特权,不付费即可解锁全部内容(全文/PDF/HTML)。
+func reportUnlocked(c *gin.Context, r *model.Report) bool {
+	return r.Paid || middleware.IsAdmin(c) || middleware.IsUnlimited(c)
+}
+
 // buildReportDetail 根据 unlocked 标志组装报告详情响应。
 // 纯函数，便于单测。unlocked 时返回全文，否则按付费状态门控。
 func buildReportDetail(r *model.Report, unlocked bool) reportDetailResponse {
@@ -145,7 +151,7 @@ func (h *ReportHandler) Get(c *gin.Context) {
 		response.Error(c, err.Error())
 		return
 	}
-	unlocked := report.Paid || middleware.IsAdmin(c) || middleware.IsUnlimited(c)
+	unlocked := reportUnlocked(c, report)
 	response.OK(c, buildReportDetail(report, unlocked))
 }
 
@@ -182,6 +188,20 @@ func (h *ReportHandler) ExportPDF(c *gin.Context) {
 		return
 	}
 
+	report, err := h.svc.GetReport(c.Request.Context(), userID, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, response.CodeNotFound, "report not found")
+			return
+		}
+		response.Error(c, err.Error())
+		return
+	}
+	if !reportUnlocked(c, report) {
+		response.Fail(c, response.CodeForbidden, "report locked")
+		return
+	}
+
 	url, err := h.svc.ExportReportPDF(c.Request.Context(), userID, id)
 	if err != nil {
 		response.Error(c, err.Error())
@@ -201,6 +221,20 @@ func (h *ReportHandler) ViewHTML(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
 	if err != nil {
 		response.Fail(c, response.CodeBadRequest, "invalid report id")
+		return
+	}
+
+	report, err := h.svc.GetReport(c.Request.Context(), userID, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, response.CodeNotFound, "report not found")
+			return
+		}
+		response.Error(c, err.Error())
+		return
+	}
+	if !reportUnlocked(c, report) {
+		response.Fail(c, response.CodeForbidden, "report locked")
 		return
 	}
 
