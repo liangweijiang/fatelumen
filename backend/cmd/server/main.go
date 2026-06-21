@@ -203,15 +203,28 @@ func main() {
 		log.Info("payment provider initialized", "type", "paypal")
 	}
 
+	paySvc := service.NewPaymentService(payReg, orderRepo)
+	webhookHandler := handler.NewWebhookHandler(paySvc)
+
+	// Dev-only Mock 支付渠道（PAYMENT_MOCK_ENABLED=true 时注册，生产绝不开启）
+	var devPayHandler *handler.DevPayHandler
+	if cfg.PaymentMockEnabled {
+		mockBaseURL := cfg.AppBaseURL
+		if mockBaseURL == "" {
+			mockBaseURL = "http://localhost:" + cfg.AppPort
+		}
+		mockRef := payment.NewMockProviderRef(cfg.MockWebhookSecret, mockBaseURL)
+		payReg.Register("mock", payment.NewMockProvider(cfg.MockWebhookSecret, mockBaseURL))
+		log.Info("payment provider initialized", "type", "mock", "base_url", mockBaseURL)
+		devPayHandler = handler.NewDevPayHandler(paySvc, mockRef)
+	}
+
 	orderSvc := service.NewOrderService(
 		orderRepo, reportRepo, payReg,
 		cfg.PaymentSuccessURL,
 		cfg.PaymentCancelURL,
 	)
 	orderHTTPHandler := handler.NewOrderHandler(orderSvc)
-
-	paySvc := service.NewPaymentService(payReg, orderRepo)
-	webhookHandler := handler.NewWebhookHandler(paySvc)
 
 	statsRepo := repository.NewStatsRepo(db)
 	statsSvc := service.NewStatsService(statsRepo)
@@ -261,6 +274,7 @@ func main() {
 		ReportHandler:    reportHTTPHandler,
 		OrderHandler:     orderHTTPHandler,
 		WebhookHandler:   webhookHandler,
+		DevPayHandler:    devPayHandler,
 		AdminHandler:     adminHTTPHandler,
 		ResourceHandler:  resourceHandler,
 		RateLimitAuth:    rlAuth,

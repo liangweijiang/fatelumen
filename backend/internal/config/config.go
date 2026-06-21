@@ -63,6 +63,9 @@ type Config struct {
 	StripeSecretKey       string
 	StripeWebhookSecret   string
 
+	PaymentMockEnabled bool
+	MockWebhookSecret  string
+
 	AlipayAppID      string
 	AlipayPrivateKey string
 	AlipayPublicKey  string
@@ -168,6 +171,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
+	viper.SetDefault("MOCK_WEBHOOK_SECRET", "dev-mock-secret")
 	viper.SetDefault("RATELIMIT_ENABLED", true)
 	viper.SetDefault("RATELIMIT_READING_PER_MIN", 5)
 	viper.SetDefault("RATELIMIT_ORDER_PER_MIN", 10)
@@ -227,6 +231,9 @@ func Load() (*Config, error) {
 		PaymentCancelURL:      viper.GetString("PAYMENT_CANCEL_URL"),
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
 		StripeSecretKey:       viper.GetString("STRIPE_SECRET_KEY"),
+
+		PaymentMockEnabled: viper.GetBool("PAYMENT_MOCK_ENABLED"),
+		MockWebhookSecret:  viper.GetString("MOCK_WEBHOOK_SECRET"),
 
 		AlipayAppID:      viper.GetString("ALIPAY_APP_ID"),
 		AlipayPrivateKey: viper.GetString("ALIPAY_PRIVATE_KEY"),
