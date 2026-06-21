@@ -38,8 +38,7 @@ type CreateOrderResult struct {
 type OrderService struct {
 	orderRepo  orderStore
 	reportRepo orderReportStore
-	pay        payment.PaymentProvider
-	priceCents int
+	reg        *payment.Registry
 	successURL string
 	cancelURL  string
 }
@@ -47,23 +46,43 @@ type OrderService struct {
 func NewOrderService(
 	orderRepo *repository.OrderRepo,
 	reportRepo *repository.ReportRepo,
-	pay payment.PaymentProvider,
-	priceCents int,
+	reg *payment.Registry,
 	successURL string,
 	cancelURL string,
 ) *OrderService {
 	return &OrderService{
 		orderRepo:  orderRepo,
 		reportRepo: reportRepo,
-		pay:        pay,
-		priceCents: priceCents,
+		reg:        reg,
 		successURL: successURL,
 		cancelURL:  cancelURL,
 	}
 }
 
 // CreateOrder 创建订单并发起支付。
-func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64) (*CreateOrderResult, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64, provider string) (*CreateOrderResult, error) {
+	// 校验支付渠道
+	prov, ok := s.reg.Get(provider)
+	if !ok {
+		logger.FromCtx(ctx).Warn("order create failed: unknown provider",
+			"provider", provider,
+			"user_id", userID,
+		)
+		return nil, fmt.Errorf("unknown payment provider: %s", provider)
+	}
+
+	// 按渠道结算币种取价
+	currency := payment.CurrencyForProvider(provider)
+	amount, ok := payment.PriceFor("report_single", currency)
+	if !ok {
+		logger.FromCtx(ctx).Error("order create failed: price not found",
+			"provider", provider,
+			"currency", currency,
+			"sku", "report_single",
+		)
+		return nil, fmt.Errorf("price not found for sku %s currency %s", "report_single", currency)
+	}
+
 	// 校验 reportID 属于该用户
 	report, err := s.reportRepo.GetByID(reportID, userID)
 	if err != nil {
@@ -116,12 +135,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 				"order_id": strconv.FormatUint(reused.ID, 10),
 			},
 		}
-		result, err := s.pay.CreateCheckout(ctx, checkoutInput)
+		result, err := prov.CreateCheckout(ctx, checkoutInput)
 		if err != nil {
 			logger.FromCtx(ctx).Error("payment checkout failed for reused order",
 				"err", err,
 				"order_id", reused.ID,
-				"provider", s.pay.Name(),
+				"provider", prov.Name(),
 			)
 			return nil, err
 		}
@@ -145,9 +164,9 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 		ReportID:    reportID,
 		Type:        "report",
 		SKU:         "report_single",
-		AmountCents: s.priceCents,
-		Currency:    "usd",
-		Provider:    s.pay.Name(),
+		AmountCents: amount,
+		Currency:    currency,
+		Provider:    provider,
 		Status:      model.OrderStatusCreated,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
@@ -180,12 +199,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, userID, reportID uint64)
 		},
 	}
 
-	result, err := s.pay.CreateCheckout(ctx, checkoutInput)
+	result, err := prov.CreateCheckout(ctx, checkoutInput)
 	if err != nil {
 		logger.FromCtx(ctx).Error("payment checkout failed",
 			"err", err,
 			"order_id", order.ID,
-			"provider", s.pay.Name(),
+			"provider", prov.Name(),
 		)
 		return nil, err
 	}

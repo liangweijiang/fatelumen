@@ -113,9 +113,11 @@ func (f *fakePayProvider) VerifyAndParse(payload []byte, sigHeader string) (*pay
 
 func TestHandleWebhook_VerifyFails(t *testing.T) {
 	pay := &fakePayProvider{verifyErr: errors.New("invalid signature")}
-	svc := &PaymentService{pay: pay}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "bad-sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "bad-sig")
 	if err == nil {
 		t.Fatal("expected error for failed verification")
 	}
@@ -128,9 +130,11 @@ func TestHandleWebhook_NonCompletedEvent(t *testing.T) {
 			Type:    "payment_intent.succeeded",
 		},
 	}
-	svc := &PaymentService{pay: pay}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("expected nil for non-completed event, got: %v", err)
 	}
@@ -154,9 +158,11 @@ func TestHandleWebhook_Success(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -188,9 +194,11 @@ func TestHandleWebhook_DuplicateEvent(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -224,9 +232,11 @@ func TestHandleWebhook_OrderAlreadyPaid(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -253,9 +263,11 @@ func TestHandleWebhook_MissingOrderID(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("expected nil (200) for missing order_id, got: %v", err)
 	}
@@ -278,9 +290,11 @@ func TestHandleWebhook_OrderNotFoundBySession(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("expected nil (200) for session not found, got: %v", err)
 	}
@@ -310,8 +324,10 @@ func TestFulfill_Success(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -349,10 +365,12 @@ func TestFulfill_DuplicateEvent(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
 
 	// First call: succeeds
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("first call unexpected error: %v", err)
 	}
@@ -364,7 +382,7 @@ func TestFulfill_DuplicateEvent(t *testing.T) {
 	}
 
 	// Second call: duplicate event (same eventID)
-	err = svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	err = svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("second call unexpected error: %v", err)
 	}
@@ -391,8 +409,10 @@ func TestFulfill_AlreadyPaid(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -426,8 +446,10 @@ func TestFulfill_CannotTransit(t *testing.T) {
 		},
 	}
 
-	svc := &PaymentService{pay: pay, orders: orders}
-	err := svc.HandleWebhook(context.Background(), []byte(`{}`), "sig")
+	reg := payment.NewRegistry()
+	reg.Register("stripe", pay)
+	svc := &PaymentService{reg: reg, orders: orders}
+	err := svc.HandleWebhook(context.Background(), "stripe", []byte(`{}`), "sig")
 	if err != nil {
 		t.Fatalf("expected nil (200 to stop retry) for transit error, got: %v", err)
 	}

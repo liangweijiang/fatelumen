@@ -15,7 +15,7 @@ import (
 )
 
 type orderSvc interface {
-	CreateOrder(ctx context.Context, userID, reportID uint64) (*service.CreateOrderResult, error)
+	CreateOrder(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error)
 	GetOrder(ctx context.Context, userID, orderID uint64) (*model.Order, error)
 	ListOrders(ctx context.Context, userID uint64) ([]model.Order, error)
 }
@@ -31,6 +31,7 @@ func NewOrderHandler(svc *service.OrderService) *OrderHandler {
 
 type createOrderIn struct {
 	ReportID uint64 `json:"report_id"`
+	Provider string `json:"provider"`
 }
 
 // Create POST /api/v1/orders
@@ -50,8 +51,12 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "report_id is required")
 		return
 	}
+	if in.Provider == "" {
+		response.Fail(c, response.CodeBadRequest, "provider is required")
+		return
+	}
 
-	result, err := h.svc.CreateOrder(c.Request.Context(), userID, in.ReportID)
+	result, err := h.svc.CreateOrder(c.Request.Context(), userID, in.ReportID, in.Provider)
 	if err != nil {
 		if errors.Is(err, service.ErrReportAlreadyPurchased) {
 			response.Fail(c, response.CodeOrderUnpaid, "report already purchased")

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/payment"
@@ -19,16 +20,16 @@ type payOrderStore interface {
 
 // PaymentService Webhook 接收与报告解锁编排。
 type PaymentService struct {
-	pay    payment.PaymentProvider
+	reg    *payment.Registry
 	orders payOrderStore
 }
 
 func NewPaymentService(
-	pay payment.PaymentProvider,
+	reg *payment.Registry,
 	orderRepo *repository.OrderRepo,
 ) *PaymentService {
 	return &PaymentService{
-		pay:    pay,
+		reg:    reg,
 		orders: orderRepo,
 	}
 }
@@ -36,8 +37,14 @@ func NewPaymentService(
 // HandleWebhook 处理支付回调：验签 → 幂等 → 原子履约。
 // 返回 error 仅表示验签失败/恶意请求（调用方应返回 400）。
 // 幂等/重复回调/非 completed 类型等均返回 nil（调用方返回 200）。
-func (s *PaymentService) HandleWebhook(ctx context.Context, payload []byte, sigHeader string) error {
-	evt, err := s.pay.VerifyAndParse(payload, sigHeader)
+func (s *PaymentService) HandleWebhook(ctx context.Context, provider string, payload []byte, sigHeader string) error {
+	prov, ok := s.reg.Get(provider)
+	if !ok {
+		logger.FromCtx(ctx).Warn("webhook unknown provider", "provider", provider)
+		return fmt.Errorf("unknown provider: %s", provider)
+	}
+
+	evt, err := prov.VerifyAndParse(payload, sigHeader)
 	if err != nil {
 		logger.FromCtx(ctx).Warn("webhook verify failed", "err", err)
 		return err

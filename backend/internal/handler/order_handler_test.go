@@ -18,13 +18,13 @@ import (
 )
 
 type fakeOrderSvc struct {
-	createFn func(ctx context.Context, userID, reportID uint64) (*service.CreateOrderResult, error)
+	createFn func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error)
 	getFn    func(ctx context.Context, userID, orderID uint64) (*model.Order, error)
 	listFn   func(ctx context.Context, userID uint64) ([]model.Order, error)
 }
 
-func (f *fakeOrderSvc) CreateOrder(ctx context.Context, userID, reportID uint64) (*service.CreateOrderResult, error) {
-	return f.createFn(ctx, userID, reportID)
+func (f *fakeOrderSvc) CreateOrder(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
+	return f.createFn(ctx, userID, reportID, provider)
 }
 
 func (f *fakeOrderSvc) GetOrder(ctx context.Context, userID, orderID uint64) (*model.Order, error) {
@@ -65,7 +65,7 @@ func setupNoAuthOrderRouter(h *OrderHandler) *gin.Engine {
 
 func TestCreateOrder_Success_Handler(t *testing.T) {
 	svc := &fakeOrderSvc{
-		createFn: func(ctx context.Context, userID, reportID uint64) (*service.CreateOrderResult, error) {
+		createFn: func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
 			return &service.CreateOrderResult{
 				Order:       &model.Order{ID: 5, UserID: userID, ReportID: reportID, Status: "created"},
 				CheckoutURL: "https://checkout.stripe.com/pay/test",
@@ -76,7 +76,7 @@ func TestCreateOrder_Success_Handler(t *testing.T) {
 	router := setupAuthedOrderRouter(h)
 
 	req := httptest.NewRequest("POST", "/api/v1/orders",
-		strings.NewReader(`{"report_id": 10}`))
+		strings.NewReader(`{"report_id": 10, "provider": "stripe"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -130,7 +130,7 @@ func TestCreateOrder_MissingReportID_Handler(t *testing.T) {
 
 func TestCreateOrder_ServiceError_Handler(t *testing.T) {
 	svc := &fakeOrderSvc{
-		createFn: func(ctx context.Context, userID, reportID uint64) (*service.CreateOrderResult, error) {
+		createFn: func(ctx context.Context, userID, reportID uint64, provider string) (*service.CreateOrderResult, error) {
 			return nil, errors.New("report not found or not owned")
 		},
 	}
@@ -138,7 +138,7 @@ func TestCreateOrder_ServiceError_Handler(t *testing.T) {
 	router := setupAuthedOrderRouter(h)
 
 	req := httptest.NewRequest("POST", "/api/v1/orders",
-		strings.NewReader(`{"report_id": 1}`))
+		strings.NewReader(`{"report_id": 1, "provider": "stripe"}`))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)

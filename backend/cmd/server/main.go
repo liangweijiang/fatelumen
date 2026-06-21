@@ -183,22 +183,34 @@ func main() {
 
 	reportHTTPHandler := handler.NewReportHandler(reportSvc)
 
-	// Payment provider (P5: inject concrete impl at boundary)
-	var payProvider payment.PaymentProvider
+	// Payment providers (P5: 多渠道注册进 Registry)
+	payReg := payment.NewRegistry()
 	if contains(cfg.PaymentProviders, "stripe") {
-		payProvider = payment.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret)
+		payReg.Register("stripe", payment.NewStripeProvider(cfg.StripeSecretKey, cfg.StripeWebhookSecret))
 		log.Info("payment provider initialized", "type", "stripe")
+	}
+	if contains(cfg.PaymentProviders, "alipay") {
+		aliProv, err := payment.NewAlipayProvider(cfg.AlipayAppID, cfg.AlipayPrivateKey, cfg.AlipayPublicKey, cfg.AlipayNotifyURL, cfg.AlipayReturnURL, cfg.AlipayProduction)
+		if err != nil {
+			log.Error("alipay provider init failed", "err", err)
+			os.Exit(1)
+		}
+		payReg.Register("alipay", aliProv)
+		log.Info("payment provider initialized", "type", "alipay")
+	}
+	if contains(cfg.PaymentProviders, "paypal") {
+		payReg.Register("paypal", payment.NewPaypalProvider(cfg.PaypalClientID, cfg.PaypalSecret, cfg.PaypalWebhookID, cfg.PaypalProduction))
+		log.Info("payment provider initialized", "type", "paypal")
 	}
 
 	orderSvc := service.NewOrderService(
-		orderRepo, reportRepo, payProvider,
-		cfg.OrderReportPriceCents,
+		orderRepo, reportRepo, payReg,
 		cfg.PaymentSuccessURL,
 		cfg.PaymentCancelURL,
 	)
 	orderHTTPHandler := handler.NewOrderHandler(orderSvc)
 
-	paySvc := service.NewPaymentService(payProvider, orderRepo)
+	paySvc := service.NewPaymentService(payReg, orderRepo)
 	webhookHandler := handler.NewWebhookHandler(paySvc)
 
 	statsRepo := repository.NewStatsRepo(db)

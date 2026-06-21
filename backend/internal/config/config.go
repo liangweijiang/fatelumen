@@ -63,6 +63,17 @@ type Config struct {
 	StripeSecretKey       string
 	StripeWebhookSecret   string
 
+	AlipayAppID      string
+	AlipayPrivateKey string
+	AlipayPublicKey  string
+	AlipayNotifyURL  string
+	AlipayReturnURL  string
+	AlipayProduction bool
+	PaypalClientID   string
+	PaypalSecret     string
+	PaypalWebhookID  string
+	PaypalProduction bool
+
 	QuotaDailyLimit int
 
 	RateLimitEnabled       bool
@@ -96,9 +107,19 @@ func (c *Config) Validate() []string {
 	require(c.DBName, "DB_NAME")
 	require(c.JWTSecret, "JWT_SECRET")
 
-	if len(c.PaymentProviders) > 0 {
+	if contains(c.PaymentProviders, "stripe") {
 		require(c.StripeSecretKey, "STRIPE_SECRET_KEY")
 		require(c.StripeWebhookSecret, "STRIPE_WEBHOOK_SECRET")
+	}
+	if contains(c.PaymentProviders, "alipay") {
+		require(c.AlipayAppID, "ALIPAY_APP_ID")
+		require(c.AlipayPrivateKey, "ALIPAY_PRIVATE_KEY")
+		require(c.AlipayPublicKey, "ALIPAY_PUBLIC_KEY")
+	}
+	if contains(c.PaymentProviders, "paypal") {
+		require(c.PaypalClientID, "PAYPAL_CLIENT_ID")
+		require(c.PaypalSecret, "PAYPAL_SECRET")
+		require(c.PaypalWebhookID, "PAYPAL_WEBHOOK_ID")
 	}
 
 	require(c.DeepSeekAPIKey, "DEEPSEEK_API_KEY")
@@ -207,6 +228,17 @@ func Load() (*Config, error) {
 		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
 		StripeSecretKey:       viper.GetString("STRIPE_SECRET_KEY"),
 
+		AlipayAppID:      viper.GetString("ALIPAY_APP_ID"),
+		AlipayPrivateKey: viper.GetString("ALIPAY_PRIVATE_KEY"),
+		AlipayPublicKey:  viper.GetString("ALIPAY_PUBLIC_KEY"),
+		AlipayNotifyURL:  viper.GetString("ALIPAY_NOTIFY_URL"),
+		AlipayReturnURL:  viper.GetString("ALIPAY_RETURN_URL"),
+		AlipayProduction: viper.GetBool("ALIPAY_PRODUCTION"),
+		PaypalClientID:   viper.GetString("PAYPAL_CLIENT_ID"),
+		PaypalSecret:     viper.GetString("PAYPAL_SECRET"),
+		PaypalWebhookID:  viper.GetString("PAYPAL_WEBHOOK_ID"),
+		PaypalProduction: viper.GetBool("PAYPAL_PRODUCTION"),
+
 		RateLimitEnabled:       viper.GetBool("RATELIMIT_ENABLED"),
 		RateLimitReadingPerMin: viper.GetInt("RATELIMIT_READING_PER_MIN"),
 		RateLimitOrderPerMin:   viper.GetInt("RATELIMIT_ORDER_PER_MIN"),
@@ -231,6 +263,16 @@ func (c *Config) DSN() string {
 	charset := viper.GetString("DB_CHARSET")
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=true&loc=UTC",
 		c.DBUser, c.DBPassword, c.DBHost, c.DBPort, c.DBName, charset)
+}
+
+// contains 检测字符串切片是否包含目标元素。
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
 }
 
 func splitEnv(key string) []string {

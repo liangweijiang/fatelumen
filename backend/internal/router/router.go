@@ -116,6 +116,8 @@ func Setup(app *App) *gin.Engine {
 
 		// Webhook 路由（无需鉴权，依靠渠道签名字段验证身份）
 		v1.POST("/webhooks/stripe", app.WebhookHandler.Stripe)
+		v1.POST("/webhooks/alipay", app.WebhookHandler.Alipay)
+		v1.POST("/webhooks/paypal", app.WebhookHandler.Paypal)
 
 		// --- 需鉴权 ---
 		authed := v1.Group("")
