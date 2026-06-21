@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getReport, getChart } from "@/lib/api/endpoints";
 import type { Report, Chart } from "@/types/api";
 import api from "@/lib/api/client";
+import CheckoutBlock from "@/components/report/CheckoutBlock";
 
 export default function ReportPage() {
   const t = useTranslations("report");
@@ -401,6 +402,8 @@ export default function ReportPage() {
             )}
           </div>
         ))}
+
+        <CheckoutBlock reportId={id} />
 
         {/* Bottom action bar */}
         <div className="sticky bottom-4 mt-10">
