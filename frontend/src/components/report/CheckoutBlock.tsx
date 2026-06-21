@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { createOrder } from "@/lib/api/endpoints";
 
 const PROVIDERS = [
-  { id: "alipay", label: "支付宝" },
-  { id: "paypal", label: "PayPal" },
+  { id: "alipay", label: "支付宝", logo: "/payment/alipay.svg" },
+  { id: "paypal", label: "PayPal", logo: "/payment/paypal.svg" },
 ];
 
 export default function CheckoutBlock({ reportId }: { reportId: number }) {
@@ -46,13 +46,21 @@ export default function CheckoutBlock({ reportId }: { reportId: number }) {
             key={p.id}
             type="button"
             onClick={() => setProvider(p.id)}
-            className="flex-1 rounded-full border py-2 text-[14px] transition-all"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full border py-2 text-[14px] transition-all"
             style={{
               borderColor: provider === p.id ? "var(--gold-deep)" : "var(--line)",
               color: provider === p.id ? "var(--gold-deep)" : "var(--ink-soft)",
               background: provider === p.id ? "var(--gold-soft)" : "transparent",
             }}
           >
+            <img
+              src={p.logo}
+              alt={p.label}
+              width={36}
+              height={24}
+              className="rounded-[3px]"
+              style={{ display: "block" }}
+            />
             {p.label}
           </button>
         ))}
