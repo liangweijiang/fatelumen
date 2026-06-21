@@ -31,6 +31,7 @@ func NewOrderHandler(svc *service.OrderService) *OrderHandler {
 
 type createOrderIn struct {
 	ReportID uint64 `json:"report_id"`
+	SKU      string `json:"sku"`
 	Provider string `json:"provider"`
 }
 
@@ -47,16 +48,21 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "invalid request body")
 		return
 	}
-	if in.ReportID == 0 {
-		response.Fail(c, response.CodeBadRequest, "report_id is required")
-		return
-	}
 	if in.Provider == "" {
 		response.Fail(c, response.CodeBadRequest, "provider is required")
 		return
 	}
+	// 买报告必须带 report_id；买积分套餐（sku=pack_*）不需要 report_id
+	if in.SKU == "" && in.ReportID == 0 {
+		response.Fail(c, response.CodeBadRequest, "report_id is required")
+		return
+	}
 
-	result, err := h.svc.CreateOrder(c.Request.Context(), userID, service.CreateOrderInput{ReportID: in.ReportID, Provider: in.Provider})
+	result, err := h.svc.CreateOrder(c.Request.Context(), userID, service.CreateOrderInput{
+		ReportID: in.ReportID,
+		SKU:      in.SKU,
+		Provider: in.Provider,
+	})
 	if err != nil {
 		if errors.Is(err, service.ErrReportAlreadyPurchased) {
 			response.Fail(c, response.CodeOrderUnpaid, "report already purchased")
