@@ -112,11 +112,11 @@ func (f *fakeUserReportSvc) CreateReport(ctx context.Context, userID, profileID 
 func (f *fakeUserReportSvc) GetReport(ctx context.Context, userID, reportID uint64) (*model.Report, error) {
 	if userID == f.ownUserID && reportID == f.ownReportID {
 		return &model.Report{
-			ID:       reportID,
-			UserID:   userID,
-			Status:   "done",
-			Paid:     true,
-			Content:  model.ReportContent{SummaryLine: "summary", Summary: "body"},
+			ID:      reportID,
+			UserID:  userID,
+			Status:  "done",
+			Paid:    true,
+			Content: model.ReportContent{SummaryLine: "summary", Summary: "body"},
 		}, nil
 	}
 	return nil, gorm.ErrRecordNotFound
@@ -129,6 +129,9 @@ func (f *fakeUserReportSvc) ExportReportPDF(ctx context.Context, userID, reportI
 }
 func (f *fakeUserReportSvc) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
 	return "<html>report</html>", nil
+}
+func (f *fakeUserReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
+	return nil
 }
 
 func createTestRouter(t *testing.T, db *gorm.DB, userReportID, userUserID uint64) *gin.Engine {

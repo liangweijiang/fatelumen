@@ -22,6 +22,7 @@ type fakeReportSvc struct {
 	listFn   func(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
 	exportFn func(ctx context.Context, userID, reportID uint64) (string, error)
 	htmlFn   func(ctx context.Context, userID, reportID uint64) (string, error)
+	unlockFn func(ctx context.Context, userID, reportID uint64) error
 }
 
 func (f *fakeReportSvc) CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error) {
@@ -42,6 +43,13 @@ func (f *fakeReportSvc) ExportReportPDF(ctx context.Context, userID, reportID ui
 
 func (f *fakeReportSvc) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
 	return f.htmlFn(ctx, userID, reportID)
+}
+
+func (f *fakeReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
+	if f.unlockFn != nil {
+		return f.unlockFn(ctx, userID, reportID)
+	}
+	return nil
 }
 
 func testHandler(svc reportSvc) *ReportHandler {
@@ -445,8 +453,8 @@ func TestGetReport_Processing(t *testing.T) {
 				Status: "processing",
 				Paid:   false,
 				Content: model.ReportContent{
-					Locale:    "en",
-					Chapters:  nil,
+					Locale:   "en",
+					Chapters: nil,
 				},
 			}, nil
 		},
@@ -480,17 +488,17 @@ func TestGetReport_Processing(t *testing.T) {
 
 func TestBuildReportDetail_Paid(t *testing.T) {
 	r := &model.Report{
-		ID:      1,
-		Status:  "done",
-		Paid:    true,
-		Locale:  "en",
-		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		ID:     1,
+		Status: "done",
+		Paid:   true,
+		Locale: "en",
+		PDFURL: "https://cdn.example.com/r/1.pdf",
 		Content: model.ReportContent{
-			SummaryLine:   "line",
-			Summary:       "sum",
-			Personality:   "p",
-			Career:        "c",
-			Chapters:      []model.Chapter{
+			SummaryLine: "line",
+			Summary:     "sum",
+			Personality: "p",
+			Career:      "c",
+			Chapters: []model.Chapter{
 				{No: 1, Key: "chart_detail", Title: "t1", Body: "b1"},
 				{No: 2, Key: "destiny_depth", Title: "t2", Body: "b2"},
 				{No: 3, Key: "ten_gods_full", Title: "t3", Body: "b3"},
@@ -504,7 +512,7 @@ func TestBuildReportDetail_Paid(t *testing.T) {
 				{No: 11, Key: "fortune_guide", Title: "t11", Body: "b11"},
 				{No: 12, Key: "life_plan", Title: "t12", Body: "b12"},
 			},
-			Suggestions:   []string{"s"},
+			Suggestions: []string{"s"},
 		},
 	}
 
@@ -525,17 +533,17 @@ func TestBuildReportDetail_Paid(t *testing.T) {
 
 func TestBuildReportDetail_Unpaid(t *testing.T) {
 	r := &model.Report{
-		ID:      1,
-		Status:  "done",
-		Paid:    false,
-		Locale:  "en",
-		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		ID:     1,
+		Status: "done",
+		Paid:   false,
+		Locale: "en",
+		PDFURL: "https://cdn.example.com/r/1.pdf",
 		Content: model.ReportContent{
-			SummaryLine:   "hook",
-			Summary:       "hook summary",
-			Personality:   "secret",
-			Career:        "secret",
-			Chapters:      []model.Chapter{
+			SummaryLine: "hook",
+			Summary:     "hook summary",
+			Personality: "secret",
+			Career:      "secret",
+			Chapters: []model.Chapter{
 				{No: 1, Key: "chart_detail", Title: "secret", Body: "s1"},
 				{No: 2, Key: "destiny_depth", Title: "secret", Body: "s2"},
 				{No: 3, Key: "ten_gods_full", Title: "secret", Body: "s3"},
@@ -549,7 +557,7 @@ func TestBuildReportDetail_Unpaid(t *testing.T) {
 				{No: 11, Key: "fortune_guide", Title: "secret", Body: "s11"},
 				{No: 12, Key: "life_plan", Title: "secret", Body: "s12"},
 			},
-			Suggestions:   []string{"secret"},
+			Suggestions: []string{"secret"},
 		},
 	}
 
@@ -590,15 +598,15 @@ func TestBuildReportDetail_Processing(t *testing.T) {
 
 func TestBuildReportDetail_AdminBypass(t *testing.T) {
 	r := &model.Report{
-		ID:      1,
-		Status:  "done",
-		Paid:    false, // unpaid
-		Locale:  "en",
-		PDFURL:  "https://cdn.example.com/r/1.pdf",
+		ID:     1,
+		Status: "done",
+		Paid:   false, // unpaid
+		Locale: "en",
+		PDFURL: "https://cdn.example.com/r/1.pdf",
 		Content: model.ReportContent{
-			SummaryLine:   "hook",
-			Summary:       "hook summary",
-			Chapters:      []model.Chapter{
+			SummaryLine: "hook",
+			Summary:     "hook summary",
+			Chapters: []model.Chapter{
 				{No: 1, Key: "chart_detail", Title: "visible", Body: "v1"},
 				{No: 2, Key: "destiny_depth", Title: "visible", Body: "v2"},
 				{No: 3, Key: "ten_gods_full", Title: "visible", Body: "v3"},

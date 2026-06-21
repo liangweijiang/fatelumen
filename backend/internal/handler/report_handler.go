@@ -8,6 +8,7 @@ import (
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/response"
+	"fatelumen/backend/internal/repository"
 	"fatelumen/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +19,7 @@ import (
 type reportSvc interface {
 	CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	GetReport(ctx context.Context, userID, reportID uint64) (*model.Report, error)
+	UnlockWithCredits(ctx context.Context, userID, reportID uint64) error
 	ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
 	ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error)
 	RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error)
@@ -44,19 +46,19 @@ type createReportIn struct {
 
 // reportDetailResponse Get /:id 返回的报告详情 DTO。
 type reportDetailResponse struct {
-	ID          uint64                `json:"id"`
-	Status      string                `json:"status"`
-	Locale      string                `json:"locale"`
-	Paid        bool                  `json:"paid"`
-	Locked      bool                  `json:"locked"`
-	SummaryLine string                `json:"summary_line"`
-	Summary     string                `json:"summary"`
-	Content     *model.ReportContent  `json:"content,omitempty"`
-	PDFURL      string                `json:"pdf_url,omitempty"`
-	ProfileID   uint64                `json:"profile_id"`
-	ChartID     uint64                `json:"chart_id"`
-	CreatedAt   interface{}           `json:"created_at"`
-	UpdatedAt   interface{}           `json:"updated_at"`
+	ID          uint64               `json:"id"`
+	Status      string               `json:"status"`
+	Locale      string               `json:"locale"`
+	Paid        bool                 `json:"paid"`
+	Locked      bool                 `json:"locked"`
+	SummaryLine string               `json:"summary_line"`
+	Summary     string               `json:"summary"`
+	Content     *model.ReportContent `json:"content,omitempty"`
+	PDFURL      string               `json:"pdf_url,omitempty"`
+	ProfileID   uint64               `json:"profile_id"`
+	ChartID     uint64               `json:"chart_id"`
+	CreatedAt   interface{}          `json:"created_at"`
+	UpdatedAt   interface{}          `json:"updated_at"`
 }
 
 // reportUnlocked 三合一解锁判定:已付费 或 管理员 或 无限体验用户。
@@ -245,4 +247,31 @@ func (h *ReportHandler) ViewHTML(c *gin.Context) {
 	}
 	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.String(200, html)
+}
+
+// UnlockWithCredits POST /api/v1/reports/:id/unlock —— 用积分解锁报告。
+func (h *ReportHandler) UnlockWithCredits(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Fail(c, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid report id")
+		return
+	}
+	if err := h.svc.UnlockWithCredits(c.Request.Context(), userID, id); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.Fail(c, response.CodeNotFound, "report not found")
+			return
+		}
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			response.Fail(c, response.CodeNoCredits, "insufficient credits")
+			return
+		}
+		response.Error(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"report_id": id, "unlocked": true})
 }
