@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Menu } from "lucide-react";
 import { getToken, removeToken } from "@/lib/auth-storage";
 import { fetchMe, type Me } from "@/lib/admin-api";
-import { getMe } from "@/lib/api/endpoints";
 import ThemeSwitcher from "@/components/theme/ThemeSwitcher";
 import { LanguageSwitcher } from "@/components/common/LanguageSwitcher";
 import MobileDrawer from "@/components/common/MobileDrawer";
@@ -17,7 +16,6 @@ export default function StickyHeader({ locale }: { locale: string }) {
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [me, setMe] = useState<Me | null>(null);
-  const [credits, setCredits] = useState<number | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -44,28 +42,9 @@ export default function StickyHeader({ locale }: { locale: string }) {
     };
   }, []);
 
-  useEffect(() => {
-    if (!getToken()) {
-      setCredits(null);
-      return;
-    }
-    let alive = true;
-    getMe()
-      .then((user) => {
-        if (alive) setCredits(user.credits ?? 0);
-      })
-      .catch(() => {
-        if (alive) setCredits(null);
-      });
-    return () => {
-      alive = false;
-    };
-  }, []);
-
   function handleSignOut() {
     removeToken();
     setMe(null);
-    setCredits(null);
     window.location.href = `/${locale}`;
   }
 
@@ -104,14 +83,6 @@ export default function StickyHeader({ locale }: { locale: string }) {
 
           {/* Desktop right cluster: lang capsule + theme capsule + divider + login */}
           <div className="hidden md:flex items-center gap-3 shrink-0">
-            {credits !== null && (
-              <span
-                className="rounded-full px-3 py-1 text-[11px]"
-                style={{ background: "var(--gold-soft)", color: "var(--ink)" }}
-              >
-                命理点 {credits}
-              </span>
-            )}
             <LanguageSwitcher currentLocale={locale} />
             <ThemeSwitcher />
             <span
