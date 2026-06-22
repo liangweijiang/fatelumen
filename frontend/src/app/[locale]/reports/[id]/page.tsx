@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { getReport, getChart } from "@/lib/api/endpoints";
+import { getReport, getChart, getMe } from "@/lib/api/endpoints";
 import type { Report, Chart } from "@/types/api";
 import api from "@/lib/api/client";
 import CheckoutBlock from "@/components/report/CheckoutBlock";
@@ -17,6 +17,7 @@ export default function ReportPage() {
 
   const [report, setReport] = useState<Report | null>(null);
   const [chart, setChart] = useState<Chart | null>(null);
+  const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -30,6 +31,14 @@ export default function ReportPage() {
     try {
       const r = await getReport(id);
       setReport(r);
+      if (r.locked === true) {
+        try {
+          const me = await getMe();
+          setCredits(me.credits ?? 0);
+        } catch {
+          // 余额拉取失败不阻断报告展示
+        }
+      }
       if (r.status === "done" || r.status === "failed") {
         setLoading(false);
         setError(r.status === "failed");
@@ -443,7 +452,13 @@ export default function ReportPage() {
           </div>
         )}
 
-        {locked && <CheckoutBlock reportId={id} />}
+        {locked && (
+          <CheckoutBlock
+            reportId={id}
+            credits={credits}
+            onUnlocked={() => window.location.reload()}
+          />
+        )}
 
         {/* Bottom action bar — 仅解锁后可下载 */}
         {!locked && (
