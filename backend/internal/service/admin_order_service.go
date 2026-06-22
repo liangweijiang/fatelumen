@@ -16,6 +16,7 @@ import (
 type AdminOrderItem struct {
 	ID          uint64    `json:"id"`
 	UserID      uint64    `json:"user_id"`
+	UserEmail   string    `json:"user_email"`
 	ReportID    uint64    `json:"report_id"`
 	Type        string    `json:"type"`
 	SKU         string    `json:"sku"`
@@ -59,14 +60,19 @@ type adminOrderStore interface {
 	AdminGetOrderByID(id uint64) (*model.Order, error)
 }
 
+type adminOrderUserStore interface {
+	EmailsByIDs(ids []uint64) (map[uint64]string, error)
+}
+
 // ---------- AdminOrderService ----------
 
 type AdminOrderService struct {
 	orderRepo adminOrderStore
+	userRepo  adminOrderUserStore
 }
 
-func NewAdminOrderService(orderRepo *repository.OrderRepo) *AdminOrderService {
-	return &AdminOrderService{orderRepo: orderRepo}
+func NewAdminOrderService(orderRepo *repository.OrderRepo, userRepo *repository.UserRepo) *AdminOrderService {
+	return &AdminOrderService{orderRepo: orderRepo, userRepo: userRepo}
 }
 
 // ListOrders admin 分页订单列表。
@@ -88,11 +94,22 @@ func (s *AdminOrderService) ListOrders(ctx context.Context, status string, userI
 		return nil, err
 	}
 
+	ids := make([]uint64, 0, len(orders))
+	for _, o := range orders {
+		ids = append(ids, o.UserID)
+	}
+	emails, err := s.userRepo.EmailsByIDs(ids)
+	if err != nil {
+		logger.FromCtx(ctx).Error("admin list orders: load emails failed", "err", err)
+		emails = map[uint64]string{}
+	}
+
 	items := make([]AdminOrderItem, len(orders))
 	for i, o := range orders {
 		items[i] = AdminOrderItem{
 			ID:          o.ID,
 			UserID:      o.UserID,
+			UserEmail:   emails[o.UserID],
 			ReportID:    o.ReportID,
 			Type:        o.Type,
 			SKU:         o.SKU,

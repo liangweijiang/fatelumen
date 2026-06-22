@@ -43,6 +43,24 @@ func (f *fakeAdminOrderStore) AdminGetOrderByID(id uint64) (*model.Order, error)
 	return f.order, nil
 }
 
+type fakeAdminOrderUserStore struct {
+	emails map[uint64]string
+	err    error
+	gotIDs []uint64
+}
+
+func newFakeAdminOrderUserStore() *fakeAdminOrderUserStore {
+	return &fakeAdminOrderUserStore{emails: map[uint64]string{}}
+}
+
+func (f *fakeAdminOrderUserStore) EmailsByIDs(ids []uint64) (map[uint64]string, error) {
+	f.gotIDs = ids
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.emails, nil
+}
+
 func TestAdminListOrders_Pagination(t *testing.T) {
 	store := newFakeAdminOrderStore()
 	store.orders = []model.Order{
@@ -50,7 +68,7 @@ func TestAdminListOrders_Pagination(t *testing.T) {
 	}
 	store.total = 25
 
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 
 	page, err := svc.ListOrders(context.Background(), "", 0, 2, 20)
 	if err != nil {
@@ -72,7 +90,7 @@ func TestAdminListOrders_Pagination(t *testing.T) {
 
 func TestAdminListOrders_PageSizeCap(t *testing.T) {
 	store := newFakeAdminOrderStore()
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 
 	page, err := svc.ListOrders(context.Background(), "", 0, 1, 1000)
 	if err != nil {
@@ -85,7 +103,7 @@ func TestAdminListOrders_PageSizeCap(t *testing.T) {
 
 func TestAdminListOrders_FilterPassthrough(t *testing.T) {
 	store := newFakeAdminOrderStore()
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 
 	svc.ListOrders(context.Background(), "paid", 42, 1, 10)
 
@@ -105,7 +123,7 @@ func TestAdminListOrders_FilterPassthrough(t *testing.T) {
 
 func TestAdminListOrders_OffsetCalculation(t *testing.T) {
 	store := newFakeAdminOrderStore()
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 
 	// page=3, size=20 → offset=40
 	svc.ListOrders(context.Background(), "", 0, 3, 20)
@@ -130,7 +148,7 @@ func TestAdminGetOrderDetail_Success(t *testing.T) {
 		ProviderTxnID: "pi_456",
 	}
 
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 	detail, err := svc.GetOrderDetail(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -149,7 +167,7 @@ func TestAdminGetOrderDetail_Success(t *testing.T) {
 func TestAdminGetOrderDetail_NotFound(t *testing.T) {
 	store := newFakeAdminOrderStore()
 	store.getErr = errors.New("not found")
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 
 	_, err := svc.GetOrderDetail(context.Background(), 99)
 	if err == nil {
@@ -164,7 +182,7 @@ func TestAdminGetOrderDetail_ProviderMetaIsJSON(t *testing.T) {
 		ProviderMeta: model.JSONRaw(`{"payment_intent":"pi_123","amount":999}`),
 	}
 
-	svc := &AdminOrderService{orderRepo: store}
+	svc := &AdminOrderService{orderRepo: store, userRepo: newFakeAdminOrderUserStore()}
 	detail, err := svc.GetOrderDetail(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

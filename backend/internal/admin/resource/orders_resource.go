@@ -26,8 +26,9 @@ func (r *OrdersResource) Schema() []Field {
 	return []Field{
 		{Key: "id", Label: "ID", Type: "int", Sortable: true},
 		{Key: "user_id", Label: "用户ID", Type: "int", Filterable: true},
+		{Key: "user_email", Label: "用户邮箱", Type: "string"},
 		{Key: "status", Label: "状态", Type: "enum", Enum: []EnumOption{{Value: "pending", Label: "待支付"}, {Value: "paid", Label: "已支付"}, {Value: "refunded", Label: "已退款"}}, Filterable: true},
-		{Key: "amount", Label: "金额", Type: "money", Sortable: true},
+		{Key: "amount_cents", Label: "金额", Type: "money", Sortable: true},
 		{Key: "created_at", Label: "下单时间", Type: "datetime", Sortable: true},
 	}
 }

@@ -154,3 +154,23 @@ func (r *UserRepo) CreateUser(user *model.User) error {
 		return tx.Create(identity).Error
 	})
 }
+
+// EmailsByIDs 按用户 id 批量查邮箱，返回 id->email 映射（admin 列表填充用，避免 N+1）。
+func (r *UserRepo) EmailsByIDs(ids []uint64) (map[uint64]string, error) {
+	out := make(map[uint64]string, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	type row struct {
+		ID    uint64
+		Email string
+	}
+	var rows []row
+	if err := r.db.Model(&model.User{}).Select("id", "email").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, x := range rows {
+		out[x.ID] = x.Email
+	}
+	return out, nil
+}
