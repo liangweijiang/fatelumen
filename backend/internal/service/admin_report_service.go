@@ -17,6 +17,7 @@ import (
 type AdminReportItem struct {
 	ID        uint64    `json:"id"`
 	UserID    uint64    `json:"user_id"`
+	UserEmail string    `json:"user_email"`
 	ProfileID uint64    `json:"profile_id"`
 	Type      string    `json:"type"`
 	Status    string    `json:"status"`
@@ -56,14 +57,19 @@ type adminReportStore interface {
 	MarkPaid(reportID, orderID uint64) error
 }
 
+type adminReportUserStore interface {
+	EmailsByIDs(ids []uint64) (map[uint64]string, error)
+}
+
 // ---------- AdminReportService ----------
 
 type AdminReportService struct {
 	reportRepo adminReportStore
+	userRepo   adminReportUserStore
 }
 
-func NewAdminReportService(reportRepo *repository.ReportRepo) *AdminReportService {
-	return &AdminReportService{reportRepo: reportRepo}
+func NewAdminReportService(reportRepo *repository.ReportRepo, userRepo *repository.UserRepo) *AdminReportService {
+	return &AdminReportService{reportRepo: reportRepo, userRepo: userRepo}
 }
 
 // ListReports admin 分页报告列表。
@@ -86,11 +92,22 @@ func (s *AdminReportService) ListReports(ctx context.Context, status string, pai
 		return nil, err
 	}
 
+	ids := make([]uint64, 0, len(reports))
+	for _, r := range reports {
+		ids = append(ids, r.UserID)
+	}
+	emails, err := s.userRepo.EmailsByIDs(ids)
+	if err != nil {
+		logger.FromCtx(ctx).Error("admin list reports: load emails failed", "err", err)
+		emails = map[uint64]string{}
+	}
+
 	items := make([]AdminReportItem, len(reports))
 	for i, r := range reports {
 		items[i] = AdminReportItem{
 			ID:        r.ID,
 			UserID:    r.UserID,
+			UserEmail: emails[r.UserID],
 			ProfileID: r.ProfileID,
 			Type:      r.PayMethod,
 			Status:    r.Status,

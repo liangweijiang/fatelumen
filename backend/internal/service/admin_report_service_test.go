@@ -60,6 +60,24 @@ func (f *fakeAdminReportStore) MarkPaid(reportID, orderID uint64) error {
 	return nil
 }
 
+type fakeAdminReportUserStore struct {
+	emails map[uint64]string
+	err    error
+	gotIDs []uint64
+}
+
+func newFakeAdminReportUserStore() *fakeAdminReportUserStore {
+	return &fakeAdminReportUserStore{emails: map[uint64]string{}}
+}
+
+func (f *fakeAdminReportUserStore) EmailsByIDs(ids []uint64) (map[uint64]string, error) {
+	f.gotIDs = ids
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.emails, nil
+}
+
 // ---------- Pagination ----------
 
 func TestAdminListReports_Pagination(t *testing.T) {
@@ -69,7 +87,7 @@ func TestAdminListReports_Pagination(t *testing.T) {
 	}
 	store.total = 30
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	page, err := svc.ListReports(context.Background(), "", nil, 0, 2, 20)
 	if err != nil {
@@ -88,7 +106,7 @@ func TestAdminListReports_Pagination(t *testing.T) {
 
 func TestAdminListReports_OffsetCalculation(t *testing.T) {
 	store := newFakeAdminReportStore()
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	svc.ListReports(context.Background(), "", nil, 0, 3, 20)
 	if store.offset != 40 {
@@ -98,7 +116,7 @@ func TestAdminListReports_OffsetCalculation(t *testing.T) {
 
 func TestAdminListReports_PageSizeCap(t *testing.T) {
 	store := newFakeAdminReportStore()
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	page, err := svc.ListReports(context.Background(), "", nil, 0, 1, 1000)
 	if err != nil {
@@ -111,7 +129,7 @@ func TestAdminListReports_PageSizeCap(t *testing.T) {
 
 func TestAdminListReports_PaidFilterPassthrough(t *testing.T) {
 	store := newFakeAdminReportStore()
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	paidTrue := true
 	svc.ListReports(context.Background(), "done", &paidTrue, 42, 1, 10)
@@ -135,7 +153,7 @@ func TestAdminListReports_PaidFilterPassthrough(t *testing.T) {
 
 func TestAdminListReports_PaidFilterNil(t *testing.T) {
 	store := newFakeAdminReportStore()
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	svc.ListReports(context.Background(), "", nil, 0, 1, 10)
 	if store.filter.Paid != nil {
@@ -161,7 +179,7 @@ func TestAdminGetReportDetail_Success(t *testing.T) {
 		PDFURL: "/reports/1.pdf",
 	}
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 	detail, err := svc.GetReportDetail(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -183,7 +201,7 @@ func TestAdminGetReportDetail_Success(t *testing.T) {
 func TestAdminGetReportDetail_NotFound(t *testing.T) {
 	store := newFakeAdminReportStore()
 	store.getErr = errors.New("not found")
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	_, err := svc.GetReportDetail(context.Background(), 99)
 	if err == nil {
@@ -201,7 +219,7 @@ func TestUnlockReport_Success(t *testing.T) {
 		PayMethod: "order",
 	}
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 	err := svc.UnlockReport(context.Background(), 1, 1, "customer service requested")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -220,7 +238,7 @@ func TestUnlockReport_Success(t *testing.T) {
 func TestUnlockReport_EmptyReason(t *testing.T) {
 	store := newFakeAdminReportStore()
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 	err := svc.UnlockReport(context.Background(), 1, 1, "  ")
 	if err == nil {
 		t.Fatal("expected error for empty reason")
@@ -241,7 +259,7 @@ func TestUnlockReport_Idempotent(t *testing.T) {
 		PayMethod: "credit",
 	}
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 	err := svc.UnlockReport(context.Background(), 1, 1, "already unlocked")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -255,7 +273,7 @@ func TestUnlockReport_NotFound(t *testing.T) {
 	store := newFakeAdminReportStore()
 	store.getErr = errors.New("not found")
 
-	svc := &AdminReportService{reportRepo: store}
+	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 	err := svc.UnlockReport(context.Background(), 1, 99, "not found reason")
 	if err == nil {
 		t.Fatal("expected error for not found")

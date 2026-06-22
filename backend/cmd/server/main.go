@@ -230,7 +230,7 @@ func main() {
 	statsSvc := service.NewStatsService(statsRepo)
 	adminUserSvc := service.NewAdminUserService(userRepo, orderRepo, reportRepo)
 	adminOrderSvc := service.NewAdminOrderService(orderRepo, userRepo)
-	adminReportSvc := service.NewAdminReportService(reportRepo)
+	adminReportSvc := service.NewAdminReportService(reportRepo, userRepo)
 	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc, adminReportSvc)
 
 	auditRepo := repository.NewAuditRepo(db)

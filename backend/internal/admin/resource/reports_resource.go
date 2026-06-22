@@ -28,6 +28,7 @@ func (r *ReportsResource) Schema() []Field {
 	return []Field{
 		{Key: "id", Label: "ID", Type: "int", Sortable: true},
 		{Key: "user_id", Label: "用户ID", Type: "int", Filterable: true},
+		{Key: "user_email", Label: "用户邮箱", Type: "string"},
 		{Key: "status", Label: "状态", Type: "enum", Enum: []EnumOption{{Value: "pending", Label: "排队中"}, {Value: "processing", Label: "推演中"}, {Value: "completed", Label: "已完成"}, {Value: "failed", Label: "失败"}}, Filterable: true},
 		{Key: "paid", Label: "已解锁", Type: "bool", Filterable: true},
 		{Key: "created_at", Label: "创建时间", Type: "datetime", Sortable: true},
