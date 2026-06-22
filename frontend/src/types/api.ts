@@ -239,12 +239,18 @@ export interface Order {
 export interface CreateOrderPayload {
   report_id: number;
   provider: string;
+  sku?: string;
 }
 
 export interface CreateOrderResult {
   order_id: number;
   status: string;
   checkout_url: string;
+}
+
+export interface UnlockReportResult {
+  report_id: number;
+  unlocked: boolean;
 }
 
 // ── Auth ──
