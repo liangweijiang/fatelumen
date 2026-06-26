@@ -15,6 +15,12 @@ const timezones = [
   { value: "America/Los_Angeles", label: "UTC-08:00 美西" },
 ];
 
+function stripLeadingZero(v: string): number {
+  if (v === "" || v === "-") return 0;
+  const n = Number(v);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 export default function CalculatePage() {
   const t = useTranslations("calculate");
   const router = useRouter();
@@ -30,24 +36,31 @@ export default function CalculatePage() {
   const [birthDay, setBirthDay] = useState(1);
   const [birthHour, setBirthHour] = useState(12);
   const [birthMinute, setBirthMinute] = useState(0);
+  const [hourUnknown, setHourUnknown] = useState(false);
   const [isLeapMonth, setIsLeapMonth] = useState(false);
   const [timezone, setTimezone] = useState("Asia/Shanghai");
+  const [birthPlace, setBirthPlace] = useState("");
+  const [longitude, setLongitude] = useState("");
+  const [latitude, setLatitude] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [depth, setDepth] = useState<"quick" | "deep">("deep");
 
   async function handleSubmit() {
     setSubmitting(true);
     try {
+      const lng = longitude.trim() ? Number(longitude) : undefined;
       const profile = await createProfile({
         calendar_type: calendarType,
         gender,
         birth_year: birthYear,
         birth_month: birthMonth,
         birth_day: birthDay,
-        birth_hour: birthHour,
-        birth_minute: birthMinute,
+        birth_hour: hourUnknown ? -1 : birthHour,
+        birth_minute: hourUnknown ? 0 : birthMinute,
         is_leap_month: isLeapMonth,
+        birth_place: birthPlace.trim() || undefined,
         timezone,
+        longitude: lng !== undefined && !Number.isNaN(lng) ? lng : undefined,
         display_name: displayName || undefined,
       } as unknown as Parameters<typeof createProfile>[0]);
 
@@ -157,7 +170,7 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthYear}
-                onChange={(e) => setBirthYear(Number(e.target.value))}
+                onChange={(e) => setBirthYear(stripLeadingZero(e.target.value))}
                 className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
                 style={{
                   background: "var(--bg)",
@@ -173,7 +186,7 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthMonth}
-                onChange={(e) => setBirthMonth(Number(e.target.value))}
+                onChange={(e) => setBirthMonth(stripLeadingZero(e.target.value))}
                 min={1}
                 max={12}
                 className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
@@ -191,7 +204,7 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthDay}
-                onChange={(e) => setBirthDay(Number(e.target.value))}
+                onChange={(e) => setBirthDay(stripLeadingZero(e.target.value))}
                 min={1}
                 max={31}
                 className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
@@ -213,7 +226,8 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthHour}
-                onChange={(e) => setBirthHour(Number(e.target.value))}
+                disabled={hourUnknown}
+                onChange={(e) => setBirthHour(stripLeadingZero(e.target.value))}
                 min={0}
                 max={23}
                 className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
@@ -231,7 +245,8 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthMinute}
-                onChange={(e) => setBirthMinute(Number(e.target.value))}
+                disabled={hourUnknown}
+                onChange={(e) => setBirthMinute(stripLeadingZero(e.target.value))}
                 min={0}
                 max={59}
                 className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
@@ -242,6 +257,25 @@ export default function CalculatePage() {
                 }}
               />
             </div>
+          </div>
+
+          {/* Hour unknown */}
+          <div className="mb-6 flex items-center gap-3">
+            <label className="text-[14px] tracking-[.3px]" style={{ color: "var(--ink)" }}>
+              {t("hourUnknown")}
+            </label>
+            <button
+              type="button"
+              onClick={() => setHourUnknown(!hourUnknown)}
+              className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all"
+              style={{
+                background: hourUnknown ? "var(--gold)" : "var(--bg)",
+                color: hourUnknown ? "var(--bg-card)" : "var(--ink-soft)",
+                border: `1px solid ${hourUnknown ? "var(--gold)" : "var(--line)"}`,
+              }}
+            >
+              {hourUnknown ? "✓" : "—"}
+            </button>
           </div>
 
           {/* Leap month (lunar only) */}
@@ -292,6 +326,54 @@ export default function CalculatePage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          {/* Birth place */}
+          <div className="mb-6">
+            <label className="mb-2 block text-[13px] font-semibold tracking-[.4px]" style={{ color: "var(--ink)" }}>
+              {t("birthPlace")}
+            </label>
+            <input
+              type="text"
+              value={birthPlace}
+              onChange={(e) => setBirthPlace(e.target.value)}
+              placeholder={t("birthPlacePlaceholder")}
+              className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
+              style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
+            />
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>
+                  {t("longitude")}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="116.4074"
+                  className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
+                  style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>
+                  {t("latitude")}
+                </label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="39.9042"
+                  className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
+                  style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
+                />
+              </div>
+            </div>
+            <p className="mt-2 text-[12px]" style={{ color: "var(--ink-faint)" }}>
+              {t("placeHint")}
+            </p>
           </div>
 
           {/* Gender */}
