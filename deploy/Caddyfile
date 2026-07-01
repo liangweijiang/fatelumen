@@ -1,12 +1,31 @@
 :80 {
 	encode gzip
-
-	@api path /api/*
-	handle @api {
-		reverse_proxy host.docker.internal:8080
+	log {
+		output stdout
+		format json
 	}
 
-	handle {
-		reverse_proxy host.docker.internal:3000
+	route {
+		@connect method CONNECT
+		respond @connect "method not allowed" 405
+
+		@api path /api/*
+		handle @api {
+			reverse_proxy host.docker.internal:8080 {
+				header_up -Connection
+				header_up -Upgrade
+				header_up -HTTP2-Settings
+				header_up -Proxy-Connection
+			}
+		}
+
+		handle {
+			reverse_proxy host.docker.internal:3000 {
+				header_up -Connection
+				header_up -Upgrade
+				header_up -HTTP2-Settings
+				header_up -Proxy-Connection
+			}
+		}
 	}
 }
