@@ -3,12 +3,12 @@
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/hooks/useReveal";
 import Link from "next/link";
-import { useReadingEntryHref } from "@/hooks/useReadingEntryHref";
+import { useReadingEntryLink } from "@/hooks/useReadingEntryHref";
 
 export function CtaBand() {
   const t = useTranslations("cta");
   const ref = useReveal();
-  const readingHref = useReadingEntryHref();
+  const readingLink = useReadingEntryLink();
   return (
     <section className="px-0 py-[120px] max-md:py-[80px]">
       <div className="mx-auto max-w-[var(--maxw)] px-5 md:px-10">
@@ -44,7 +44,8 @@ export function CtaBand() {
             {t("desc")}
           </p>
           <Link
-            href={readingHref}
+            href={readingLink.href}
+            onClick={readingLink.onClick}
             className="btn-gold relative inline-flex h-[52px] items-center gap-2 rounded-lg px-7 text-[15px] font-medium transition-all"
           >
             {t("btn")}

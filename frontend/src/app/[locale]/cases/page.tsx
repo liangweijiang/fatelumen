@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/hooks/useReveal";
-import { useReadingEntryHref } from "@/hooks/useReadingEntryHref";
+import { useReadingEntryLink } from "@/hooks/useReadingEntryHref";
 import Link from "next/link";
 
 const caseItems = ["case1", "case2", "case3", "case4"];
@@ -10,7 +10,7 @@ const caseItems = ["case1", "case2", "case3", "case4"];
 export default function CasesPage() {
   const t = useTranslations("casesPage");
   const headRef = useReveal();
-  const readingHref = useReadingEntryHref();
+  const readingLink = useReadingEntryLink();
 
   return (
     <div className="py-20 max-md:py-14" style={{ background: "var(--bg)" }}>
@@ -37,7 +37,7 @@ export default function CasesPage() {
           ))}
         </div>
         <div className="mt-12 text-center">
-          <Link href={readingHref} className="inline-flex h-[50px] items-center gap-2 rounded-lg px-7 text-[15px] font-medium text-white transition-all" style={{ background: "var(--gold)", boxShadow: "0 1px 2px rgba(168,133,26,.3)" }}>{t("cta")}</Link>
+          <Link href={readingLink.href} onClick={readingLink.onClick} className="inline-flex h-[50px] items-center gap-2 rounded-lg px-7 text-[15px] font-medium text-white transition-all" style={{ background: "var(--gold)", boxShadow: "0 1px 2px rgba(168,133,26,.3)" }}>{t("cta")}</Link>
         </div>
         <p className="mt-8 text-center text-xs italic" style={{ color: "var(--ink-faint)" }}>
           {/* TODO: future: fetch from /content/cases API */}
