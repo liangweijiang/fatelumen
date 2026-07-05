@@ -132,8 +132,8 @@ func TestBuildReportUserPrompt_Locales(t *testing.T) {
 
 func TestReportGroups_ChapterContract(t *testing.T) {
 	groups := ReportGroups()
-	if len(groups) != 13 {
-		t.Fatalf("expected 13 report groups, got %d", len(groups))
+	if len(groups) != 16 {
+		t.Fatalf("expected 16 report groups, got %d", len(groups))
 	}
 
 	combined := ""

@@ -243,6 +243,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	}
 
 	content.Locale = locale
+	content.Chapters = mergeReportChapters(content.Chapters)
 	alignAnnualFortunes(&content, chartData.AnnualFortunes)
 
 	// 5. 落库内容（PDF 改为按需懒生成，此处不再渲染/上传 PDF）

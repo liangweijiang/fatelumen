@@ -287,7 +287,60 @@ career/main income, side opportunity/risk, relationship/family, wellness habits,
 	for _, ch := range chapters {
 		groups = append(groups, chapterReportGroup(ch.name, ch.no, ch.key, ch.maxTokens, ch.scope))
 	}
+	groups = append(groups,
+		tenYearOverviewReportGroup(),
+		tenYearSliceReportGroup("chapter_ten_year_years_1_5", "first 5 entries of chart.annual_fortunes", 1, 5),
+		tenYearSliceReportGroup("chapter_ten_year_years_6_10", "last 5 entries of chart.annual_fortunes", 6, 10),
+	)
 	return groups
+}
+
+func tenYearOverviewReportGroup() ReportGroup {
+	return ReportGroup{
+		Name:      "chapter_ten_year_years_overview",
+		MaxTokens: 4096,
+		System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
+The entry MUST use no=4 and key="ten_year_years". The title must be in the target locale.
+Write ONLY the ten-year overview body here; do not include the years array in this group.
+The body must summarize the full 10-year pattern from chart.annual_fortunes and chart.luck_cycles:
+- overall decade tone and turning points
+- how the annual stem/branch sequence interacts with the natal chart
+- career, wealth, relationship/family, wellness, and personal growth rhythm
+- which years require caution, which years are better for consolidation or expansion
+For zh: body should be 1600-2200 Chinese characters.
+{
+  "chapters": [
+    {"no": 4, "key": "ten_year_years", "title": "...", "body": "..."}
+  ]
+}`,
+	}
+}
+
+func tenYearSliceReportGroup(name, sliceLabel string, startIndex, endIndex int) ReportGroup {
+	return ReportGroup{
+		Name:      name,
+		MaxTokens: 8192,
+		System: reportCommonRules + fmt.Sprintf(`
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
+The entry MUST use no=4 and key="ten_year_years". Set title and body to empty strings.
+Fill ONLY the years array for the %s, corresponding to positions %d-%d of the 10-year list.
+Copy each year and ganzhi exactly from chart.annual_fortunes. Do not add, remove, reorder, or alter years.
+For each year note, write a very detailed chart-specific reading. For zh: each note should be 650-900 Chinese characters.
+Each note must include:
+1. annual conclusion and pressure/opportunity level;
+2. how that year's stem/branch/element interacts with the natal day master, strength, useful/unfavorable elements, and current luck cycle;
+3. career/workplace direction, promotion/job-change/cooperation rhythm, and people-dynamics risks;
+4. wealth rhythm, cashflow habits, side opportunities, and risk-control wording without investment advice;
+5. relationship/family communication focus and emotional management;
+6. wellness habits from five-element balance without diagnosis;
+7. concrete action plan for that year.
+{
+  "chapters": [
+    {"no": 4, "key": "ten_year_years", "title": "", "body": "", "years": [{"year": YYYY, "ganzhi": "must equal chart.annual_fortunes item", "note": "..."}]}
+  ]
+}`, sliceLabel, startIndex, endIndex),
+	}
 }
 
 func chapterReportGroup(name string, no int, key string, maxTokens int, scope string) ReportGroup {
