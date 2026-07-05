@@ -48,6 +48,16 @@ export default function StickyHeader({ locale }: { locale: string }) {
     window.location.href = `/${locale}`;
   }
 
+  const homeHref = `/${locale}`;
+  const navLinks = [
+    { href: `${homeHref}#how`, label: t("howItWorks") },
+    { href: `${homeHref}#report`, label: t("sample") },
+    { href: `${homeHref}#pricing`, label: t("pricing") },
+    { href: `${homeHref}#faq`, label: t("faq") },
+    { href: `/${locale}/learn`, label: t("learn") },
+    { href: `/${locale}/cases`, label: t("cases") },
+  ];
+
   return (
     <>
       <header
@@ -73,12 +83,15 @@ export default function StickyHeader({ locale }: { locale: string }) {
 
           {/* Desktop nav links - centered */}
           <nav className="hidden md:flex flex-1 items-center justify-center gap-9">
-            <Link href="#how" className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("howItWorks")}</Link>
-            <Link href="#report" className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("sample")}</Link>
-            <Link href="#pricing" className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("pricing")}</Link>
-            <Link href="#faq" className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("faq")}</Link>
-            <Link href={`/${locale}/learn`} className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("learn")}</Link>
-            <Link href={`/${locale}/cases`} className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]">{t("cases")}</Link>
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]"
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
 
           {/* Desktop right cluster: lang capsule + theme capsule + divider + login */}

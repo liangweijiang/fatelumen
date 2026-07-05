@@ -1,12 +1,15 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useReveal } from "@/hooks/useReveal";
+import { useReadingEntryHref } from "@/hooks/useReadingEntryHref";
 
 export function Hero() {
   const t = useTranslations("hero");
+  const locale = useLocale();
   const chartRef = useReveal();
+  const readingHref = useReadingEntryHref();
 
   const pillars = [
     { lab: t("hour"), stem: "丙", branch: "寅" },
@@ -37,14 +40,14 @@ export function Hero() {
             </p>
             <div className="flex gap-3 flex-wrap">
               <Link
-                href="/login"
+                href={readingHref}
                 className="btn-gold inline-flex h-12 items-center gap-2 rounded-lg px-6 text-sm font-medium transition-all w-full sm:w-auto justify-center sm:justify-start"
                 style={{ minHeight: "44px" }}
               >
                 {t("cta")}
               </Link>
               <Link
-                href="#how"
+                href={`/${locale}#how`}
                 className="btn-ghost inline-flex h-12 items-center gap-2 rounded-lg border px-6 text-sm font-medium transition-all w-full sm:w-auto justify-center sm:justify-start"
                 style={{ minHeight: "44px" }}
               >

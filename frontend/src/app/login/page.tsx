@@ -90,6 +90,14 @@ function readCookieLocale(): Lang | null {
   return v && ["en", "zh", "ja", "ko"].includes(v) ? v : null;
 }
 
+function safeNextPath(next: string | null, lang: Lang): string {
+  if (!next) return `/${lang}/dashboard`;
+  if (!next.startsWith("/") || next.startsWith("//") || next.includes("\\")) {
+    return `/${lang}/dashboard`;
+  }
+  return next;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const params = useSearchParams();
@@ -108,6 +116,7 @@ export default function LoginPage() {
   }, [params]);
 
   const t = DICT[lang];
+  const nextPath = safeNextPath(params.get("next"), lang);
 
   function changeLang(next: Lang) {
     setLang(next);
@@ -124,7 +133,7 @@ export default function LoginPage() {
       } else {
         await login(email, password);
       }
-      router.push("/admin");
+      router.push(nextPath);
     } catch (e: unknown) {
       setErr((e as { message?: string })?.message || t.fail);
     } finally {
@@ -181,6 +190,7 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={() => {
+            sessionStorage.setItem("fatelumen_login_next", nextPath);
             window.location.href = `${process.env.NEXT_PUBLIC_API_BASE_URL}/auth/google/login`;
           }}
           className="flex w-full items-center justify-center gap-2 rounded-md border py-2 text-[14px]"

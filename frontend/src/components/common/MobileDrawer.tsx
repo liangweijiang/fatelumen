@@ -83,11 +83,12 @@ export default function MobileDrawer({
 
   if (!open) return null;
 
+  const homeHref = `/${locale}`;
   const navLinks = [
-    { href: "#how", label: t("howItWorks") },
-    { href: "#report", label: t("sample") },
-    { href: "#pricing", label: t("pricing") },
-    { href: "#faq", label: t("faq") },
+    { href: `${homeHref}#how`, label: t("howItWorks") },
+    { href: `${homeHref}#report`, label: t("sample") },
+    { href: `${homeHref}#pricing`, label: t("pricing") },
+    { href: `${homeHref}#faq`, label: t("faq") },
     { href: `/${locale}/learn`, label: t("learn") },
     { href: `/${locale}/cases`, label: t("cases") },
   ];

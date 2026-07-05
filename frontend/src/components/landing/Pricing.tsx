@@ -3,11 +3,13 @@
 import { useTranslations } from "next-intl";
 import { useReveal } from "@/hooks/useReveal";
 import Link from "next/link";
+import { useReadingEntryHref } from "@/hooks/useReadingEntryHref";
 
 export function Pricing() {
   const t = useTranslations("pricing");
   const headRef = useReveal();
   const plansRef = useReveal();
+  const readingHref = useReadingEntryHref();
 
   const CheckIcon = () => (
     <svg className="shrink-0 mt-[3px] text-[var(--gold-deep)]" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M20 6 9 17l-5-5" /></svg>
@@ -33,7 +35,7 @@ export function Pricing() {
                 <li key={i} className="flex items-start gap-[11px] py-2 text-sm font-light text-[var(--ink-soft)]"><CheckIcon />{item}</li>
               ))}
             </ul>
-            <Link href="/login" className="btn-ghost flex h-11 w-full items-center justify-center gap-2 rounded-lg border text-sm font-medium transition-all">{t("quickCta")}</Link>
+            <Link href={readingHref} className="btn-ghost flex h-11 w-full items-center justify-center gap-2 rounded-lg border text-sm font-medium transition-all">{t("quickCta")}</Link>
           </div>
           <div className="flex flex-col rounded-xl border p-[36px] transition-colors" style={{ background: "var(--bg-card)", borderColor: "var(--gold)" }}>
             <span className="self-start rounded-full px-3 py-[5px] text-[11px] font-semibold tracking-[2px] uppercase" style={{ background: "var(--gold-soft)", color: "var(--gold-deep)" }}>{t("fullBadge")}</span>
@@ -46,7 +48,7 @@ export function Pricing() {
                 <li key={i} className="flex items-start gap-[11px] py-2 text-sm font-light text-[var(--ink-soft)]"><CheckIcon />{item}</li>
               ))}
             </ul>
-            <Link href="/login" className="btn-gold flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all">{t("fullCta")}</Link>
+            <Link href={readingHref} className="btn-gold flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-all">{t("fullCta")}</Link>
           </div>
         </div>
         <p className="mt-[34px] text-center text-xs tracking-[.5px] text-[var(--ink-faint)]">{t("payNote")}</p>
