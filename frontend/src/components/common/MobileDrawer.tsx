@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { X, Check, Lock } from "lucide-react";
+import { X, Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { THEMES } from "@/lib/theme/themes";
@@ -10,12 +10,7 @@ import { getToken, removeToken } from "@/lib/auth-storage";
 import { fetchMe, type Me } from "@/lib/admin-api";
 import Link from "next/link";
 
-const langs: { code: string; label: string }[] = [
-  { code: "en", label: "English" },
-  { code: "zh", label: "中文" },
-  { code: "ja", label: "日本語" },
-  { code: "ko", label: "한국어" },
-];
+const langs = ["en", "zh", "ja", "ko"] as const;
 
 export default function MobileDrawer({
   open,
@@ -27,6 +22,7 @@ export default function MobileDrawer({
   locale: string;
 }) {
   const t = useTranslations("nav");
+  const tl = useTranslations("lang");
   const tt = useTranslations();
   const theme = useThemeStore((s) => s.theme);
   const setTheme = useThemeStore((s) => s.setTheme);
@@ -93,14 +89,8 @@ export default function MobileDrawer({
     { href: `/${locale}/cases`, label: t("cases") },
   ];
 
-  const handleNavClick = (href: string) => {
+  const handleNavClick = () => {
     onClose();
-    if (href.startsWith("#")) {
-      setTimeout(() => {
-        const el = document.querySelector(href);
-        if (el) el.scrollIntoView({ behavior: "smooth" });
-      }, 100);
-    }
   };
 
   return (
@@ -124,7 +114,7 @@ export default function MobileDrawer({
             <Link
               key={link.href}
               href={link.href}
-              onClick={() => handleNavClick(link.href)}
+              onClick={handleNavClick}
               className="drawer-link"
             >
               {link.label}
@@ -136,17 +126,17 @@ export default function MobileDrawer({
 
         <div className="px-5 pt-3 pb-2">
           <span className="drawer-section-label">Language</span>
-          {langs.map((l) => (
+          {langs.map((code) => (
             <button
-              key={l.code}
+              key={code}
               className="drawer-item-btn"
               onClick={() => {
-                router.replace(pathname, { locale: l.code });
+                router.replace(pathname, { locale: code });
                 onClose();
               }}
             >
-              <span>{l.label}</span>
-              {locale === l.code && <Check size={14} color="var(--gold-deep)" />}
+              <span>{tl(code)}</span>
+              {locale === code && <Check size={14} color="var(--gold-deep)" />}
             </button>
           ))}
         </div>
@@ -159,23 +149,11 @@ export default function MobileDrawer({
             <button
               key={th.id}
               className="drawer-item-btn"
-              disabled={!th.available}
-              onClick={() => {
-                if (th.available) setTheme(th.id);
-              }}
+              onClick={() => setTheme(th.id)}
             >
-              <span>
-                {tt(th.nameKey)}
-                {!th.available && (
-                  <span className="ml-2 text-xs" style={{ color: "var(--ink-faint)" }}>
-                    Coming soon
-                  </span>
-                )}
-              </span>
+              <span>{tt(th.nameKey)}</span>
               {theme === th.id ? (
                 <Check size={14} color="var(--gold-deep)" />
-              ) : !th.available ? (
-                <Lock size={12} color="var(--ink-faint)" />
               ) : null}
             </button>
           ))}
@@ -187,7 +165,7 @@ export default function MobileDrawer({
           {me ? (
             <>
               <div className="mb-3 text-center text-[14px]" style={{ color: "var(--ink-soft)" }}>
-                {me.name || (me.email ? me.email.split("@")[0] : "用户")}
+                {me.name || (me.email ? me.email.split("@")[0] : "user")}
               </div>
               <Link
                 href={`/${locale}/dashboard`}
