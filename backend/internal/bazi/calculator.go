@@ -15,13 +15,13 @@ import (
 const CalcVersion = "lunar-go v1.4.6"
 
 type BirthInput struct {
-	Gender       int8   // 0=female 1=male
-	CalendarType int8   // 0=solar(Gregorian) 1=lunar
+	Gender       int8 // 0=female 1=male
+	CalendarType int8 // 0=solar(Gregorian) 1=lunar
 	Year         int
 	Month        int
 	Day          int
-	Hour         int    // 0-23, -1 for unknown
-	Minute       int    // 0-59
+	Hour         int // 0-23, -1 for unknown
+	Minute       int // 0-59
 	IsLeapMonth  bool
 	Longitude    float64 // 经度(东经为正)
 }
@@ -172,6 +172,8 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 
 	// 本年流年
 	currentYear := time.Now().Year()
+	annualFortunes := buildAnnualFortunes(daYunList, currentYear, 10)
+	chartData.AnnualFortunes = annualFortunes
 	for _, dy := range daYunList {
 		liuNianList := dy.GetLiuNian()
 		for _, ln := range liuNianList {
@@ -192,6 +194,57 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 	}
 
 	return chartData, nil
+}
+
+func buildAnnualFortunes(daYunList []*calendar.DaYun, startYear, count int) []model.AnnualFortune {
+	if count <= 0 {
+		return nil
+	}
+
+	endYear := startYear + count - 1
+	byYear := make(map[int]model.AnnualFortune, count)
+
+	for _, dy := range daYunList {
+		if dy.GetEndYear() < startYear || dy.GetStartYear() > endYear {
+			continue
+		}
+		for _, ln := range dy.GetLiuNian() {
+			year := ln.GetYear()
+			if year < startYear || year > endYear {
+				continue
+			}
+			gz := ln.GetGanZhi()
+			runes := []rune(gz)
+			if len(runes) < 2 {
+				continue
+			}
+			stem := string(runes[0])
+			branch := string(runes[1])
+			byYear[year] = model.AnnualFortune{
+				Year:               year,
+				Age:                ln.GetAge(),
+				GanZhi:             gz,
+				Stem:               stem,
+				Branch:             branch,
+				Element:            LunarUtil.WU_XING_GAN[stem],
+				LuckCycleGanZhi:    dy.GetGanZhi(),
+				LuckCycleStartAge:  dy.GetStartAge(),
+				LuckCycleStartYear: dy.GetStartYear(),
+			}
+		}
+	}
+
+	years := make([]int, 0, len(byYear))
+	for year := range byYear {
+		years = append(years, year)
+	}
+	sort.Ints(years)
+
+	annualFortunes := make([]model.AnnualFortune, 0, len(years))
+	for _, year := range years {
+		annualFortunes = append(annualFortunes, byYear[year])
+	}
+	return annualFortunes
 }
 
 func computeFiveElementsCount(cd *model.ChartData) map[string]int {

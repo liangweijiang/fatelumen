@@ -3,6 +3,7 @@ package bazi
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"fatelumen/backend/internal/model"
 )
@@ -93,6 +94,30 @@ func TestCalculate_Case1(t *testing.T) {
 		if lc.GanZhi == "" || lc.StartAge == 0 || lc.StartYear == 0 {
 			t.Errorf("Invalid LuckCycle: %+v", lc)
 		}
+	}
+
+	currentYear := time.Now().Year()
+	if len(chart.AnnualFortunes) != 10 {
+		t.Fatalf("AnnualFortunes should have 10 entries, got %d", len(chart.AnnualFortunes))
+	}
+	for i, af := range chart.AnnualFortunes {
+		wantYear := currentYear + i
+		if af.Year != wantYear {
+			t.Fatalf("AnnualFortunes[%d]: expected year %d, got %d", i, wantYear, af.Year)
+		}
+		if af.GanZhi == "" || af.Stem == "" || af.Branch == "" || af.Element == "" {
+			t.Fatalf("AnnualFortunes[%d] incomplete: %+v", i, af)
+		}
+	}
+	if chart.CurrentYearFortune == nil {
+		t.Fatal("CurrentYearFortune should not be empty")
+	}
+	firstAnnual := chart.AnnualFortunes[0]
+	if chart.CurrentYearFortune.Year != firstAnnual.Year ||
+		chart.CurrentYearFortune.Stem != firstAnnual.Stem ||
+		chart.CurrentYearFortune.Branch != firstAnnual.Branch {
+		t.Fatalf("CurrentYearFortune should match first AnnualFortune: current=%+v annual=%+v",
+			chart.CurrentYearFortune, firstAnnual)
 	}
 
 	// 验证元信息

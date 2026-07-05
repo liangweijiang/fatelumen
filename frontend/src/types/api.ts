@@ -93,6 +93,18 @@ export interface CurrentYearFortune {
   element: string;
 }
 
+export interface AnnualFortune {
+  year: number;
+  age?: number;
+  ganzhi: string;
+  stem: string;
+  branch: string;
+  element: string;
+  luck_cycle_ganzhi?: string;
+  luck_cycle_start_age?: number;
+  luck_cycle_start_year?: number;
+}
+
 export interface ChartMeta {
   solar_date: string;
   lunar_date: string;
@@ -108,6 +120,7 @@ export interface ChartData {
   strength: Strength;
   luck_cycles: LuckCycle[];
   current_year_fortune?: CurrentYearFortune;
+  annual_fortunes?: AnnualFortune[];
   hour_unknown: boolean;
   meta: ChartMeta;
 }

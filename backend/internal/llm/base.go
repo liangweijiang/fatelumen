@@ -63,6 +63,12 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 		logger.FromCtx(ctx).Error("llm returned empty choices", "provider", p.name, "model", p.model)
 		return "", errors.New("llm returned empty response")
 	}
+	if resp.Choices[0].FinishReason == openai.FinishReasonLength {
+		logger.FromCtx(ctx).Error("llm response truncated by max_tokens",
+			"provider", p.name, "model", p.model,
+			"elapsed_ms", time.Since(start).Milliseconds())
+		return "", errors.New("llm response truncated by max_tokens")
+	}
 	content := resp.Choices[0].Message.Content
 	if content == "" {
 		logger.FromCtx(ctx).Error("llm returned empty content", "provider", p.name, "model", p.model)

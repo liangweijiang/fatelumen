@@ -92,16 +92,18 @@ or month stem-branch. Only INTERPRET facts that already exist in the chart JSON.
 Rules:
 - Write ALL prose in the language given by "locale" (en/zh/ja/ko). Keep Chinese Bazi symbols as-is.
 - Be specific to THIS chart: cite the actual four pillars, day master, hidden stems, ten-gods,
-  five-element counts, strength, favorable/unfavorable elements, current year, and luck cycles.
-- Current luck cycle, full luck-cycle list, and any year/month stem-branch facts must come from chart JSON.
+  five-element counts, strength, favorable/unfavorable elements, current year, luck cycles, and annual_fortunes.
+- Current luck cycle, full luck-cycle list, annual_fortunes, and any year/month stem-branch facts must come from chart JSON.
   If a month stem-branch table is absent, do NOT invent it; give seasonal/month-type guidance instead.
+- For future yearly readings, use ONLY chart.annual_fortunes for year, age, ganzhi, stem, branch, element,
+  and luck-cycle relation. Do not create or alter any yearly stem-branch.
 - Use the source style: first give a clear conclusion, then explain the chart logic behind it.
 - Every technical term must be explained in plain language in the same sentence or nearby context.
   Do not stack jargon. The writing should satisfy a practitioner and still be easy for a beginner.
 - Do not split content into "professional version" and "plain version"; blend expertise with plain speech.
 - Do not add openings, prefaces, summaries, disclaimers, or filler such as "for reference only".
 - Each paragraph must tie back to chart facts. Generic template language is not acceptable.
-- Detail target: for zh, each chapter body should be about 900-1400 Chinese characters; for en/ja/ko,
+- Detail target: for zh, each standalone chapter body should be about 1200-1800 Chinese characters; for en/ja/ko,
   write an equivalent level of detail. The yearly entries should each be concrete, not one-line slogans.
 - Tone: experienced, concrete, warm, and direct. No doom, no fatalism, no absolute claims.
 - NO medical diagnosis, NO investment advice, NO life-expectancy predictions, NO guaranteed outcomes.
@@ -109,12 +111,15 @@ Rules:
 - NEVER use the word "AI" anywhere.`
 
 type ReportGroup struct {
-	Name   string
-	System string
+	Name      string
+	System    string
+	MaxTokens int
 }
 
 // ReportGroups returns the grouped prompts used by the async report worker.
 func ReportGroups() []ReportGroup {
+	return detailedReportGroups()
+
 	return []ReportGroup{
 		{
 			Name: "core",
@@ -215,6 +220,99 @@ Follow these chapter scopes:
   ]
 }`,
 		},
+	}
+}
+
+func detailedReportGroups() []ReportGroup {
+	groups := []ReportGroup{
+		{
+			Name:      "core",
+			MaxTokens: 4096,
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys):
+{
+  "summary_line": "one concrete sentence capturing this chart's life theme",
+  "summary": "A detailed overview. For zh: 700-1000 Chinese characters. Cover chart baseline, day-master strength, five-element climate, favorable/unfavorable logic, current luck rhythm, and the main life theme.",
+  "personality": "A detailed personality analysis. For zh: 700-1000 Chinese characters. Derive behavior, emotional pattern, decision style, social style, and growth edge from day master, ten-gods, elements, and pillar positions.",
+  "suggestions": ["5 to 7 concrete actions tied to favorable elements, current luck cycle, work style, relationships, wellness habits, or environment"]
+}`,
+		},
+		{
+			Name:      "life",
+			MaxTokens: 4096,
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys):
+{
+  "career": "Career and wealth baseline. For zh: 800-1100 Chinese characters. State the career pattern, role fit, work rhythm, platform/team preference, and current luck-cycle focus. Directional only, no investment advice.",
+  "relationship": "Relationship and marriage baseline. For zh: 800-1100 Chinese characters. Explain spouse palace/day branch, emotional style, partner profile, stability pattern, timing signals, and relationship habits.",
+  "health": "Wellness baseline through five-element balance. For zh: 800-1100 Chinese characters. Explain cold/heat/dry/damp tendency if inferable, stress pattern, rest/diet/movement habits, and current luck-cycle focus. No diagnosis."
+}`,
+		},
+		{
+			Name:      "yearly_fortune",
+			MaxTokens: 8192,
+			System: reportCommonRules + `
+Produce ONLY this JSON object (no other keys). yearly_fortune MUST contain EXACTLY the same 10 years
+as chart.annual_fortunes, in the same order. Do not add, remove, reorder, or alter years. Each note
+must interpret that year's actual ganzhi, stem, branch, element, age, and luck-cycle relation from
+chart.annual_fortunes. For zh: each note should be 260-420 Chinese characters and cover total tone,
+career/main income, side opportunity/risk, relationship/family, wellness habits, key timing, and one action.
+{
+  "yearly_fortune": [
+    {"year": YYYY, "note": "detailed chart-specific yearly reading"}
+  ]
+}`,
+		},
+	}
+
+	chapters := []struct {
+		name      string
+		no        int
+		key       string
+		maxTokens int
+		scope     string
+	}{
+		{name: "chapter_destiny_depth", no: 1, key: "destiny_depth", maxTokens: 4096, scope: "命格深析. Cover day-master strength, seasonal support, five-element generation/control, favorable/unfavorable logic, four-pillar palace meanings, structural mechanics, and key timing windows. Start with the core conclusion, then explain why."},
+		{name: "chapter_ten_gods_full", no: 2, key: "ten_gods_full", maxTokens: 4096, scope: "十神全览. Cover all ten gods: what each means, whether it appears in stems/hidden stems, whether it is strong/weak/absent, and what that means for personality, family, work, money, relationship, pressure, learning, and action style."},
+		{name: "chapter_luck_cycle", no: 3, key: "luck_cycle", maxTokens: 4096, scope: "大运走势. Use only chart.luck_cycles. Explain starting luck, current luck, next luck, transition years, major life rhythm, and preparation. Mention each available cycle with age span, ganzhi, element, keyword, and life theme."},
+		{name: "chapter_ten_year_years", no: 4, key: "ten_year_years", maxTokens: 8192, scope: "未来十年逐流年详批. The body summarizes the ten-year pattern from chart.annual_fortunes. The years array MUST contain EXACTLY the same 10 years and ganzhi as chart.annual_fortunes, in the same order. Each year note interprets the actual annual_fortunes item and covers total tone, career/main income, side opportunity/risk, relationship/family, wellness habits, key timing, and one concrete action. For zh: body 1000-1500 Chinese characters, each year note 350-550 Chinese characters."},
+		{name: "chapter_career_depth", no: 5, key: "career_depth", maxTokens: 4096, scope: "事业深析. Determine career pattern: skill vs relationship, solo vs platform, stable vs high-variance. Cover industry/role fit, management vs execution, platform vs small team, promotion/job-change/venture timing, people dynamics, collaboration risks, and concrete career actions."},
+		{name: "chapter_wealth_depth", no: 6, key: "wealth_depth", maxTokens: 4096, scope: "财富格局. Cover wealth capacity, direct wealth vs indirect wealth, earning path, money flow, wealth turning points, breakage risks, saving/defense ability, and directional allocation habits. Directional only; no concrete investment advice."},
+		{name: "chapter_love_depth", no: 7, key: "love_depth", maxTokens: 4096, scope: "情感姻缘. Cover emotional baseline, partner profile, spouse palace/day branch, relationship timeline, communication style, risk points, current luck/current year guidance, and practical relationship management. No fear-based language."},
+		{name: "chapter_health_depth", no: 8, key: "health_depth", maxTokens: 4096, scope: "健康养生. Cover constitution through cold/heat/dry/damp and five elements, general wellness correspondences, luck-cycle focus periods, emotion/stress patterns, diet/movement/rest habits, and current 5-10 year focus. No diagnosis."},
+		{name: "chapter_element_tuning", no: 9, key: "element_tuning", maxTokens: 4096, scope: "五行调候. Cover chart climate: cold/warm, dry/damp, what element balances the chart, how this affects body, temperament, emotion, work environment, city/climate preference, colors, light, humidity, direction, and how luck cycles change priority."},
+		{name: "chapter_life_plan", no: 10, key: "life_plan", maxTokens: 4096, scope: "人生规划. Build a life strategy map from luck cycles and annual_fortunes: one-sentence life theme, phase strategy, golden windows, risk map, career/wealth line, relationship/family line, wellness line, and 1-3 year action priorities."},
+	}
+
+	for _, ch := range chapters {
+		groups = append(groups, chapterReportGroup(ch.name, ch.no, ch.key, ch.maxTokens, ch.scope))
+	}
+	return groups
+}
+
+func chapterReportGroup(name string, no int, key string, maxTokens int, scope string) ReportGroup {
+	extra := ""
+	yearsShape := ""
+	if key == "ten_year_years" {
+		yearsShape = `, "years": [{"year": YYYY, "ganzhi": "must equal chart.annual_fortunes item", "note": "detailed yearly note"}]`
+		extra = `
+For the years array, copy year and ganzhi exactly from chart.annual_fortunes. If chart.annual_fortunes has fewer than 10 items, use only the provided items and do not invent missing years.`
+	}
+
+	return ReportGroup{
+		Name:      name,
+		MaxTokens: maxTokens,
+		System: reportCommonRules + fmt.Sprintf(`
+Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
+The entry MUST use no=%d and key="%s". The title must be in the target locale.
+Scope: %s
+For zh, body should be 1200-1800 Chinese characters unless this is ten_year_years, which follows its own year-note requirement.
+Use chart facts densely: cite pillars, elements, ten-gods, strength, luck cycles, current_year_fortune, and annual_fortunes where relevant.%s
+{
+  "chapters": [
+    {"no": %d, "key": "%s", "title": "...", "body": "... "%s}
+  ]
+}`, no, key, scope, extra, no, key, yearsShape),
 	}
 }
 

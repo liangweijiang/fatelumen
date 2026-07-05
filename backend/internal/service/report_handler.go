@@ -186,8 +186,12 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	var content model.ReportContent
 	for _, g := range prompts.ReportGroups() {
 		gStart := time.Now()
+		maxTokens := g.MaxTokens
+		if maxTokens <= 0 {
+			maxTokens = 4096
+		}
 		part, gerr := h.llmProvider.GenerateJSON(ctx, g.System, groupUserPrompt,
-			llm.WithMaxTokens(8192),
+			llm.WithMaxTokens(maxTokens),
 			llm.WithTemperature(0.5),
 		)
 		if gerr != nil {
@@ -239,6 +243,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	}
 
 	content.Locale = locale
+	alignAnnualFortunes(&content, chartData.AnnualFortunes)
 
 	// 5. 落库内容（PDF 改为按需懒生成，此处不再渲染/上传 PDF）
 	if err := h.reportRepo.UpdateResult(reportID, content, ""); err != nil {

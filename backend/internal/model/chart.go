@@ -10,14 +10,14 @@ import (
 
 // Pillar 单柱（年/月/日/时）。
 type Pillar struct {
-	Stem         string   `json:"stem"`
-	Branch       string   `json:"branch"`
-	StemElement  string   `json:"stem_element"`
-	BranchElement string  `json:"branch_element"`
-	TenGodStem   string   `json:"ten_god_stem"`
-	TenGodHidden []string `json:"ten_god_hidden"`
-	HiddenStems  []string `json:"hidden_stems"`
-	NaYin        string   `json:"nayin"`
+	Stem          string   `json:"stem"`
+	Branch        string   `json:"branch"`
+	StemElement   string   `json:"stem_element"`
+	BranchElement string   `json:"branch_element"`
+	TenGodStem    string   `json:"ten_god_stem"`
+	TenGodHidden  []string `json:"ten_god_hidden"`
+	HiddenStems   []string `json:"hidden_stems"`
+	NaYin         string   `json:"nayin"`
 }
 
 // Pillars 四柱。
@@ -59,6 +59,19 @@ type CurrentYearFortune struct {
 	Element string `json:"element"`
 }
 
+// AnnualFortune 流年表单项，由 lunar-go 通过大运流年确定性计算。
+type AnnualFortune struct {
+	Year               int    `json:"year"`
+	Age                int    `json:"age,omitempty"`
+	GanZhi             string `json:"ganzhi"`
+	Stem               string `json:"stem"`
+	Branch             string `json:"branch"`
+	Element            string `json:"element"`
+	LuckCycleGanZhi    string `json:"luck_cycle_ganzhi,omitempty"`
+	LuckCycleStartAge  int    `json:"luck_cycle_start_age,omitempty"`
+	LuckCycleStartYear int    `json:"luck_cycle_start_year,omitempty"`
+}
+
 // ChartMeta 排盘元信息。
 type ChartMeta struct {
 	SolarDate   string `json:"solar_date"`
@@ -77,6 +90,7 @@ type ChartData struct {
 	Strength           Strength            `json:"strength"`
 	LuckCycles         []LuckCycle         `json:"luck_cycles"`
 	CurrentYearFortune *CurrentYearFortune `json:"current_year_fortune,omitempty"`
+	AnnualFortunes     []AnnualFortune     `json:"annual_fortunes,omitempty"`
 	HourUnknown        bool                `json:"hour_unknown"`
 	Meta               ChartMeta           `json:"meta"`
 }

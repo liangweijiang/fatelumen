@@ -101,7 +101,7 @@ func TestBuildReportUserPrompt(t *testing.T) {
 	if !strings.Contains(userPrompt, "locale: en") {
 		t.Error("user prompt missing locale")
 	}
-	for _, kw := range []string{"pillars", "day_master", "five_elements_count", "strength", "luck_cycles"} {
+	for _, kw := range []string{"pillars", "day_master", "five_elements_count", "strength", "luck_cycles", "annual_fortunes"} {
 		if !strings.Contains(userPrompt, kw) {
 			t.Errorf("user prompt missing chart data: %s", kw)
 		}
@@ -132,8 +132,8 @@ func TestBuildReportUserPrompt_Locales(t *testing.T) {
 
 func TestReportGroups_ChapterContract(t *testing.T) {
 	groups := ReportGroups()
-	if len(groups) != 5 {
-		t.Fatalf("expected 5 report groups, got %d", len(groups))
+	if len(groups) != 13 {
+		t.Fatalf("expected 13 report groups, got %d", len(groups))
 	}
 
 	combined := ""
