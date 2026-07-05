@@ -29,13 +29,13 @@ func sampleReportChart(t *testing.T) *model.ChartData {
 
 func sampleReportContent() model.ReportContent {
 	return model.ReportContent{
-		Locale:      "en",
-		SummaryLine: "A bright Wood rising at dawn, destined to illuminate.",
-		Summary:     "Your chart reveals a dynamic balance of Wood and Fire elements, creating a personality that is both ambitious and charismatic. The day master sits on a strong foundation, supported by favorable elements in the month and year pillars.",
-		Personality: "Your Yang Wood day master gives you a natural leadership quality — you are the tall tree in the forest, visible and inspiring. Combined with Fire in the month branch, your creative energy is formidable.",
-		Career:      "The presence of Earth in your hour pillar suggests strong wealth potential realized through steady, systematic effort. Your favorable Metal element indicates success in structured, analytical fields.",
+		Locale:       "en",
+		SummaryLine:  "A bright Wood rising at dawn, destined to illuminate.",
+		Summary:      "Your chart reveals a dynamic balance of Wood and Fire elements, creating a personality that is both ambitious and charismatic. The day master sits on a strong foundation, supported by favorable elements in the month and year pillars.",
+		Personality:  "Your Yang Wood day master gives you a natural leadership quality — you are the tall tree in the forest, visible and inspiring. Combined with Fire in the month branch, your creative energy is formidable.",
+		Career:       "The presence of Earth in your hour pillar suggests strong wealth potential realized through steady, systematic effort. Your favorable Metal element indicates success in structured, analytical fields.",
 		Relationship: "Your day branch reveals a harmonious Peach Blossom configuration, suggesting warm and balanced romantic relationships. The spouse palace is occupied by a resource star, indicating a supportive partner.",
-		Health:      "The strong Wood element in your chart relates to liver and detoxification functions in traditional elemental theory. This is a general wellness observation and should not be taken as medical advice.",
+		Health:       "The strong Wood element in your chart relates to liver and detoxification functions in traditional elemental theory. This is a general wellness observation and should not be taken as medical advice.",
 		YearlyFortune: []model.YearlyFortuneItem{
 			{Year: 2026, Note: "This year's Fire element supports your Wood day master, bringing career visibility and recognition."},
 			{Year: 2027, Note: "Earth element stabilization — focus on consolidating achievements and relationship building."},
@@ -88,6 +88,37 @@ func TestBuildReportPDFData_Fields(t *testing.T) {
 	}
 	if data.SectionLabels["summary"] == "" {
 		t.Error("SectionLabels summary should not be empty")
+	}
+}
+
+func TestReportPDFTemplate_HidesLegacyYearlyFortuneWhenTenYearChapterExists(t *testing.T) {
+	chart := sampleReportChart(t)
+	content := sampleReportContent()
+	content.Chapters = []model.Chapter{
+		{
+			No:    4,
+			Key:   "ten_year_years",
+			Title: "Next Ten Years, Year by Year",
+			Body:  "A detailed ten-year chapter.",
+		},
+	}
+	data := BuildReportPDFData(chart, content, "2026-06-11")
+
+	if !data.HasTenYearChapter {
+		t.Fatal("expected ten-year chapter marker")
+	}
+
+	var buf bytes.Buffer
+	if err := reportTmpl.Execute(&buf, data); err != nil {
+		t.Fatalf("template execute: %v", err)
+	}
+	html := buf.String()
+
+	if strings.Contains(html, "Yearly Fortune") {
+		t.Error("legacy yearly fortune section should be hidden when ten-year chapter exists")
+	}
+	if !strings.Contains(html, "Next Ten Years, Year by Year") {
+		t.Error("ten-year chapter should still be rendered")
 	}
 }
 

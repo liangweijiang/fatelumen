@@ -154,6 +154,7 @@ export default function ReportPage() {
   // Done state — render full report
   const content = report.content;
   const locked = report.locked === true;
+  const hasTenYearChapter = content?.chapters?.some((ch) => ch.key === "ten_year_years") ?? false;
 
   return (
     <div
@@ -264,7 +265,7 @@ export default function ReportPage() {
         )}
 
         {/* Yearly Fortune */}
-        {content?.yearly_fortune && content.yearly_fortune.length > 0 && (
+        {!hasTenYearChapter && content?.yearly_fortune && content.yearly_fortune.length > 0 && (
           <div
             className="mb-10 rounded-2xl border p-8"
             style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}

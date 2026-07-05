@@ -187,7 +187,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	for _, g := range prompts.ReportGroups() {
 		gStart := time.Now()
 		part, gerr := h.llmProvider.GenerateJSON(ctx, g.System, groupUserPrompt,
-			llm.WithMaxTokens(4096),
+			llm.WithMaxTokens(8192),
 			llm.WithTemperature(0.5),
 		)
 		if gerr != nil {

@@ -29,41 +29,42 @@ type fortuneItem struct {
 // ReportPDFData 深度报告 PDF 模板数据。
 // 严格遵守 P2：所有文案/标题不出现 "AI"。
 type ReportPDFData struct {
-	Brand               string
-	Locale              string
-	ReportTitle         string
-	DayMasterLabel      string
-	StrengthLevel       string
-	ElementBalance      string
-	GenDate             string
-	SolarDate           string
-	LunarDate           string
-	Pillars             []PillarDisplay
-	Elements            []elementSummaryItem
-	Content             model.ReportContent
-	FortuneItems        []fortuneItem
-	Suggestions         []string
-	SectionLabels       map[string]string
+	Brand             string
+	Locale            string
+	ReportTitle       string
+	DayMasterLabel    string
+	StrengthLevel     string
+	ElementBalance    string
+	GenDate           string
+	SolarDate         string
+	LunarDate         string
+	Pillars           []PillarDisplay
+	Elements          []elementSummaryItem
+	Content           model.ReportContent
+	FortuneItems      []fortuneItem
+	HasTenYearChapter bool
+	Suggestions       []string
+	SectionLabels     map[string]string
 }
 
 var reportSectionLabels = map[string]map[string]string{
 	"en": {
-		"report_title":    "Bazi Deep Reading Report",
-		"summary":         "Destiny Overview",
-		"personality":     "Personality",
-		"career":          "Career & Wealth",
-		"relationship":    "Love & Marriage",
-		"health":          "Health & Wellness",
-		"yearly_fortune":  "Yearly Fortune",
-		"suggestions":     "Guidance & Suggestions",
-		"day_master":      "Day Master",
-		"strength":        "Strength",
-		"five_elements":   "Five Elements",
-		"generated":       "Generated",
-		"birth_info":      "Birth Information",
-		"page":            "Page",
-		"year":            "Year",
-		"analysis":        "Analysis",
+		"report_title":           "Bazi Deep Reading Report",
+		"summary":                "Destiny Overview",
+		"personality":            "Personality",
+		"career":                 "Career & Wealth",
+		"relationship":           "Love & Marriage",
+		"health":                 "Health & Wellness",
+		"yearly_fortune":         "Yearly Fortune",
+		"suggestions":            "Guidance & Suggestions",
+		"day_master":             "Day Master",
+		"strength":               "Strength",
+		"five_elements":          "Five Elements",
+		"generated":              "Generated",
+		"birth_info":             "Birth Information",
+		"page":                   "Page",
+		"year":                   "Year",
+		"analysis":               "Analysis",
 		"chapter_chart_detail":   "Refined Chart Reading",
 		"chapter_destiny_depth":  "In-Depth Destiny Reading",
 		"chapter_ten_gods_full":  "Full Ten-Gods Panorama",
@@ -73,27 +74,28 @@ var reportSectionLabels = map[string]map[string]string{
 		"chapter_wealth_depth":   "Wealth Deep Dive",
 		"chapter_love_depth":     "Relationship Deep Dive",
 		"chapter_health_depth":   "Health Deep Dive",
+		"chapter_element_tuning": "Five-Element Climate Balance",
 		"chapter_remedies":       "Remedies for Near-Term Challenges",
 		"chapter_fortune_guide":  "Five-Element Fortune Guide",
 		"chapter_life_plan":      "Lifelong Guidance & Planning",
 	},
 	"zh": {
-		"report_title":    "八字深度解读报告",
-		"summary":         "命格总论",
-		"personality":     "性格特质",
-		"career":          "事业财运",
-		"relationship":    "感情婚姻",
-		"health":          "健康提示",
-		"yearly_fortune":  "流年运势",
-		"suggestions":     "开运建议",
-		"day_master":      "日主",
-		"strength":        "强弱",
-		"five_elements":   "五行",
-		"generated":       "生成时间",
-		"birth_info":      "出生信息",
-		"page":            "页",
-		"year":            "流年",
-		"analysis":        "解读",
+		"report_title":           "八字深度解读报告",
+		"summary":                "命格总论",
+		"personality":            "性格特质",
+		"career":                 "事业财运",
+		"relationship":           "感情婚姻",
+		"health":                 "健康提示",
+		"yearly_fortune":         "流年运势",
+		"suggestions":            "开运建议",
+		"day_master":             "日主",
+		"strength":               "强弱",
+		"five_elements":          "五行",
+		"generated":              "生成时间",
+		"birth_info":             "出生信息",
+		"page":                   "页",
+		"year":                   "流年",
+		"analysis":               "解读",
 		"chapter_chart_detail":   "精细排盘",
 		"chapter_destiny_depth":  "命格深度解读",
 		"chapter_ten_gods_full":  "十神全象分析",
@@ -103,27 +105,28 @@ var reportSectionLabels = map[string]map[string]string{
 		"chapter_wealth_depth":   "财富深度剖析",
 		"chapter_love_depth":     "情感深度剖析",
 		"chapter_health_depth":   "健康深度剖析",
+		"chapter_element_tuning": "五行调候",
 		"chapter_remedies":       "近期挑战化解方案",
 		"chapter_fortune_guide":  "五行开运指南",
 		"chapter_life_plan":      "终身建议与定制规划",
 	},
 	"ja": {
-		"report_title":    "四柱推命 詳細鑑定書",
-		"summary":         "命式総論",
-		"personality":     "性格の特質",
-		"career":          "仕事と財運",
-		"relationship":    "恋愛と結婚",
-		"health":          "健康のヒント",
-		"yearly_fortune":  "年運の流れ",
-		"suggestions":     "開運のヒント",
-		"day_master":      "日主",
-		"strength":        "強弱",
-		"five_elements":   "五行",
-		"generated":       "作成日時",
-		"birth_info":      "生年月日情報",
-		"page":            "ページ",
-		"year":            "流年",
-		"analysis":        "解説",
+		"report_title":           "四柱推命 詳細鑑定書",
+		"summary":                "命式総論",
+		"personality":            "性格の特質",
+		"career":                 "仕事と財運",
+		"relationship":           "恋愛と結婚",
+		"health":                 "健康のヒント",
+		"yearly_fortune":         "年運の流れ",
+		"suggestions":            "開運のヒント",
+		"day_master":             "日主",
+		"strength":               "強弱",
+		"five_elements":          "五行",
+		"generated":              "作成日時",
+		"birth_info":             "生年月日情報",
+		"page":                   "ページ",
+		"year":                   "流年",
+		"analysis":               "解説",
 		"chapter_chart_detail":   "詳細命式",
 		"chapter_destiny_depth":  "命式の深層解読",
 		"chapter_ten_gods_full":  "十神総象分析",
@@ -133,27 +136,28 @@ var reportSectionLabels = map[string]map[string]string{
 		"chapter_wealth_depth":   "財運の深層分析",
 		"chapter_love_depth":     "恋愛の深層分析",
 		"chapter_health_depth":   "健康の深層分析",
+		"chapter_element_tuning": "五行の調候",
 		"chapter_remedies":       "近期の課題への対処法",
 		"chapter_fortune_guide":  "五行開運ガイド",
 		"chapter_life_plan":      "生涯の指針と設計",
 	},
 	"ko": {
-		"report_title":    "사주 심층 해석 리포트",
-		"summary":         "명격 총론",
-		"personality":     "성격 특질",
-		"career":          "직업과 재물운",
-		"relationship":    "연애와 결혼",
-		"health":          "건강 조언",
-		"yearly_fortune":  "세운 흐름",
-		"suggestions":     "개운 조언",
-		"day_master":      "일주",
-		"strength":        "강약",
-		"five_elements":   "오행",
-		"generated":       "생성 일시",
-		"birth_info":      "출생 정보",
-		"page":            "페이지",
-		"year":            "유년",
-		"analysis":        "해석",
+		"report_title":           "사주 심층 해석 리포트",
+		"summary":                "명격 총론",
+		"personality":            "성격 특질",
+		"career":                 "직업과 재물운",
+		"relationship":           "연애와 결혼",
+		"health":                 "건강 조언",
+		"yearly_fortune":         "세운 흐름",
+		"suggestions":            "개운 조언",
+		"day_master":             "일주",
+		"strength":               "강약",
+		"five_elements":          "오행",
+		"generated":              "생성 일시",
+		"birth_info":             "출생 정보",
+		"page":                   "페이지",
+		"year":                   "유년",
+		"analysis":               "해석",
 		"chapter_chart_detail":   "정밀 명식",
 		"chapter_destiny_depth":  "명격 심층 해석",
 		"chapter_ten_gods_full":  "십신 전상 분석",
@@ -163,6 +167,7 @@ var reportSectionLabels = map[string]map[string]string{
 		"chapter_wealth_depth":   "재물 심층 분석",
 		"chapter_love_depth":     "연애 심층 분석",
 		"chapter_health_depth":   "건강 심층 분석",
+		"chapter_element_tuning": "오행 조후",
 		"chapter_remedies":       "당면 과제 해소 방안",
 		"chapter_fortune_guide":  "오행 개운 가이드",
 		"chapter_life_plan":      "평생 지침과 설계",
@@ -232,24 +237,33 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 		fortuneItems[i] = fortuneItem{Year: yf.Year, Note: yf.Note}
 	}
 
+	hasTenYearChapter := false
+	for _, chapter := range content.Chapters {
+		if chapter.Key == "ten_year_years" {
+			hasTenYearChapter = true
+			break
+		}
+	}
+
 	dayMasterLabel := chart.DayMaster.Stem + " · " + chart.DayMaster.Element + " " + chart.DayMaster.YinYang
 
 	return &ReportPDFData{
-		Brand:          "FateLumen",
-		Locale:         locale,
-		ReportTitle:    labels["report_title"],
-		DayMasterLabel: dayMasterLabel,
-		StrengthLevel:  chart.Strength.Level,
-		ElementBalance: summarizeElements(chart.FiveElementsCount),
-		GenDate:        genDate,
-		SolarDate:      chart.Meta.SolarDate,
-		LunarDate:      chart.Meta.LunarDate,
-		Pillars:        displays,
-		Elements:       elements,
-		Content:        content,
-		FortuneItems:   fortuneItems,
-		Suggestions:    content.Suggestions,
-		SectionLabels:  labels,
+		Brand:             "FateLumen",
+		Locale:            locale,
+		ReportTitle:       labels["report_title"],
+		DayMasterLabel:    dayMasterLabel,
+		StrengthLevel:     chart.Strength.Level,
+		ElementBalance:    summarizeElements(chart.FiveElementsCount),
+		GenDate:           genDate,
+		SolarDate:         chart.Meta.SolarDate,
+		LunarDate:         chart.Meta.LunarDate,
+		Pillars:           displays,
+		Elements:          elements,
+		Content:           content,
+		FortuneItems:      fortuneItems,
+		HasTenYearChapter: hasTenYearChapter,
+		Suggestions:       content.Suggestions,
+		SectionLabels:     labels,
 	}
 }
 
