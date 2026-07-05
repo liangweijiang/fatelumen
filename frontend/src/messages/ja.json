@@ -12,8 +12,8 @@
   "cta": { "eyebrow": "はじめる", "title": "今日、あなたの命式を読む", "desc": "あなたに合わせた丁寧な鑑定を、わずか数秒で。", "btn": "無料で命理解読を始める" },
   "footer": { "privacy": "プライバシーポリシー", "terms": "利用規約", "contact": "お問い合わせ", "copy": "© 2026 FateLumen · 四柱推命鑑定" },
   "faqPage": { "title": "よくある質問", "sub": "八字とFateLumenについて知りたいことすべて", "search": "質問を検索...", "categories": { "basics": "基礎", "accuracy": "精度と科学性", "life": "人生への活用", "cycles": "大運", "relationships": "人間関係", "philosophy": "哲学", "comparison": "西洋占星術との比較", "practice": "実践", "depth": "応用編", "service": "サービスについて" } },
-  "learnPage": { "title": "八字を学ぶ", "sub": "四柱推命の基礎を理解する", "todo": "将来：/content/articles APIから取得予定" },
-  "casesPage": { "title": "お客様の声", "sub": "命式を発見した人々の事例", "cta": "あなたの命式を発見する", "todo": "将来：/content/cases APIから取得予定" },
+  "learnPage": { "title": "八字を学ぶ", "sub": "四柱推命の基礎を理解する", "todo": "将来：/content/articles APIから取得予定", "items": { "whatIsBazi": { "title": "八字 / 四柱とは", "desc": "八字は生まれた年・月・日・時を四つの柱に置き換え、干支、五行、十神の関係から性質や流れを読む体系です。" }, "dayMaster": { "title": "日主とは", "desc": "日主は命式の中の自分自身を表します。性格の基調、身の強弱、喜ぶ要素を読むための中心点です。" }, "fiveElements": { "title": "五行と喜用神", "desc": "木・火・土・金・水は数だけで判断しません。季節、根、透干、流れを合わせて、命式を支える力を見ます。" }, "stemsBranches": { "title": "天干と地支", "desc": "天干は表に出る働き、地支は根や環境、隠れた関係を示します。両方を合わせて命式の構造を読みます。" }, "tenGods": { "title": "十神の読み方", "desc": "十神は日主との関係を表し、学び、仕事、財、表現、規律、人間関係などのテーマにつながります。" }, "luckCycles": { "title": "大運と流年", "desc": "大運は十年単位の流れ、流年はその年のきっかけを示します。原局と合わせて読むことが大切です。" } } },
+  "casesPage": { "title": "お客様の声", "sub": "命式を発見した人々の事例", "cta": "あなたの命式を発見する", "todo": "将来：/content/cases APIから取得予定", "items": { "case1": { "initial": "S", "name": "佐藤さん", "quote": "創造的な仕事では力が出るのに、単調な作業で疲れやすい理由がようやく分かりました。" }, "case2": { "initial": "T", "name": "高橋さん", "quote": "仕事運の章を読んで、長く迷っていた方向転換に踏み出す自信が持てました。" }, "case3": { "initial": "E", "name": "遠藤さん", "quote": "恋愛の内容は怖がらせるものではなく、自分が繰り返しやすい関係の癖を具体的に示してくれました。" }, "case4": { "initial": "D", "name": "田中さん", "quote": "最初は好奇心だけでしたが、数年先の流れまで丁寧で、計画を立てる参考になりました。" } } },
   "whatsapp": { "label": "チャットで相談", "prefill": "こんにちは、八字鑑定をお願いしたいです。生年月日：" },
   "privacyPage": {
     "title": "プライバシーポリシー",

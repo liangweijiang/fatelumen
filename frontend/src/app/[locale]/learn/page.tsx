@@ -4,12 +4,12 @@ import { useTranslations } from "next-intl";
 import { useReveal } from "@/hooks/useReveal";
 
 const learnItems = [
-  { key: "what-is-bazi", titleKey: "What is Bazi / Four Pillars" },
-  { key: "day-master", titleKey: "The Day Master" },
-  { key: "five-elements", titleKey: "Five Elements & Favorable Gods" },
-  { key: "stems-branches", titleKey: "Heavenly Stems & Earthly Branches" },
-  { key: "ten-gods", titleKey: "How to Read the Ten Gods" },
-  { key: "luck-cycles", titleKey: "Luck Cycles & Yearly Fortune" },
+  "whatIsBazi",
+  "dayMaster",
+  "fiveElements",
+  "stemsBranches",
+  "tenGods",
+  "luckCycles",
 ];
 
 export default function LearnPage() {
@@ -23,15 +23,15 @@ export default function LearnPage() {
           <p className="text-[17px] font-light" style={{ color: "var(--ink-soft)" }}>{t("sub")}</p>
         </div>
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {learnItems.map((item) => (
+          {learnItems.map((key) => (
             <div
-              key={item.key}
+              key={key}
               className="rounded-xl border p-6 transition-all hover:-translate-y-[2px] hover:shadow-md"
               style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}
             >
-              <h3 className="mb-2 font-[var(--serif)] text-lg font-medium" style={{ color: "var(--ink)" }}>{item.titleKey}</h3>
+              <h3 className="mb-2 font-[var(--serif)] text-lg font-medium" style={{ color: "var(--ink)" }}>{t(`items.${key}.title`)}</h3>
               <p className="text-sm font-light" style={{ color: "var(--ink-soft)" }}>
-                Learn the fundamentals of {item.titleKey.toLowerCase()} in traditional Chinese astrology. A comprehensive article will be published here.
+                {t(`items.${key}.desc`)}
               </p>
             </div>
           ))}

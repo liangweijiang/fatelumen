@@ -13,8 +13,8 @@
   "cta": { "eyebrow": "开始", "title": "今天就来解读你的命盘", "desc": "一份专属于你的命理解读，数秒呈现。", "btn": "免费获取命理解读" },
   "footer": { "privacy": "隐私政策", "terms": "服务条款", "contact": "联系我们", "copy": "© 2026 FateLumen · 中国传统命盘解读" },
   "faqPage": { "title": "常见问题", "sub": "关于八字与 FateLumen 的一切", "search": "搜索问题...", "categories": { "basics": "基础概念", "accuracy": "准确性与科学性", "life": "人生应用", "cycles": "大运与流年", "relationships": "人际关系", "philosophy": "命理观念与哲学", "comparison": "与西方体系对比", "practice": "实际操作", "depth": "深度与玄学", "service": "网站服务" } },
-  "learnPage": { "title": "学习八字", "sub": "了解四柱推命的基础知识", "todo": "future: fetch from /content/articles API" },
-  "casesPage": { "title": "用户故事", "sub": "看看别人如何发现自己的命盘", "cta": "算算我的命盘", "todo": "future: fetch from /content/cases API" },
+  "learnPage": { "title": "学习八字", "sub": "了解四柱推命的基础知识", "todo": "future: fetch from /content/articles API", "items": { "whatIsBazi": { "title": "什么是八字 / 四柱", "desc": "八字以出生年、月、日、时排出四柱，通过天干地支、五行生克与十神关系观察个人特质、趋势和阶段变化。" }, "dayMaster": { "title": "日主是什么", "desc": "日主代表命盘中的自己，是判断性格底色、力量强弱、喜忌取向的核心。理解日主，才能读懂整张命盘的重心。" }, "fiveElements": { "title": "五行与喜用神", "desc": "木、火、土、金、水不是简单数量对比，而要结合季节、根气、透干和流通关系，判断哪些力量最能帮助命局平衡。" }, "stemsBranches": { "title": "天干地支", "desc": "天干看外显与运行方式，地支藏着根气、关系和环境。两者组合后，才形成四柱命盘的完整结构。" }, "tenGods": { "title": "如何看十神", "desc": "十神描述日主与其他干支的关系，可对应学习、事业、财富、表达、规则、人际与亲密关系等人生面向。" }, "luckCycles": { "title": "大运与流年", "desc": "大运看十年阶段的主旋律，流年看当年的触发点。两者需要和原局一起判断，不能孤立看吉凶。" } } },
+  "casesPage": { "title": "用户故事", "sub": "看看别人如何发现自己的命盘", "cta": "算算我的命盘", "todo": "future: fetch from /content/cases API", "items": { "case1": { "initial": "林", "name": "林女士", "quote": "以前只觉得自己适合创意工作，看完命盘后才明白为什么一进入重复流程就容易消耗。" }, "case2": { "initial": "陈", "name": "陈先生", "quote": "事业篇把我纠结很久的方向讲清楚了，我终于敢把重心转到更适合自己的领域。" }, "case3": { "initial": "许", "name": "许女士", "quote": "感情部分没有吓人的断语，而是把相处模式和容易卡住的地方讲得很具体。" }, "case4": { "initial": "周", "name": "周先生", "quote": "原本只是好奇，结果报告比我想象中细很多，尤其是未来几年要注意的节奏很有参考价值。" } } },
   "whatsapp": { "label": "在线咨询", "prefill": "你好，我想进行一次八字咨询。我的出生信息：" },
   "privacyPage": {
     "title": "隐私政策",
