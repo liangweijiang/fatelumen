@@ -69,6 +69,19 @@ func (m *MemoryCache) Get(_ context.Context, key string) (string, error) {
 	return entry.val, nil
 }
 
+// Take atomically reads and removes a key.
+func (m *MemoryCache) Take(_ context.Context, key string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	entry, exists := m.items[key]
+	if !exists || entry.expired(time.Now()) {
+		delete(m.items, key)
+		return "", nil
+	}
+	delete(m.items, key)
+	return entry.val, nil
+}
+
 // Set 写入 key-val，设置 TTL。ttl=0 表示永不过期。
 func (m *MemoryCache) Set(_ context.Context, key, val string, ttl time.Duration) error {
 	m.mu.Lock()

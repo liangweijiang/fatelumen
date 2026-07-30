@@ -240,7 +240,7 @@ func main() {
 	adminRegistry.Register(resource.NewReportsResource(adminReportSvc))
 	resourceHandler := handler.NewResourceHandler(adminRegistry, auditRepo)
 
-	authHandler := handler.NewAuthHandler(authSvc, authReg)
+	authHandler := handler.NewAuthHandler(authSvc, authReg, cfg.WebBaseURL)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
 	readingHandler := handler.NewReadingHandler(readingSvc)

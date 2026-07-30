@@ -3,6 +3,8 @@
 .env.*
 bin/
 tmp/
+storage_data/
+*.exe
 *.test
 *.out
 vendor/

@@ -99,20 +99,25 @@ func Setup(app *App) *gin.Engine {
 	{
 		// --- 认证（无需鉴权）---
 		authGroup := v1.Group("/auth")
-		authGroup.Use(app.RateLimitAuth)
 		{
+			authLimited := authGroup.Group("")
+			authLimited.Use(app.RateLimitAuth)
 			// 同时支持 302 跳转和 JSON 返回
-			authGroup.GET("/google/login", func(c *gin.Context) {
+			authLimited.GET("/google/login", func(c *gin.Context) {
 				if c.Query("format") == "json" || c.GetHeader("Accept") == "application/json" {
 					app.AuthHandler.GoogleLoginJSON(c)
 					return
 				}
 				app.AuthHandler.GoogleLogin(c)
 			})
-			authGroup.GET("/google/callback", app.AuthHandler.GoogleCallback)
-			authGroup.GET("/providers", app.AuthHandler.ProvidersList)
-			authGroup.POST("/register", app.AuthHandler.Register)
-			authGroup.POST("/login", app.AuthHandler.Login)
+			authLimited.GET("/google/callback", app.AuthHandler.GoogleCallback)
+			// The code is cryptographically random, one-time and valid for two
+			// minutes. It is intentionally outside the generic auth limiter so a
+			// successful provider callback can always complete its own session.
+			authGroup.POST("/exchange", app.AuthHandler.ExchangeGoogleLogin)
+			authLimited.GET("/providers", app.AuthHandler.ProvidersList)
+			authLimited.POST("/register", app.AuthHandler.Register)
+			authLimited.POST("/login", app.AuthHandler.Login)
 		}
 
 		// Webhook 路由（无需鉴权，依靠渠道签名字段验证身份）

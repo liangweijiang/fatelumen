@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -75,7 +76,7 @@ func (s *AuthService) GetLoginURL(ctx context.Context, providerID string) (strin
 func (s *AuthService) HandleCallback(ctx context.Context, providerID string, code, state string) (*LoginResult, error) {
 	// 校验 state（存在即一次性删除；不存在/过期 → 失败）
 	stateKey := "oauth_state:" + state
-	v, err := s.cache.Get(ctx, stateKey)
+	v, err := s.cache.Take(ctx, stateKey)
 	if err != nil {
 		s.log.Error("read oauth state failed", "provider", providerID, "err", err)
 		return nil, fmt.Errorf("invalid or expired state")
@@ -83,9 +84,6 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 	if v == "" {
 		s.log.Warn("oauth state invalid or expired", "provider", providerID)
 		return nil, fmt.Errorf("invalid or expired state")
-	}
-	if err := s.cache.Del(ctx, stateKey); err != nil {
-		s.log.Error("delete oauth state failed", "provider", providerID, "err", err)
 	}
 
 	p, ok := s.authReg.Get(providerID)
@@ -114,9 +112,6 @@ func (s *AuthService) HandleCallback(ctx context.Context, providerID string, cod
 		s.log.Error("upsert user failed", "provider", providerID, "err", err)
 		return nil, fmt.Errorf("upsert user failed: %w", err)
 	}
-
-	// Auto-promote admin users based on configured email list
-	s.ensureAdminRole(user)
 
 	// Block inactive users
 	if !user.Active {
@@ -240,7 +235,6 @@ func (s *AuthService) Register(ctx context.Context, email, password, name string
 		s.log.Warn("create user failed", "email", email, "err", err)
 		return nil, fmt.Errorf("create user failed")
 	}
-	s.ensureAdminRole(user)
 	return s.issueToken(user)
 }
 
@@ -257,8 +251,43 @@ func (s *AuthService) LoginByPassword(ctx context.Context, email, password strin
 	if !user.Active {
 		return nil, fmt.Errorf("account disabled")
 	}
-	s.ensureAdminRole(user)
 	return s.issueToken(user)
+}
+
+// CreateLoginHandoff stores the login result behind a short-lived opaque code.
+// The JWT never appears in a redirect URL or callback page source.
+func (s *AuthService) CreateLoginHandoff(ctx context.Context, result *LoginResult) (string, error) {
+	raw, err := json.Marshal(result)
+	if err != nil {
+		return "", fmt.Errorf("encode login handoff: %w", err)
+	}
+	code := s.genState()
+	if err := s.cache.Set(ctx, "oauth_handoff:"+code, string(raw), 2*time.Minute); err != nil {
+		s.log.Error("store oauth handoff failed", "user_id", result.UserID, "err", err)
+		return "", fmt.Errorf("store login handoff failed")
+	}
+	return code, nil
+}
+
+// ExchangeLoginHandoff consumes a one-time OAuth handoff code.
+func (s *AuthService) ExchangeLoginHandoff(ctx context.Context, code string) (*LoginResult, error) {
+	if code == "" {
+		return nil, fmt.Errorf("login handoff code required")
+	}
+	raw, err := s.cache.Take(ctx, "oauth_handoff:"+code)
+	if err != nil {
+		s.log.Error("read oauth handoff failed", "err", err)
+		return nil, fmt.Errorf("login handoff unavailable")
+	}
+	if raw == "" {
+		return nil, fmt.Errorf("login handoff expired or already used")
+	}
+	var result LoginResult
+	if err := json.Unmarshal([]byte(raw), &result); err != nil {
+		s.log.Error("decode oauth handoff failed", "err", err)
+		return nil, fmt.Errorf("login handoff invalid")
+	}
+	return &result, nil
 }
 
 // issueToken 签发 JWT 并更新 current_token_id（单设备登录），抽出来给注册/登录复用。

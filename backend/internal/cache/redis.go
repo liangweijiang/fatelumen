@@ -31,6 +31,15 @@ func (r *RedisCache) Get(ctx context.Context, key string) (string, error) {
 	return val, err
 }
 
+// Take atomically reads and removes a key.
+func (r *RedisCache) Take(ctx context.Context, key string) (string, error) {
+	val, err := r.client.GetDel(ctx, key).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return val, err
+}
+
 // Set 写入 key-val 并设置 TTL。
 func (r *RedisCache) Set(ctx context.Context, key, val string, ttl time.Duration) error {
 	return r.client.Set(ctx, key, val, ttl).Err()

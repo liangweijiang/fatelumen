@@ -2,6 +2,8 @@ package handler
 
 import (
 	"net/http"
+	"net/url"
+	"strings"
 
 	"fatelumen/backend/internal/auth"
 	"fatelumen/backend/internal/middleware"
@@ -15,10 +17,11 @@ import (
 type AuthHandler struct {
 	svc     *service.AuthService
 	authReg *auth.Registry
+	webBaseURL string
 }
 
-func NewAuthHandler(svc *service.AuthService, authReg *auth.Registry) *AuthHandler {
-	return &AuthHandler{svc: svc, authReg: authReg}
+func NewAuthHandler(svc *service.AuthService, authReg *auth.Registry, webBaseURL string) *AuthHandler {
+	return &AuthHandler{svc: svc, authReg: authReg, webBaseURL: strings.TrimRight(webBaseURL, "/")}
 }
 
 // GoogleLogin GET /api/v1/auth/google/login
@@ -57,6 +60,37 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
+	handoffCode, err := h.svc.CreateLoginHandoff(c.Request.Context(), result)
+	if err != nil {
+		response.Error(c, "login handoff failed")
+		return
+	}
+	if h.webBaseURL == "" {
+		response.Error(c, "web callback is not configured")
+		return
+	}
+	callbackURL := h.webBaseURL + "/login/callback?code=" + url.QueryEscape(handoffCode)
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusFound, callbackURL)
+}
+
+type exchangeLoginRequest struct {
+	Code string `json:"code"`
+}
+
+// ExchangeGoogleLogin POST /api/v1/auth/exchange consumes the short-lived
+// one-time code returned to the frontend after Google authorization.
+func (h *AuthHandler) ExchangeGoogleLogin(c *gin.Context) {
+	var req exchangeLoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid request body")
+		return
+	}
+	result, err := h.svc.ExchangeLoginHandoff(c.Request.Context(), req.Code)
+	if err != nil {
+		response.Fail(c, response.CodeUnauthorized, "login session expired, please try again")
+		return
+	}
 	response.OK(c, result)
 }
 

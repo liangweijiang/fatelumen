@@ -35,19 +35,11 @@ func (r *UserRepo) FindByID(id uint64) (*model.User, error) {
 	return &user, nil
 }
 
-// UpsertByGoogleSub 按 google_sub 创建或更新用户。
+// UpsertByGoogleSub only creates a Google user on first login. Existing
+// user-edited fields must not be overwritten by a later provider login.
 func (r *UserRepo) UpsertByGoogleSub(user *model.User) (*model.User, error) {
 	existing, err := r.FindByGoogleSub(user.GoogleSub)
 	if err == nil {
-		existing.Email = user.Email
-		existing.Name = user.Name
-		existing.AvatarURL = user.AvatarURL
-		if existing.Locale == "" {
-			existing.Locale = "en"
-		}
-		if err := r.db.Save(existing).Error; err != nil {
-			return nil, err
-		}
 		return existing, nil
 	}
 	if err != gorm.ErrRecordNotFound {

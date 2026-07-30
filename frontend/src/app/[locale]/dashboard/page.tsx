@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { getMe, listReports } from "@/lib/api/endpoints";
+import { removeToken } from "@/lib/auth-storage";
 import type { User, Report } from "@/types/api";
 import Link from "next/link";
 
@@ -22,13 +23,16 @@ export default function DashboardPage() {
     let alive = true;
     async function load() {
       try {
-        const [me, reps] = await Promise.all([getMe(), listReports()]);
+		const [me, reps] = await Promise.all([getMe(), listReports()]);
         if (alive) {
           setUser(me);
           setReports(reps);
         }
       } catch {
-        // silently handle
+        // A localStorage value is not proof of a valid session. Clear an
+        // expired/revoked token rather than rendering a misleading empty page.
+        removeToken();
+        router.replace(`/login?lang=${locale}`);
       } finally {
         if (alive) setLoading(false);
       }
@@ -37,7 +41,7 @@ export default function DashboardPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [locale, router]);
 
   function statusChip(status: string) {
     if (status === "done") return <Chip color="done" label={t("status_done")} />;

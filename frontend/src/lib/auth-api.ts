@@ -26,3 +26,11 @@ export async function login(email: string, password: string): Promise<LoginResul
   if (result?.token) setToken(result.token);
   return result;
 }
+
+export async function exchangeGoogleLogin(code: string): Promise<LoginResult> {
+  const { data } = await api.post("/auth/exchange", { code });
+  const result = unwrap<LoginResult>(data);
+  if (!result?.token) throw new Error("Google login did not return a session");
+  setToken(result.token);
+  return result;
+}

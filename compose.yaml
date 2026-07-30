@@ -1,0 +1,94 @@
+name: fatelumen
+
+services:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root123
+      MYSQL_DATABASE: fatelumen
+      MYSQL_USER: fatelumen
+      MYSQL_PASSWORD: fatelumen123
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      target: development
+    env_file:
+      - path: ./backend/.env.local
+        required: false
+    command: go run ./cmd/server
+    working_dir: /src
+    environment:
+      APP_ENV: development
+      APP_PORT: "8080"
+      APP_BASE_URL: http://localhost:8080
+      WEB_BASE_URL: http://localhost:3000
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_USER: fatelumen
+      DB_PASSWORD: fatelumen123
+      DB_NAME: fatelumen
+      REDIS_ADDR: redis:6379
+      PAYMENT_PROVIDERS: ""
+      DEEPSEEK_API_KEY: local-development-placeholder
+      NOTIFIER: noop
+      LOCAL_STORAGE_DIR: /data/storage
+      CHROMIUM_PATH: /usr/bin/chromium
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend:/src
+      - go_pkg:/go/pkg/mod
+      - backend_storage:/data/storage
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
+  redis_data:
+  go_pkg:
+  backend_storage:
+  frontend_node_modules:
+  frontend_next:
