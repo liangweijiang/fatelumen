@@ -18,10 +18,10 @@ import (
 // ---------- fakes ----------
 
 type fakeReadingStore struct {
-	mu      sync.Mutex
-	items   map[uint64]*model.Reading
-	nextID  uint64
-	errOn   string // "create" / "update"
+	mu     sync.Mutex
+	items  map[uint64]*model.Reading
+	nextID uint64
+	errOn  string // "create" / "update"
 }
 
 func newFakeReadingStore() *fakeReadingStore {
@@ -82,15 +82,24 @@ func (f *fakeProfileGetter) FindByID(id uint64) (*model.BirthProfile, error) {
 
 func newFakeProfile() *model.BirthProfile {
 	return &model.BirthProfile{
-		ID:           1,
-		UserID:       42,
-		Gender:       1,
-		CalendarType: 0,
-		BirthYear:    1990,
-		BirthMonth:   8,
-		BirthDay:     15,
-		BirthHour:    14,
-		BirthMinute:  30,
+		ID:             1,
+		UserID:         42,
+		Gender:         1,
+		CalendarType:   0,
+		BirthYear:      1990,
+		BirthMonth:     8,
+		BirthDay:       15,
+		BirthHour:      14,
+		BirthMinute:    30,
+		BirthPlace:     "Shanghai, China",
+		CountryCode:    "CN",
+		CountryName:    "China",
+		RegionName:     "Shanghai",
+		City:           "Shanghai",
+		Timezone:       "Asia/Shanghai",
+		Longitude:      121.4737,
+		Latitude:       31.2304,
+		HasCoordinates: true,
 	}
 }
 

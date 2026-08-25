@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"fatelumen/backend/internal/bazi"
+	"fatelumen/backend/internal/birthchart"
 	"fatelumen/backend/internal/job"
 	"fatelumen/backend/internal/llm"
 	"fatelumen/backend/internal/llm/prompts"
 	"fatelumen/backend/internal/model"
-	"fatelumen/backend/internal/pkg/hash"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
@@ -40,6 +39,7 @@ type reportHandler struct {
 	renderer    renderer.Renderer
 	storage     storage.Storage
 	reportRepo  reportGetter
+	chartEngine birthchart.Engine
 }
 
 func NewReportHandler(
@@ -49,7 +49,12 @@ func NewReportHandler(
 	renderer renderer.Renderer,
 	storage storage.Storage,
 	reportRepo *repository.ReportRepo,
+	engines ...birthchart.Engine,
 ) job.JobHandler {
+	var engine birthchart.Engine = birthchart.NewDefaultEngine()
+	if len(engines) > 0 && engines[0] != nil {
+		engine = engines[0]
+	}
 	return &reportHandler{
 		profileRepo: profileRepo,
 		chartRepo:   chartRepo,
@@ -57,6 +62,7 @@ func NewReportHandler(
 		renderer:    renderer,
 		storage:     storage,
 		reportRepo:  reportRepo,
+		chartEngine: engine,
 	}
 }
 
@@ -110,7 +116,7 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		return existingReport.PDFURL, nil
 	}
 
-	// 2. 取 Profile → bazi.Calculate 排盘（确定性，P1）
+	// 2. 取 Profile → 唯一 BirthChartEngine 排盘（确定性，P1）
 	profile, err := h.profileRepo.FindByID(profileID)
 	if err != nil {
 		logger.FromCtx(ctx).Error("profile not found for report", "err", err,
@@ -119,30 +125,23 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 	}
 
 	isLeap := profile.IsLeapMonth == 1
-	chartData, err := bazi.Calculate(bazi.BirthInput{
-		Gender:       profile.Gender,
-		CalendarType: profile.CalendarType,
-		Year:         int(profile.BirthYear),
-		Month:        int(profile.BirthMonth),
-		Day:          int(profile.BirthDay),
-		Hour:         int(profile.BirthHour),
-		Minute:       int(profile.BirthMinute),
-		IsLeapMonth:  isLeap,
-		Longitude:    profile.Longitude,
+	engine := h.chartEngine
+	if engine == nil {
+		engine = birthchart.NewDefaultEngine()
+	}
+	chartResult, err := engine.Calculate(ctx, birthchart.Input{
+		Gender: profile.Gender, CalendarType: profile.CalendarType, Year: int(profile.BirthYear), Month: int(profile.BirthMonth), Day: int(profile.BirthDay), Hour: int(profile.BirthHour), Minute: int(profile.BirthMinute), IsLeapMonth: isLeap,
+		Location: birthchart.LocationInput{CountryCode: profile.CountryCode, CountryName: profile.CountryName, RegionCode: profile.RegionCode, RegionName: profile.RegionName, City: profile.City, PlaceID: profile.PlaceID, DisplayName: profile.BirthPlace, Latitude: profile.Latitude, Longitude: profile.Longitude, TimezoneID: profile.Timezone, HasCoordinates: profile.HasCoordinates || profile.Latitude != 0 || profile.Longitude != 0},
 	})
 	if err != nil {
-		logger.FromCtx(ctx).Error("bazi calculate failed", "err", err,
+		logger.FromCtx(ctx).Error("birth chart engine failed", "err", err,
 			"report_id", reportID, "profile_id", profileID)
-		return "", fmt.Errorf("bazi calculate: %w", err)
+		return "", fmt.Errorf("birth chart calculate: %w", err)
 	}
+	chartData := chartResult.Chart
 
 	// 排盘落库（可复用）
-	chartHash := hash.CalcChartHash(
-		profile.Gender, profile.CalendarType,
-		int(profile.BirthYear), int(profile.BirthMonth), int(profile.BirthDay),
-		int(profile.BirthHour), int(profile.BirthMinute),
-		isLeap, profile.Timezone,
-	)
+	chartHash := BuildChartHash(profile.Gender, profile.CalendarType, int(profile.BirthYear), int(profile.BirthMonth), int(profile.BirthDay), int(profile.BirthHour), int(profile.BirthMinute), isLeap, chartResult)
 
 	var chartID uint64
 	existing, err := h.chartRepo.FindByHash(chartHash)

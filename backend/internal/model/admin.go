@@ -15,6 +15,7 @@ type AdminUser struct {
 	RoleID       uint64     `gorm:"not null" json:"role_id"`
 	TOTPSecret   string     `gorm:"type:varchar(64)" json:"-"`
 	Status       string     `gorm:"type:varchar(16);not null;default:'active'" json:"status"`
+	CurrentTokenID string   `gorm:"type:varchar(64)" json:"-"`
 	LastLoginAt  *time.Time `json:"last_login_at"`
 	CreatedAt    time.Time  `gorm:"not null" json:"created_at"`
 	UpdatedAt    time.Time  `gorm:"not null" json:"updated_at"`

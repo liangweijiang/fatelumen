@@ -15,8 +15,8 @@ import (
 
 // AuthHandler 认证相关 HTTP 处理器。
 type AuthHandler struct {
-	svc     *service.AuthService
-	authReg *auth.Registry
+	svc        *service.AuthService
+	authReg    *auth.Registry
 	webBaseURL string
 }
 

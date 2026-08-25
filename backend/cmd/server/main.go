@@ -11,6 +11,7 @@ import (
 
 	"fatelumen/backend/internal/admin/resource"
 	"fatelumen/backend/internal/auth"
+	"fatelumen/backend/internal/birthchart"
 	"fatelumen/backend/internal/cache"
 	"fatelumen/backend/internal/config"
 	"fatelumen/backend/internal/handler"
@@ -74,14 +75,21 @@ func main() {
 			log.Fatal("failed to auto migrate", "err", err)
 		}
 		log.Info("auto migrate completed")
+		if err := repository.SeedDevelopmentPricingPlans(db); err != nil {
+			log.Fatal("failed to seed development pricing plans", "err", err)
+		}
+		log.Info("development pricing plans ready", "plan_count", 2, "locale_count", 4)
 	}
 
 	// 依赖注入
 	authMW := middleware.NewAuthMiddleware(cfg.JWTSecret, db)
+	adminAuthMW := middleware.NewAdminAuthMiddleware(cfg.AdminJWTSecret, db)
 
 	userRepo := repository.NewUserRepo(db)
 	profileRepo := repository.NewProfileRepo(db)
 	chartRepo := repository.NewChartRepo(db)
+	freeChartRepo := repository.NewFreeChartRepo(db)
+	geoRepo := repository.NewGeoRepo(db)
 	readingRepo := repository.NewReadingRepo(db)
 	reportRepo := repository.NewReportRepo(db)
 	orderRepo := repository.NewOrderRepo(db)
@@ -111,7 +119,14 @@ func main() {
 
 	authSvc := service.NewAuthService(userRepo, authReg, cfg.JWTSecret, cfg.JWTExpireHours, cfg.AdminEmails, c, log)
 	profileSvc := service.NewProfileService(profileRepo)
-	chartSvc := service.NewChartService(chartRepo, profileRepo)
+	var locationResolver birthchart.LocationResolver = repository.NewGeoLocationResolver(geoRepo)
+	profileSvc.SetLocationResolver(locationResolver)
+	log.Info("location resolver initialized", "type", "fixed_geonames_database", "version", repository.GeoLocationVersion)
+	baseChartEngine := birthchart.NewEngine(birthchart.DefaultInputNormalizer{}, locationResolver, birthchart.IANATimezoneResolver{}, birthchart.DefaultSolarTimeEngine{}, birthchart.LunarGoCalculator{})
+	chartEngine := birthchart.NewCachedEngine(baseChartEngine, c, 30*24*time.Hour)
+	chartSvc := service.NewChartService(chartRepo, profileRepo, chartEngine)
+	freeChartSvc := service.NewFreeChartService(chartEngine, freeChartRepo)
+	freeChartSvc.SetLocationValidator(locationResolver)
 
 	var llmProvider llm.LLMProvider
 	switch cfg.LLMProvider {
@@ -170,7 +185,7 @@ func main() {
 
 	// Report service + handler
 	reportSvc := service.NewReportService(reportRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits)
-	reportHandler := service.NewReportHandler(profileRepo, chartRepo, llmProvider, imgRenderer, fileStorage, reportRepo)
+	reportHandler := service.NewReportHandler(profileRepo, chartRepo, llmProvider, imgRenderer, fileStorage, reportRepo, chartEngine)
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
@@ -241,8 +256,16 @@ func main() {
 	resourceHandler := handler.NewResourceHandler(adminRegistry, auditRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc, authReg, cfg.WebBaseURL)
+	adminAuthHandler := handler.NewAdminAuthHandler(db, c, cfg.AdminJWTSecret, cfg.AdminJWTExpireHours)
+	contentHandler := handler.NewContentHandler(db)
+	pricingHandler := handler.NewPricingHandler(db)
+	reportInputHandler := handler.NewReportInputHandler(profileSvc, reportSvc)
 	profileHandler := handler.NewProfileHandler(profileSvc)
 	chartHandler := handler.NewChartHandler(chartSvc)
+	freeChartHandler := handler.NewFreeChartHandler(freeChartSvc)
+	geoHandler := handler.NewGeoHandler(geoRepo)
+	adminGeoHandler := handler.NewAdminGeoHandler(geoRepo, auditRepo)
+	locationHandler := handler.NewLocationHandler(locationResolver)
 	readingHandler := handler.NewReadingHandler(readingSvc)
 
 	// Rate limiters — always non-nil (no-op passthrough when disabled)
@@ -263,23 +286,32 @@ func main() {
 	}
 
 	app := &router.App{
-		StaticDir:        cfg.LocalStorageDir,
-		DB:               db,
-		Auth:             authMW,
-		HealthChecker:    router.NewDBHealthChecker(db),
-		AuthHandler:      authHandler,
-		ProfHandler:      profileHandler,
-		ChartHandler:     chartHandler,
-		ReadingHandler:   readingHandler,
-		ReportHandler:    reportHTTPHandler,
-		OrderHandler:     orderHTTPHandler,
-		WebhookHandler:   webhookHandler,
-		DevPayHandler:    devPayHandler,
-		AdminHandler:     adminHTTPHandler,
-		ResourceHandler:  resourceHandler,
-		RateLimitAuth:    rlAuth,
-		RateLimitReading: rlReading,
-		RateLimitOrder:   rlOrder,
+		StaticDir:          cfg.LocalStorageDir,
+		DB:                 db,
+		Auth:               authMW,
+		AdminAuth:          adminAuthMW,
+		HealthChecker:      router.NewDBHealthChecker(db),
+		AuthHandler:        authHandler,
+		AdminAuthHandler:   adminAuthHandler,
+		ContentHandler:     contentHandler,
+		PricingHandler:     pricingHandler,
+		ReportInputHandler: reportInputHandler,
+		ProfHandler:        profileHandler,
+		ChartHandler:       chartHandler,
+		FreeChartHandler:   freeChartHandler,
+		GeoHandler:         geoHandler,
+		AdminGeoHandler:    adminGeoHandler,
+		LocationHandler:    locationHandler,
+		ReadingHandler:     readingHandler,
+		ReportHandler:      reportHTTPHandler,
+		OrderHandler:       orderHTTPHandler,
+		WebhookHandler:     webhookHandler,
+		DevPayHandler:      devPayHandler,
+		AdminHandler:       adminHTTPHandler,
+		ResourceHandler:    resourceHandler,
+		RateLimitAuth:      rlAuth,
+		RateLimitReading:   rlReading,
+		RateLimitOrder:     rlOrder,
 	}
 	engine := router.Setup(app)
 
@@ -341,6 +373,8 @@ func autoMigrate(db *gorm.DB) error {
 		&model.UserIdentity{},
 		&model.BirthProfile{},
 		&model.Chart{},
+		&model.FreeChartRecord{},
+		&model.GeoCountry{}, &model.GeoCity{},
 		&model.Reading{},
 		&model.Report{},
 		&model.Order{},
@@ -350,6 +384,8 @@ func autoMigrate(db *gorm.DB) error {
 		&model.AdminUser{},
 		&model.AdminRole{},
 		&model.AdminAuditLog{},
+		&model.ContentItem{},
+		&model.PricingPlan{},
 		&model.ProcessedWebhookEvent{},
 		&job.Job{},
 	)

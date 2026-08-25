@@ -14,6 +14,14 @@ import type {
   CreateOrderPayload,
   CreateOrderResult,
   UnlockReportResult,
+  FreeChartPayload,
+  FreeChartResult,
+  FreeChartPage,
+  FreeChartLocation,
+  FreeChartLocationInput,
+  GeoCountry,
+  GeoCity,
+  GeoPage,
 } from "@/types/api";
 
 // ── Auth ──
@@ -84,8 +92,52 @@ export async function listReadings(): Promise<Reading[]> {
 }
 
 // ── Reports ──
-export async function createReport(payload: CreateReportPayload): Promise<Report> {
+export async function createReport(payload: CreateReportPayload): Promise<{ report_id: number; status: string }> {
   const { data } = await api.post("/reports", payload);
+  return data.data ?? data;
+}
+
+// ── Free charts ──
+export async function resolveFreeChartLocation(payload: FreeChartLocationInput): Promise<FreeChartLocation> {
+  const { data } = await api.post("/locations/resolve", payload);
+  return data.data ?? data;
+}
+export async function createFreeChart(payload: FreeChartPayload): Promise<FreeChartResult> {
+  const { data } = await api.post("/free-charts", payload); return data.data ?? data;
+}
+export async function listFreeCharts(page: number, pageSize: number): Promise<FreeChartPage> {
+  const { data } = await api.get("/free-charts", { params: { page, page_size: pageSize } }); return data.data ?? data;
+}
+export async function getFreeChart(id: number): Promise<FreeChartResult> {
+  const { data } = await api.get(`/free-charts/${id}`); return data.data ?? data;
+}
+export async function deleteFreeChart(id: number): Promise<void> { await api.delete(`/free-charts/${id}`); }
+export async function batchDeleteFreeCharts(ids: number[]): Promise<number> {
+  const { data } = await api.post("/free-charts/batch-delete", { ids }); return (data.data ?? data).deleted_count;
+}
+export async function listGeoCountries(locale: string, page = 1, pageSize = 100): Promise<GeoPage<GeoCountry>> {
+  const { data } = await api.get("/geo/countries", { params: { locale, page, page_size: pageSize } });
+  return data.data ?? data;
+}
+export async function listGeoCities(countryCode: string, query: string, locale: string, page = 1, pageSize = 50): Promise<GeoPage<GeoCity>> {
+  const { data } = await api.get("/geo/cities", { params: { country_code: countryCode, q: query, locale, page, page_size: pageSize } });
+  return data.data ?? data;
+}
+
+export async function updateProfile(id: number, payload: CreateProfilePayload): Promise<BirthProfile> {
+  const { data } = await api.patch(`/profiles/${id}`, payload);
+  return data.data ?? data;
+}
+
+export type ReportProfileSaveAction = "existing" | "none" | "new" | "update";
+
+export async function createReportFromInput(payload: {
+  profile: CreateProfilePayload;
+  save_action: ReportProfileSaveAction;
+  target_profile_id?: number;
+  locale: string;
+}): Promise<{ report_id: number; status: string; profile_id: number; profile_saved: boolean; save_action: ReportProfileSaveAction }> {
+  const { data } = await api.post("/reports/from-input", payload);
   return data.data ?? data;
 }
 

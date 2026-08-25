@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"fatelumen/backend/internal/model"
@@ -64,7 +65,7 @@ type adminCountStore interface {
 // ---------- AdminUserService ----------
 
 type AdminUserService struct {
-	userRepo adminUserStore
+	userRepo  adminUserStore
 	countRepo adminCountStore
 }
 
@@ -115,7 +116,7 @@ func (s *AdminUserService) GetUserDetail(ctx context.Context, userID uint64) (*A
 
 	return &AdminUserDetail{
 		ID:           user.ID,
-		Email:        user.Email,
+		Email:        maskAdminEmail(user.Email),
 		Name:         user.Name,
 		Role:         user.Role,
 		Active:       user.Active,
@@ -180,7 +181,7 @@ func (s *AdminUserService) SetUserUnlimited(ctx context.Context, operatorID, tar
 func toAdminUserItem(u model.User) AdminUserItem {
 	return AdminUserItem{
 		ID:        u.ID,
-		Email:     u.Email,
+		Email:     maskAdminEmail(u.Email),
 		Name:      u.Name,
 		Role:      u.Role,
 		Active:    u.Active,
@@ -189,13 +190,25 @@ func toAdminUserItem(u model.User) AdminUserItem {
 	}
 }
 
+func maskAdminEmail(email string) string {
+	at := strings.IndexByte(email, '@')
+	if at <= 0 {
+		return "***"
+	}
+	prefix := email[:at]
+	if len(prefix) > 2 {
+		prefix = prefix[:2]
+	}
+	return prefix + "***" + email[at:]
+}
+
 // ---------- count bridge ----------
 
 type repoCountBridge struct {
-	orders   interface {
+	orders interface {
 		CountByUser(userID uint64) (int64, error)
 	}
-	reports  interface {
+	reports interface {
 		CountByUser(userID uint64) (int64, error)
 	}
 }

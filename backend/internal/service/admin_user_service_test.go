@@ -12,23 +12,23 @@ import (
 
 // ---------- fakes ----------
 type fakeAdminUserStore struct {
-	users     []model.User
-	total     int64
-	listErr   error
-	keyword   string // captured
-	getUser   *model.User
-	getErr    error
-	activeSet map[uint64]bool
-	activeErr error
-	unlimitedSet map[uint64]bool
-	unlimitedErr error
-	tokenCleared map[uint64]bool
+	users         []model.User
+	total         int64
+	listErr       error
+	keyword       string // captured
+	getUser       *model.User
+	getErr        error
+	activeSet     map[uint64]bool
+	activeErr     error
+	unlimitedSet  map[uint64]bool
+	unlimitedErr  error
+	tokenCleared  map[uint64]bool
 	clearTokenErr error
 }
 
 func newFakeAdminUserStore() *fakeAdminUserStore {
 	return &fakeAdminUserStore{
-		activeSet: make(map[uint64]bool),
+		activeSet:    make(map[uint64]bool),
 		unlimitedSet: make(map[uint64]bool),
 		tokenCleared: make(map[uint64]bool),
 	}
@@ -41,7 +41,6 @@ func (f *fakeAdminUserStore) ListUsers(keyword string, limit, offset int) ([]mod
 	f.keyword = keyword
 	return f.users, f.total, nil
 }
-
 
 func (f *fakeAdminUserStore) GetUserByID(id uint64) (*model.User, error) {
 	if f.getErr != nil {
@@ -194,10 +193,10 @@ func TestAdminGetUserDetail_NotFound(t *testing.T) {
 // TestToAdminUserItem_NoSensitiveFields verifies the DTO has no password/salt fields.
 func TestToAdminUserItem_NoSensitiveFields(t *testing.T) {
 	u := model.User{
-		ID:    1,
-		Email: "user@x.com",
-		Name:  "Test",
-		Role:  model.RoleUser,
+		ID:     1,
+		Email:  "user@x.com",
+		Name:   "Test",
+		Role:   model.RoleUser,
 		Active: true,
 	}
 	item := toAdminUserItem(u)

@@ -83,6 +83,7 @@ export default function MobileDrawer({
   const navLinks = [
     { href: `${homeHref}#how`, label: t("howItWorks") },
     { href: `${homeHref}#report`, label: t("sample") },
+    { href: `/${locale}/free-chart`, label: t("freeChart") },
     { href: `${homeHref}#pricing`, label: t("pricing") },
     { href: `${homeHref}#faq`, label: t("faq") },
     { href: `/${locale}/learn`, label: t("learn") },

@@ -15,22 +15,24 @@ import (
 const CalcVersion = "lunar-go v1.4.6"
 
 type BirthInput struct {
-	Gender       int8 // 0=female 1=male
-	CalendarType int8 // 0=solar(Gregorian) 1=lunar
-	Year         int
-	Month        int
-	Day          int
-	Hour         int // 0-23, -1 for unknown
-	Minute       int // 0-59
-	IsLeapMonth  bool
-	Longitude    float64 // 经度(东经为正)
+	Gender          int8 // 0=female 1=male
+	CalendarType    int8 // 0=solar(Gregorian) 1=lunar
+	Year            int
+	Month           int
+	Day             int
+	Hour            int // 0-23, -1 for unknown
+	Minute          int // 0-59
+	IsLeapMonth     bool
+	Longitude       float64 // Deprecated: true solar time is calculated by birthchart.Engine.
+	NormalizedSolar bool
+	DayBoundaryRule string
 }
 
 func Calculate(in BirthInput) (*model.ChartData, error) {
 	var solar *calendar.Solar
 	var lunar *calendar.Lunar
 
-	if in.CalendarType == 0 {
+	if in.NormalizedSolar || in.CalendarType == 0 {
 		h := in.Hour
 		if h < 0 {
 			h = 0
@@ -49,6 +51,11 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 	}
 
 	eightChar := calendar.NewEightChar(lunar)
+	if in.DayBoundaryRule == "LATE_ZI_23" {
+		eightChar.SetSect(1)
+	} else {
+		eightChar.SetSect(2)
+	}
 
 	hourUnknown := in.Hour < 0
 

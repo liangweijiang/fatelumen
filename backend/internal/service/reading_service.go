@@ -37,13 +37,13 @@ type quotaChecker interface {
 
 // ReadingService 简单测算业务编排。
 type ReadingService struct {
-	readingRepo    readingStore
-	profileRepo    profileGetter
-	chartService   chartProvider
-	quotaService   quotaChecker
-	llmProvider    llm.LLMProvider
-	imgRenderer    renderer.Renderer
-	fileStorage    storage.Storage
+	readingRepo  readingStore
+	profileRepo  profileGetter
+	chartService chartProvider
+	quotaService quotaChecker
+	llmProvider  llm.LLMProvider
+	imgRenderer  renderer.Renderer
+	fileStorage  storage.Storage
 }
 
 func NewReadingService(

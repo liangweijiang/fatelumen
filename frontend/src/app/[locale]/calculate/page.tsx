@@ -1,19 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { createProfile, createReport } from "@/lib/api/endpoints";
-
-const timezones = [
-  { value: "Asia/Shanghai", label: "UTC+08:00 中国" },
-  { value: "Asia/Tokyo", label: "UTC+09:00 日韩" },
-  { value: "Europe/London", label: "UTC+00:00 格林尼治 (UTC)" },
-  { value: "America/New_York", label: "UTC-05:00 美东" },
-  { value: "America/Los_Angeles", label: "UTC-08:00 美西" },
-];
+import { createReportFromInput, listGeoCities, listGeoCountries } from "@/lib/api/endpoints";
+import type { CreateProfilePayload, GeoCity, GeoCountry } from "@/types/api";
+import { normalizeLocale } from "@/lib/location-options";
+import { timeZoneOptions } from "@/lib/timezone-options";
+import { CitySearchField } from "./CitySearchField";
 
 function stripLeadingZero(v: string): number {
   if (v === "" || v === "-") return 0;
@@ -21,11 +17,24 @@ function stripLeadingZero(v: string): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function daysInSolarMonth(year: number, month: number): number {
+  if (month === 2) {
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return leap ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function localizedName(item: GeoCountry | GeoCity, locale: "en" | "zh" | "ja" | "ko") {
+  return item[`name_${locale}`] || item.name_en;
+}
+
 export default function CalculatePage() {
   const t = useTranslations("calculate");
   const router = useRouter();
   const params = useParams();
   const locale = (params?.locale as string) || "en";
+  const locationLocale = normalizeLocale(locale);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -36,59 +45,125 @@ export default function CalculatePage() {
   const [birthDay, setBirthDay] = useState(1);
   const [birthHour, setBirthHour] = useState(12);
   const [birthMinute, setBirthMinute] = useState(0);
-  const [hourUnknown, setHourUnknown] = useState(false);
   const [isLeapMonth, setIsLeapMonth] = useState(false);
-  const [timezone, setTimezone] = useState("Asia/Shanghai");
-  const [birthPlace, setBirthPlace] = useState("");
+  const [countryCode, setCountryCode] = useState("");
+  const [countryQuery, setCountryQuery] = useState("");
+  const [regionQuery, setRegionQuery] = useState("");
+  const [geoCountries, setGeoCountries] = useState<GeoCountry[]>([]);
+  const [geoCities, setGeoCities] = useState<GeoCity[]>([]);
+  const [selectedCity, setSelectedCity] = useState<GeoCity | null>(null);
+  const [cityLoading, setCityLoading] = useState(false);
+  const [cityLoadingMore, setCityLoadingMore] = useState(false);
+  const [cityPage, setCityPage] = useState(1);
+  const [cityTotal, setCityTotal] = useState(0);
   const [longitude, setLongitude] = useState("");
   const [latitude, setLatitude] = useState("");
+  const [timezone, setTimezone] = useState("UTC");
   const [displayName, setDisplayName] = useState("");
   const [depth, setDepth] = useState<"quick" | "deep">("deep");
 
+  const selectedCountry = geoCountries.find((country) => country.code === countryCode);
+  const countryOptions = useMemo(() => geoCountries.map((item) => ({ code: item.code, label: localizedName(item, locationLocale) })), [geoCountries, locationLocale]);
+  const timezoneOptions = useMemo(() => timeZoneOptions(new Date(birthYear, Math.max(0, birthMonth - 1), Math.max(1, birthDay), birthHour, birthMinute)), [birthDay, birthHour, birthMinute, birthMonth, birthYear]);
+
+  useEffect(() => { setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"); }, []);
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const first = await listGeoCountries(locationLocale, 1, 100);
+        const pages = Math.ceil(first.total / first.page_size);
+        const rest = await Promise.all(Array.from({ length: Math.max(0, pages - 1) }, (_, index) => listGeoCountries(locationLocale, index + 2, 100)));
+        if (active) setGeoCountries([...(first.items ?? []), ...rest.flatMap((page) => page.items ?? [])]);
+      } catch { if (active) toast.error(t("locationUnavailable")); }
+    })();
+    return () => { active = false; };
+  }, [locationLocale, t]);
+
+  useEffect(() => {
+    const query = regionQuery.trim();
+    if (!countryCode) { setGeoCities([]); setCityTotal(0); setCityLoading(false); return; }
+    if (selectedCity && localizedName(selectedCity, locationLocale) === regionQuery) { setCityLoading(false); return; }
+    let active = true;
+    setCityLoading(true);
+    const timer = window.setTimeout(() => {
+      void listGeoCities(countryCode, query, locationLocale, 1).then((result) => {
+        if (active) { setGeoCities(result.items ?? []); setCityTotal(result.total ?? 0); setCityPage(1); }
+      }).catch(() => { if (active) toast.error(t("locationUnavailable")); }).finally(() => { if (active) setCityLoading(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [countryCode, locationLocale, regionQuery, selectedCity, t]);
+
+  const loadMoreCities = useCallback(async () => {
+    if (!countryCode || cityLoadingMore || geoCities.length >= cityTotal) return;
+    setCityLoadingMore(true);
+    try {
+      const next = cityPage + 1;
+      const result = await listGeoCities(countryCode, regionQuery.trim(), locationLocale, next);
+      setGeoCities((current) => { const seen = new Set(current.map((city) => city.id)); return [...current, ...result.items.filter((city) => !seen.has(city.id))]; });
+      setCityPage(next); setCityTotal(result.total ?? cityTotal);
+    } catch { toast.error(t("locationUnavailable")); }
+    finally { setCityLoadingMore(false); }
+  }, [cityLoadingMore, cityPage, cityTotal, countryCode, geoCities.length, locationLocale, regionQuery, t]);
+
+  function buildProfileInput(): CreateProfilePayload | null {
+    const lng = longitude.trim() ? Number(longitude) : undefined;
+    const lat = latitude.trim() ? Number(latitude) : undefined;
+    const maxDay = calendarType === 1 ? 30 : daysInSolarMonth(birthYear, birthMonth);
+    const completePlace = Boolean(selectedCountry && selectedCity);
+    const hasPlaceInput = Boolean(countryQuery.trim() || regionQuery.trim());
+    const completeCoordinates = lng !== undefined && lat !== undefined && Number.isFinite(lng) && Number.isFinite(lat);
+    const hasCoordinateInput = Boolean(longitude.trim() || latitude.trim());
+    if (birthYear < 1 || birthYear > 9999 || birthMonth < 1 || birthMonth > 12 ||
+      birthDay < 1 || birthDay > maxDay || birthHour < 0 || birthHour > 23 ||
+      birthMinute < 0 || birthMinute > 59 ||
+      (hasPlaceInput && !completePlace) ||
+      (hasCoordinateInput && !completeCoordinates) ||
+      (lng !== undefined && (Number.isNaN(lng) || lng < -180 || lng > 180)) ||
+      (lat !== undefined && (Number.isNaN(lat) || lat < -90 || lat > 90))) {
+      toast.error(t("invalidInput"));
+      return null;
+    }
+    if (!completePlace && !completeCoordinates) { toast.error(t("locationRequired")); return null; }
+    if (completePlace && completeCoordinates && (Math.abs(lng! - selectedCity!.longitude) > 0.0001 || Math.abs(lat! - selectedCity!.latitude) > 0.0001)) { toast.error(t("locationConflict")); return null; }
+    if (!timezone.trim() || !timezoneOptions.some((item) => item.value === timezone)) { toast.error(t("timezoneInvalid")); return null; }
+    const birthPlace = completePlace ? `${selectedCity!.name_en}, ${selectedCountry!.name_en}` : undefined;
+    return {
+      calendar_type: calendarType,
+      gender,
+      birth_year: birthYear,
+      birth_month: birthMonth,
+      birth_day: birthDay,
+      birth_hour: birthHour,
+      birth_minute: birthMinute,
+      is_leap_month: isLeapMonth,
+      birth_place: birthPlace,
+      country_code: selectedCountry?.code,
+      country_name: selectedCountry?.name_en,
+      region_code: selectedCity?.admin1_code,
+      region_name: selectedCity?.name_en,
+      city: selectedCity?.name_en,
+      place_id: selectedCity ? String(selectedCity.id) : undefined,
+      timezone,
+      longitude: lng,
+      latitude: lat,
+      has_coordinates: completeCoordinates,
+      display_name: displayName.trim() || undefined,
+    };
+  }
+
   async function handleSubmit() {
+    const profileInput = buildProfileInput();
+    if (!profileInput) return;
     setSubmitting(true);
     try {
-      const lng = longitude.trim() ? Number(longitude) : undefined;
-      const profile = await createProfile({
-        calendar_type: calendarType,
-        gender,
-        birth_year: birthYear,
-        birth_month: birthMonth,
-        birth_day: birthDay,
-        birth_hour: hourUnknown ? -1 : birthHour,
-        birth_minute: hourUnknown ? 0 : birthMinute,
-        is_leap_month: isLeapMonth,
-        birth_place: birthPlace.trim() || undefined,
-        timezone,
-        longitude: lng !== undefined && !Number.isNaN(lng) ? lng : undefined,
-        display_name: displayName || undefined,
-      } as unknown as Parameters<typeof createProfile>[0]);
-
-      const profileId = (profile as { id?: number }).id;
-      if (!profileId) {
-        toast.error(t("error"));
-        return;
-      }
-
       if (depth === "quick") {
-        router.push(`/${locale}/reading/${profileId}`);
+        toast.error("Quick Reading will be available after the deterministic chart flow is completed.");
         return;
       }
 
-      const report = await createReport({
-        profile_id: profileId,
-        locale,
-      });
-
-      const reportId =
-        (report as { report_id?: number; id?: number }).report_id ??
-        (report as { id?: number }).id;
-      if (!reportId) {
-        toast.error(t("error"));
-        return;
-      }
-
-      router.push(`/${locale}/reports/${reportId}`);
+      const report = await createReportFromInput({ profile: profileInput, save_action: "new", locale });
+      router.push(`/${locale}/reports/${report.report_id}`);
     } catch {
       toast.error(t("error"));
     } finally {
@@ -127,6 +202,23 @@ export default function CalculatePage() {
             boxShadow: "0 10px 36px -18px oklch(35% 0.04 60 / 0.4)",
           }}
         >
+          {/* Display name */}
+          <div className="mb-6">
+            <label
+              className="mb-1 block text-[12px] tracking-[.3px]"
+              style={{ color: "var(--ink-faint)" }}
+            >
+              {t("displayName")}
+            </label>
+            <input
+              type="text"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
+              style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
+            />
+          </div>
+
           {/* Calendar type */}
           <div className="mb-6">
             <label
@@ -226,7 +318,6 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthHour}
-                disabled={hourUnknown}
                 onChange={(e) => setBirthHour(stripLeadingZero(e.target.value))}
                 min={0}
                 max={23}
@@ -245,7 +336,6 @@ export default function CalculatePage() {
               <input
                 type="number"
                 value={birthMinute}
-                disabled={hourUnknown}
                 onChange={(e) => setBirthMinute(stripLeadingZero(e.target.value))}
                 min={0}
                 max={59}
@@ -257,25 +347,6 @@ export default function CalculatePage() {
                 }}
               />
             </div>
-          </div>
-
-          {/* Hour unknown */}
-          <div className="mb-6 flex items-center gap-3">
-            <label className="text-[14px] tracking-[.3px]" style={{ color: "var(--ink)" }}>
-              {t("hourUnknown")}
-            </label>
-            <button
-              type="button"
-              onClick={() => setHourUnknown(!hourUnknown)}
-              className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all"
-              style={{
-                background: hourUnknown ? "var(--gold)" : "var(--bg)",
-                color: hourUnknown ? "var(--bg-card)" : "var(--ink-soft)",
-                border: `1px solid ${hourUnknown ? "var(--gold)" : "var(--line)"}`,
-              }}
-            >
-              {hourUnknown ? "✓" : "—"}
-            </button>
           </div>
 
           {/* Leap month (lunar only) */}
@@ -302,45 +373,25 @@ export default function CalculatePage() {
             </div>
           )}
 
-          {/* Timezone */}
-          <div className="mb-6">
-            <label
-              className="mb-2 block text-[13px] font-semibold tracking-[.4px]"
-              style={{ color: "var(--ink)" }}
-            >
-              {t("timezone")}
-            </label>
-            <select
-              value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
-              className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
-              style={{
-                background: "var(--bg)",
-                borderColor: "var(--line)",
-                color: "var(--ink)",
-              }}
-            >
-              {timezones.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
           {/* Birth place */}
           <div className="mb-6">
             <label className="mb-2 block text-[13px] font-semibold tracking-[.4px]" style={{ color: "var(--ink)" }}>
               {t("birthPlace")}
             </label>
-            <input
-              type="text"
-              value={birthPlace}
-              onChange={(e) => setBirthPlace(e.target.value)}
-              placeholder={t("birthPlacePlaceholder")}
-              className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
-              style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }}
-            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label htmlFor="birth-country" className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>{t("country")}</label>
+                <input id="birth-country" type="search" list="calculate-countries" value={countryQuery} placeholder={t("countrySearch")} autoComplete="off" onChange={(event) => { const query = event.target.value; const match = countryOptions.find((item) => item.label.toLocaleLowerCase() === query.trim().toLocaleLowerCase()); setCountryQuery(query); setCountryCode(match?.code ?? ""); setSelectedCity(null); setRegionQuery(""); }} className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2" style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }} />
+                <datalist id="calculate-countries">{countryOptions.map((item) => <option key={item.code} value={item.label} />)}</datalist>
+              </div>
+              <div>
+                <label className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>{t("region")}</label>
+                <CitySearchField value={regionQuery} disabled={!selectedCountry} loading={cityLoading} loadingMore={cityLoadingMore} options={geoCities} total={cityTotal} selectedID={selectedCity?.id} placeholder={selectedCountry ? t("regionSearch") : t("selectCountryFirst")} ariaLabel={t("region")} loadingText={t("citySearching")} emptyText={t("noLocationResults")} statusText={t("cityCount", { shown: geoCities.length, total: cityTotal })} getName={(city) => localizedName(city, locationLocale)} onChange={(query) => { setRegionQuery(query); setSelectedCity(null); }} onSelect={(city) => { setSelectedCity(city); setRegionQuery(localizedName(city, locationLocale)); setLongitude(String(city.longitude)); setLatitude(String(city.latitude)); setTimezone(city.country_code === "CN" ? "Asia/Shanghai" : city.timezone_id); }} onLoadMore={() => void loadMoreCities()} />
+              </div>
+            </div>
+            <p className="my-3 text-center text-[12px]" style={{ color: "var(--ink-faint)" }}>
+              {t("locationOrCoordinates")}
+            </p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>
@@ -374,6 +425,12 @@ export default function CalculatePage() {
             <p className="mt-2 text-[12px]" style={{ color: "var(--ink-faint)" }}>
               {t("placeHint")}
             </p>
+            <div className="mt-4">
+              <label htmlFor="birth-timezone" className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>{t("timezone")}</label>
+              <input id="birth-timezone" type="search" list="calculate-timezones" value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder={t("timezoneSearch")} autoComplete="off" className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2" style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }} />
+              <datalist id="calculate-timezones">{timezoneOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</datalist>
+              <p className="mt-2 text-[12px]" style={{ color: "var(--ink-faint)" }}>{t("timezoneHint")}</p>
+            </div>
           </div>
 
           {/* Gender */}
@@ -410,27 +467,6 @@ export default function CalculatePage() {
             </div>
           </div>
 
-          {/* Display name */}
-          <div className="mb-2">
-            <label
-              className="mb-1 block text-[12px] tracking-[.3px]"
-              style={{ color: "var(--ink-faint)" }}
-            >
-              {t("displayName")}
-            </label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder=""
-              className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2"
-              style={{
-                background: "var(--bg)",
-                borderColor: "var(--line)",
-                color: "var(--ink)",
-              }}
-            />
-          </div>
         </div>
 
         {/* Depth cards */}
@@ -511,6 +547,7 @@ export default function CalculatePage() {
           {submitting ? t("submitting") : t("submit")}
         </button>
       </div>
+
     </div>
   );
 }

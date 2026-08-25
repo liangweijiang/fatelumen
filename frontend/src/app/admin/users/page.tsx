@@ -1,11 +1,14 @@
 "use client";
-import ResourceTable from "../_components/ResourceTable";
+
+import { useEffect, useState } from "react";
+import api from "@/lib/admin-client";
+
+type User = { id: number; name: string; email: string; active: boolean; credits?: number; locale?: string; created_at: string; updated_at?: string };
+const mask = (email: string) => email.includes("@") ? `${email.slice(0, 2)}***@${email.split("@")[1]}` : "***";
 
 export default function AdminUsersPage() {
-  return (
-    <div>
-      <h1 className="mb-6 text-[24px] font-medium" style={{ color: "var(--ink)" }}>用户管理</h1>
-      <ResourceTable resource="users" />
-    </div>
-  );
+  const [items, setItems] = useState<User[]>([]); const [keyword, setKeyword] = useState(""); const [selected, setSelected] = useState<User | null>(null); const [loading, setLoading] = useState(false);
+  const load = async () => { setLoading(true); try { const r = await api.get("/admin/users", { params: { keyword } }); setItems((r.data.data ?? r.data).items ?? []); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  return <div><h1 className="mb-2 text-2xl font-medium">用户管理</h1><p className="mb-4 text-sm" style={{ color: "var(--ink-soft)" }}>本阶段仅提供只读查询。出生资料不会在后台显示；报告管理将在用户端报告链路完成后接入。</p><div className="mb-4 flex gap-2"><input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="搜索昵称或邮箱" className="rounded border p-2"/><button onClick={() => void load()} className="rounded border px-3">{loading ? "查询中…" : "搜索"}</button></div><table className="w-full border-collapse"><thead><tr className="border-b text-left"><th className="p-2">用户</th><th className="p-2">邮箱（脱敏）</th><th className="p-2">状态</th><th className="p-2">注册时间</th><th className="p-2" /></tr></thead><tbody>{items.map((user) => <tr key={user.id} className="border-b"><td className="p-2">{user.name || "—"}</td><td className="p-2">{mask(user.email)}</td><td className="p-2">{user.active ? "正常" : "已停用"}</td><td className="p-2">{new Date(user.created_at).toLocaleString()}</td><td className="p-2"><button onClick={async () => { const r = await api.get(`/admin/users/${user.id}`); setSelected(r.data.data ?? r.data); }} className="rounded border px-2">详情</button></td></tr>)}</tbody></table>{selected && <aside className="fixed right-0 top-0 h-full w-full max-w-md overflow-auto border-l bg-white p-6 shadow-xl"><button onClick={() => setSelected(null)} className="float-right">关闭</button><h2 className="text-xl">{selected.name || "用户详情"}</h2><dl className="mt-5 space-y-2 text-sm"><div><dt className="inline">邮箱（脱敏）：</dt><dd className="inline">{mask(selected.email)}</dd></div><div><dt className="inline">积分：</dt><dd className="inline">{selected.credits ?? 0}</dd></div><div><dt className="inline">语言：</dt><dd className="inline">{selected.locale || "—"}</dd></div><div><dt className="inline">注册时间：</dt><dd className="inline">{new Date(selected.created_at).toLocaleString()}</dd></div></dl><p className="mt-6 text-sm" style={{ color: "var(--ink-soft)" }}>为保护用户隐私，此处不展示完整出生资料。报告数据将在后续阶段接入。</p></aside>}</div>;
 }

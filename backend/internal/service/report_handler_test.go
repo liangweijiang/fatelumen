@@ -117,13 +117,13 @@ func (f *fakeChartSaver) Create(chart *model.Chart) error {
 
 func fakeReportContentJSON() string {
 	c := model.ReportContent{
-		Locale:      "en",
-		SummaryLine: "A strong Wood pillar rising at dawn.",
-		Summary:     "Comprehensive overview of this chart's destiny configuration.",
-		Personality: "The Day Master 甲 Wood represents growth, compassion, and leadership.",
-		Career:      "Favorable elements support career in creative and service-oriented fields.",
+		Locale:       "en",
+		SummaryLine:  "A strong Wood pillar rising at dawn.",
+		Summary:      "Comprehensive overview of this chart's destiny configuration.",
+		Personality:  "The Day Master 甲 Wood represents growth, compassion, and leadership.",
+		Career:       "Favorable elements support career in creative and service-oriented fields.",
 		Relationship: "Peach blossom indicators suggest warm romantic prospects.",
-		Health:      "Elemental balance points to strong constitution; stay hydrated.",
+		Health:       "Elemental balance points to strong constitution; stay hydrated.",
 		YearlyFortune: []model.YearlyFortuneItem{
 			{Year: 2026, Note: "A year of steady progress and recognition."},
 			{Year: 2027, Note: "Career breakthrough likely with proper planning."},

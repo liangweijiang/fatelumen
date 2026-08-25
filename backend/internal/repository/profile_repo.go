@@ -17,14 +17,35 @@ func NewProfileRepo(db *gorm.DB) *ProfileRepo {
 
 // Create 创建出生档案。
 func (r *ProfileRepo) Create(profile *model.BirthProfile) error {
-	return r.db.Create(profile).Error
+	// saved=false is meaningful for one-off report subjects. Select all fields
+	// so GORM does not replace the explicit false zero value with the DB default.
+	return r.db.Select("*").Create(profile).Error
 }
 
 // ListByUserID 列出用户所有档案。
 func (r *ProfileRepo) ListByUserID(userID uint64) ([]model.BirthProfile, error) {
 	var profiles []model.BirthProfile
-	err := r.db.Where("user_id = ?", userID).Order("created_at DESC").Find(&profiles).Error
+	err := r.db.Where("user_id = ? AND saved = ?", userID, true).Order("created_at DESC").Find(&profiles).Error
 	return profiles, err
+}
+
+func (r *ProfileRepo) Update(id uint64, updates map[string]interface{}) error {
+	return r.db.Model(&model.BirthProfile{}).Where("id = ?", id).Updates(updates).Error
+}
+
+func (r *ProfileRepo) UpdateOwnedSaved(id, userID uint64, updates map[string]interface{}) error {
+	return r.db.Model(&model.BirthProfile{}).
+		Where("id = ? AND user_id = ? AND saved = ?", id, userID, true).
+		Updates(updates).Error
+}
+
+func (r *ProfileRepo) FindSavedByIDAndUserID(id, userID uint64) (*model.BirthProfile, error) {
+	var profile model.BirthProfile
+	err := r.db.Where("id = ? AND user_id = ? AND saved = ?", id, userID, true).First(&profile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &profile, nil
 }
 
 // FindByID 按 ID 查找档案。

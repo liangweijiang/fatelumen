@@ -52,15 +52,17 @@ type AdminClaims struct {
 	AdminID   uint64 `json:"admin_id"`
 	AdminName string `json:"admin_name"`
 	RoleID    uint64 `json:"role_id"`
+	TokenID   string `json:"token_id"`
 	jwt.RegisteredClaims
 }
 
 // GenerateAdmin 签发后台 JWT。
-func GenerateAdmin(secret string, expireHours int, adminID uint64, adminName string, roleID uint64) (string, error) {
+func GenerateAdmin(secret string, expireHours int, adminID uint64, adminName string, roleID uint64, tokenID string) (string, error) {
 	claims := AdminClaims{
 		AdminID:   adminID,
 		AdminName: adminName,
 		RoleID:    roleID,
+		TokenID:   tokenID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(expireHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

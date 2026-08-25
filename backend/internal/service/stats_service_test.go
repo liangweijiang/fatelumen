@@ -10,12 +10,12 @@ import (
 )
 
 type fakeStatsRepo struct {
-	usersTotal   int64
-	usersToday   int64
-	orderAgg     *repository.OrderAgg
-	revenueAgg   *repository.RevenueAgg
-	reportAgg    *repository.ReportAgg
-	err          error
+	usersTotal int64
+	usersToday int64
+	orderAgg   *repository.OrderAgg
+	revenueAgg *repository.RevenueAgg
+	reportAgg  *repository.ReportAgg
+	err        error
 }
 
 func (f *fakeStatsRepo) CountUsers() (int64, error) {
@@ -132,9 +132,9 @@ func TestGetStats_Error(t *testing.T) {
 
 func TestGetStats_EmptyData(t *testing.T) {
 	repo := &fakeStatsRepo{
-		orderAgg:  &repository.OrderAgg{Total: 0, ByStatus: map[string]int64{}},
+		orderAgg:   &repository.OrderAgg{Total: 0, ByStatus: map[string]int64{}},
 		revenueAgg: &repository.RevenueAgg{},
-		reportAgg: &repository.ReportAgg{Total: 0, ByStatus: map[string]int64{}},
+		reportAgg:  &repository.ReportAgg{Total: 0, ByStatus: map[string]int64{}},
 	}
 	svc := &StatsService{repo: repo}
 

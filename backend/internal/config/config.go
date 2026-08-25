@@ -85,6 +85,8 @@ type Config struct {
 	RateLimitOrderPerMin   int
 	RateLimitAuthPerMin    int
 	RateLimitDefaultPerMin int
+	GeoNamesUsername       string
+	GeoNamesBaseURL        string
 
 	AdminEmails []string
 
@@ -110,6 +112,7 @@ func (c *Config) Validate() []string {
 	require(c.DBPassword, "DB_PASSWORD")
 	require(c.DBName, "DB_NAME")
 	require(c.JWTSecret, "JWT_SECRET")
+	require(c.AdminJWTSecret, "ADMIN_JWT_SECRET")
 
 	if contains(c.PaymentProviders, "stripe") {
 		require(c.StripeSecretKey, "STRIPE_SECRET_KEY")
@@ -137,13 +140,16 @@ func (c *Config) Validate() []string {
 	return missing
 }
 
-// Load 从 .env / 环境变量加载配置。
-// 若工作目录存在 .env 文件则先加载，仅补充未设置的变量，已有环境变量优先，符合 12-factor；
-// 生产环境无 .env 时静默跳过，依赖容器或 systemd 注入的真实环境变量。
+// Load 从 .env.local / .env / 环境变量加载配置。
+// 本地开发优先读取被 Git 忽略的 .env.local；.env 保留为兼容回退。
+// 两者均仅补充未设置的变量，已有环境变量优先，符合 12-factor；
+// 生产环境无本地配置文件时静默跳过，依赖容器或 systemd 注入的真实环境变量。
 func Load() (*Config, error) {
-	if _, err := os.Stat(".env"); err == nil {
-		if err := godotenv.Load(".env"); err != nil {
-			fmt.Printf("warning: failed to load .env file: %v\n", err)
+	for _, file := range []string{".env.local", ".env"} {
+		if _, err := os.Stat(file); err == nil {
+			if err := godotenv.Load(file); err != nil {
+				fmt.Printf("warning: failed to load %s file: %v\n", file, err)
+			}
 		}
 	}
 
@@ -179,6 +185,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("RATELIMIT_ORDER_PER_MIN", 10)
 	viper.SetDefault("RATELIMIT_AUTH_PER_MIN", 10)
 	viper.SetDefault("RATELIMIT_DEFAULT_PER_MIN", 60)
+	viper.SetDefault("GEONAMES_BASE_URL", "https://secure.geonames.org")
 
 	cfg := &Config{
 		LogLevel:   viper.GetString("LOG_LEVEL"),
@@ -254,6 +261,8 @@ func Load() (*Config, error) {
 		RateLimitOrderPerMin:   viper.GetInt("RATELIMIT_ORDER_PER_MIN"),
 		RateLimitAuthPerMin:    viper.GetInt("RATELIMIT_AUTH_PER_MIN"),
 		RateLimitDefaultPerMin: viper.GetInt("RATELIMIT_DEFAULT_PER_MIN"),
+		GeoNamesUsername:       viper.GetString("GEONAMES_USERNAME"),
+		GeoNamesBaseURL:        viper.GetString("GEONAMES_BASE_URL"),
 
 		AdminEmails:         splitEnv("ADMIN_EMAILS"),
 		StripeWebhookSecret: viper.GetString("STRIPE_WEBHOOK_SECRET"),

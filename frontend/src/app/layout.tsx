@@ -1,16 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import { SITE } from "@/lib/site";
-import { Playfair_Display } from "next/font/google";
+import "@fontsource-variable/playfair-display/wght.css";
+import "@fontsource-variable/playfair-display/wght-italic.css";
+import "@fontsource-variable/noto-serif-sc/wght.css";
 import "./globals.css";
 import "@/styles/themes.css";
-
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-playfair",
-  weight: ["500", "600", "700"],
-  style: ["normal", "italic"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -35,7 +29,6 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="kraft"
-      className={playfair.variable}
     >
       <head>
         <script

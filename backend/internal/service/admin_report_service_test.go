@@ -12,18 +12,18 @@ import (
 )
 
 type fakeAdminReportStore struct {
-	reports     []model.Report
-	total       int64
-	listErr     error
-	report      *model.Report
-	getErr      error
-	filter      repository.ReportFilter
-	limit       int
-	offset      int
-	markPaidCalls   int
-	markPaidErr     error
-	lastReportID    uint64
-	lastOrderID     uint64
+	reports       []model.Report
+	total         int64
+	listErr       error
+	report        *model.Report
+	getErr        error
+	filter        repository.ReportFilter
+	limit         int
+	offset        int
+	markPaidCalls int
+	markPaidErr   error
+	lastReportID  uint64
+	lastOrderID   uint64
 }
 
 func newFakeAdminReportStore() *fakeAdminReportStore {

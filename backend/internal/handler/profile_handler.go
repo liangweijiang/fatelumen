@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
 
 	"fatelumen/backend/internal/middleware"
@@ -77,6 +78,35 @@ func (h *ProfileHandler) Get(c *gin.Context) {
 	}
 	if profile == nil {
 		response.Fail(c, response.CodeNotFound, "profile not found")
+		return
+	}
+	response.OK(c, profile)
+}
+
+// Update PATCH /api/v1/profiles/:id. Ownership is checked before mutation.
+func (h *ProfileHandler) Update(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Fail(c, response.CodeUnauthorized, "unauthorized")
+		return
+	}
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid profile id")
+		return
+	}
+	var in service.CreateProfileInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, response.CodeBadRequest, "invalid request body")
+		return
+	}
+	profile, err := h.svc.Update(c.Request.Context(), userID, id, in)
+	if err != nil {
+		if errors.Is(err, service.ErrProfileNotFound) {
+			response.Fail(c, response.CodeNotFound, "profile not found")
+			return
+		}
+		response.Fail(c, response.CodeBadRequest, err.Error())
 		return
 	}
 	response.OK(c, profile)

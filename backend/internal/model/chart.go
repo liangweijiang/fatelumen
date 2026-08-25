@@ -74,12 +74,34 @@ type AnnualFortune struct {
 
 // ChartMeta 排盘元信息。
 type ChartMeta struct {
-	SolarDate   string `json:"solar_date"`
-	LunarDate   string `json:"lunar_date"`
-	Zodiac      string `json:"zodiac"`
-	Gender      string `json:"gender"`
-	CalcLib     string `json:"calc_lib"`
-	CalcVersion string `json:"calc_version"`
+	SolarDate       string              `json:"solar_date"`
+	LunarDate       string              `json:"lunar_date"`
+	Zodiac          string              `json:"zodiac"`
+	Gender          string              `json:"gender"`
+	CalcLib         string              `json:"calc_lib"`
+	CalcVersion     string              `json:"calc_version"`
+	TimeCalculation TimeCalculationMeta `json:"time_calculation"`
+}
+
+type TimeCalculationMeta struct {
+	TimezoneID                string  `json:"timezone_id"`
+	HistoricalUTCOffset       int     `json:"historical_utc_offset_seconds"`
+	StandardUTCOffset         int     `json:"standard_utc_offset_seconds"`
+	DSTApplied                bool    `json:"dst_applied"`
+	DSTOffset                 int     `json:"dst_offset_seconds"`
+	Longitude                 float64 `json:"longitude"`
+	Latitude                  float64 `json:"latitude"`
+	StandardMeridian          float64 `json:"standard_meridian"`
+	LongitudeCorrectionMinute float64 `json:"longitude_correction_minutes"`
+	EquationOfTimeMinute      float64 `json:"equation_of_time_minutes"`
+	LocalCivilTime            string  `json:"local_civil_time"`
+	LocalStandardTime         string  `json:"local_standard_time"`
+	MeanSolarTime             string  `json:"mean_solar_time"`
+	TrueSolarTime             string  `json:"true_solar_time"`
+	Mode                      string  `json:"mode"`
+	DayBoundaryRule           string  `json:"day_boundary_rule"`
+	SolarAlgorithmVersion     string  `json:"solar_algorithm_version"`
+	EngineVersion             string  `json:"engine_version"`
 }
 
 // ChartData 完整命盘 JSON（存储于 charts.chart_data）。

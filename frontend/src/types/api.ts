@@ -41,10 +41,18 @@ export interface CreateProfilePayload {
   birth_day: number;
   birth_hour: number;
   birth_minute: number;
-  is_leap_month: number;
+  is_leap_month: boolean;
   birth_place?: string;
+	country_code?: string;
+	country_name?: string;
+	region_code?: string;
+	region_name?: string;
+	city?: string;
+	place_id?: string;
   timezone?: string;
   longitude?: number;
+  latitude?: number;
+	has_coordinates?: boolean;
 }
 
 // ── Chart ──
@@ -265,6 +273,35 @@ export interface UnlockReportResult {
   report_id: number;
   unlocked: boolean;
 }
+
+export interface FreeChartLocation {
+  country_code?: string; country_name?: string; region_code?: string; region_name?: string;
+  city?: string; place_id?: string; display_name?: string;
+  latitude: number; longitude: number; timezone_id: string;
+}
+export interface FreeChartLocationInput extends Partial<FreeChartLocation> { has_coordinates: boolean }
+export interface FreeChartPayload {
+  gender: 0 | 1; calendar_type: 0 | 1; year: number; month: number; day: number;
+  hour: number; minute: number; is_leap_month: boolean; location: FreeChartLocationInput;
+}
+export interface FreeChartResult {
+  id: number; chart_hash: string; location: FreeChartLocation; pillars: Pillars; day_master: DayMaster;
+  five_elements_count: Record<string, number>; lunar_date: string; solar_date: string; zodiac: string;
+  gender: 0 | 1; calendar_type: 0 | 1; birth_year: number; birth_month: number; birth_day: number;
+  birth_hour: number; birth_minute: number; is_leap_month: boolean; created_at: string;
+	time_calculation: { timezone_id: string; local_civil_time: string; true_solar_time: string };
+}
+export interface FreeChartPage { items: FreeChartResult[]; total: number; page: number; page_size: number }
+
+export interface GeoCountry {
+  code: string; name_en: string; name_zh: string; name_ja: string; name_ko: string;
+}
+export interface GeoCity {
+  id: number; country_code: string; admin1_code: string; admin1_name: string;
+  name_en: string; name_zh: string; name_ja: string; name_ko: string;
+  latitude: number; longitude: number; timezone_id: string;
+}
+export interface GeoPage<T> { items: T[]; total: number; page: number; page_size: number }
 
 // ── Auth ──
 export interface AuthProvider {

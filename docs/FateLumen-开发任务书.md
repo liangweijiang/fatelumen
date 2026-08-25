@@ -199,6 +199,8 @@ FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网�
 | `admin_users` | 后台账号(独立于 C 端 users) |
 | `admin_roles` | 后台角色 + 权限码(RBAC) |
 | `admin_audit_log` | 后台操作审计日志 |
+| `geo_countries` | 固定国家基础数据（ISO 代码 + 四语名称） |
+| `geo_cities` | 固定城市基础数据（GeoNames ID、四语名称、经纬度、IANA 时区） |
 
 ### 4.2 建表 DDL
 
@@ -231,9 +233,14 @@ CREATE TABLE birth_profiles (
   birth_hour    TINYINT      NOT NULL COMMENT '0-23，未知用-1',
   birth_minute  TINYINT      NOT NULL DEFAULT 0,
   is_leap_month TINYINT      NOT NULL DEFAULT 0 COMMENT '农历闰月标记',
-  birth_place   VARCHAR(128) COMMENT '出生地(用于真太阳时/时区)',
-  timezone      VARCHAR(48)  COMMENT '如 Asia/Shanghai',
-  longitude     DECIMAL(9,6) COMMENT '经度，用于真太阳时校正(可选)',
+  birth_place   VARCHAR(128) COMMENT '用户可读出生地',
+  country_code  VARCHAR(8)   COMMENT 'ISO 国家代码',
+  region_code   VARCHAR(32)  COMMENT '地区代码',
+  city          VARCHAR(96)  COMMENT '城市或明确地点',
+  place_id      VARCHAR(128) COMMENT '地点解析服务稳定标识',
+  timezone      VARCHAR(64)  COMMENT 'IANA Timezone ID，如 Asia/Shanghai',
+  longitude     DECIMAL(9,6) COMMENT '经度，东经为正',
+  latitude      DECIMAL(9,6) COMMENT '纬度，北纬为正',
   created_at    DATETIME     NOT NULL,
   updated_at    DATETIME     NOT NULL,
   INDEX idx_user (user_id)
@@ -378,6 +385,32 @@ CREATE TABLE admin_audit_log (
   INDEX idx_resource (resource, resource_id),
   INDEX idx_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 全球出生地基础数据：由固定 GeoNames 快照一次性导入，不在运行期同步外部服务
+CREATE TABLE geo_countries (
+  code          CHAR(2)      PRIMARY KEY COMMENT 'ISO 3166-1 alpha-2',
+  name_en       VARCHAR(191) NOT NULL,
+  name_zh       VARCHAR(191) NOT NULL,
+  name_ja       VARCHAR(191) NOT NULL,
+  name_ko       VARCHAR(191) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE geo_cities (
+  geoname_id    BIGINT       PRIMARY KEY,
+  country_code  CHAR(2)      NOT NULL,
+  admin1_code   VARCHAR(32)  NOT NULL DEFAULT '',
+  admin1_name   VARCHAR(191) NOT NULL DEFAULT '',
+  name_en       VARCHAR(191) NOT NULL,
+  name_zh       VARCHAR(191) NOT NULL,
+  name_ja       VARCHAR(191) NOT NULL,
+  name_ko       VARCHAR(191) NOT NULL,
+  latitude      DECIMAL(10,7) NOT NULL,
+  longitude     DECIMAL(10,7) NOT NULL,
+  timezone_id   VARCHAR(64)  NOT NULL,
+  INDEX idx_geo_city_country (country_code),
+  INDEX idx_geo_city_country_admin (country_code, admin1_code),
+  CONSTRAINT fk_geo_city_country FOREIGN KEY (country_code) REFERENCES geo_countries(code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
 ### 4.3 命盘 JSON 结构(`charts.chart_data`)
@@ -489,6 +522,27 @@ CREATE TABLE admin_audit_log (
 |---|---|---|
 | POST | `/api/v1/charts` | 按 profile 排盘(命中缓存直接返回)，返回命盘 JSON |
 | GET | `/api/v1/charts/{id}` | 取命盘 |
+| POST | `/api/v1/free-charts` | 登录用户免费排盘；不扣积分、不存档案/报告，保存独立排盘历史并返回统一命盘的裁剪 DTO |
+| GET | `/api/v1/free-charts` | 分页查询当前用户的免费排盘历史 |
+| GET | `/api/v1/free-charts/:id` | 查询当前用户的一条免费排盘详情 |
+| DELETE | `/api/v1/free-charts/:id` | 删除当前用户的一条免费排盘历史 |
+| POST | `/api/v1/free-charts/batch-delete` | 批量删除当前用户的免费排盘历史（单次最多 100 条） |
+
+> 免费排盘接口与完整报告接口的前端、API 和 DTO 相互独立，但必须共同调用第 7 章定义的 `BirthChartEngine`，并共用 `chart_hash` 与命盘缓存。不得复制时区、真太阳时或 `lunar-go` 排盘逻辑。完整规范见 `docs/全球出生时间与真太阳时架构规范.md`。
+
+### 5.3.1 全球出生地基础数据
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|---|---|---|---|
+| GET | `/api/v1/geo/countries` | 按语言分页搜索国家 | 是 |
+| GET | `/api/v1/geo/cities` | 在指定国家内按语言分页搜索城市 | 是 |
+| GET | `/api/v1/geo/cities/{id}` | 读取城市四语名称、经纬度与 IANA 时区 | 是 |
+
+> 数据来自固定 GeoNames 快照，只保留国家、城市、一级行政区、四语名称、经纬度和 IANA 时区。中国地点必须存在真实中文别名，禁止将英文名回填后冒充 `name_zh`；缺少真实中文名的中国聚居点不进入候选库，中国一级行政区使用中文名称。数据通过 `cmd/import-geodata` 一次性导入；目标表已有数据时命令必须拒绝重复执行。客户端仅允许“国家 + 城市”正向取得经纬度，不提供经纬度反查国家/城市。
+
+> 免费排盘与完整报告录入页都必须显示“出生记录时区”：选择城市后自动带出默认 IANA 时区，用户可在合法时区列表中校正。中国大陆城市默认使用 `Asia/Shanghai`，新疆用户明确确认出生记录采用新疆时间时可改为 `Asia/Urumqi`。后端始终按 `place_id` 重取固定经纬度，但使用用户最终确认且通过 `time.LoadLocation` 校验的时区；仅提交经纬度时，时区必填。
+
+管理端提供精简校对页面：`GET /api/v1/admin/geo` 按国家或地区搜索并分页展示，`PATCH /api/v1/admin/geo/{id}` 只允许修正经纬度，且必须生成审计日志。不提供新增、删除或外部数据同步功能。
 
 ### 5.4 简单测算(同步)
 
@@ -867,6 +921,22 @@ func (r *Registry) Enabled() []string { /* ... */ }
 
 > **这是 P1 原则的核心实现。绝不允许 LLM 参与排盘。** 全部用 `github.com/6tail/lunar-go` 计算。
 
+### 7.0 全球出生时间与共享引擎（强制）
+
+用户输入表示出生地当时的当地民用时间。系统必须依次完成地点标准化、IANA 时区、历史 UTC Offset、DST、当地标准时间、经度修正、平太阳时、均时差与真太阳时，然后再调用 `lunar-go`。全球用户不得统一转换为北京时间排盘。
+
+默认固定：`time_calculation_mode=TRUE_SOLAR_TIME`、`day_boundary_rule=MIDNIGHT_00`、`lunar-go EightChar sect=2`。必须先处理真太阳时的自然跨日，再按 00:00 换日。
+
+免费排盘与完整报告拥有独立前端、API 和 DTO，但共同调用唯一 `BirthChartEngine`：
+
+```text
+FreeChartService ─┐
+                  ├─ BirthChartEngine → BirthChartResult + chart_hash
+ReportService ────┘
+```
+
+`BirthChartEngine` 依次依赖 `BirthInputNormalizer`、`LocationResolver`、`HistoricalTimezoneResolver`、`SolarTimeEngine`、`BaziRuleEngine`、`LunarGoCalculator` 和 `ChartRepository`。具体规范、字段和测试矩阵见 `docs/全球出生时间与真太阳时架构规范.md`。
+
 ### 7.1 lunar-go 用法要点
 
 - 主入口：`calendar.NewSolarFromYmdHms(...)` / `calendar.NewLunarFromYmd(...)`。
@@ -881,14 +951,11 @@ func (r *Registry) Enabled() []string { /* ... */ }
 // internal/bazi/calculator.go
 package bazi
 
-// Input 归一化的排盘输入
+// Input 是已经完成地点、历史时区、DST、真太阳时和换日规则后的最终排盘输入。
 type Input struct {
     Gender       int    // 0 female 1 male
-    CalendarType int    // 0 solar 1 lunar
     Year, Month, Day, Hour, Minute int
-    IsLeapMonth  bool
-    Timezone     string
-    Longitude    float64 // 可选：真太阳时校正
+    DayBoundaryRule string // 默认 MIDNIGHT_00，对应 lunar-go sect=2
 }
 
 // Calculate 纯函数：输入出生信息 → 输出确定性命盘。
@@ -910,9 +977,9 @@ func Calculate(in Input) (*model.ChartData, error)
 
 ### 7.4 chart_hash
 
-`chart_hash = sha256(normalize(gender|calendar_type|year|month|day|hour|minute|is_leap_month|timezone))`，命中 `charts` 表即复用，避免重复计算。
+`chart_hash` 必须覆盖性别、原始历法与出生日期时间、闰月、经纬度、IANA 时区、历史 UTC Offset、时间模式、换日规则、地点/时区数据库版本、太阳时间算法版本和 `lunar-go` 版本。任一影响结果的规则或版本变化都必须产生新哈希；免费排盘与完整报告共同命中该缓存。具体规范见专项文档第 10 章。
 
-### 7.5 calculator.go 参考实现(可直接编译,DeepSeek 照此填充)
+### 7.5 LunarGoCalculator 参考实现
 
 > 以下是基于 `github.com/6tail/lunar-go` 的**完整参考实现**。lunar-go 的包路径为 `github.com/6tail/lunar-go/calendar`。**严格按此调用,不要自己发明 API。**
 
@@ -926,33 +993,20 @@ import (
     "yourmod/internal/model"
 )
 
-// Calculate 纯函数：出生信息 → 确定性命盘。无网络/无 LLM，同输入同输出。
+// Calculate 纯函数：最终真太阳时 → 确定性命盘。无网络/无 LLM，同输入同输出。
+// 公农历转换、地点、历史时区、DST 与真太阳时必须在 BirthChartEngine 上游完成。
 func Calculate(in Input) (*model.ChartData, error) {
-    var lunar *calendar.Lunar
-
-    // 1. 公历/农历 → Lunar 对象
-    if in.CalendarType == 0 { // solar 公历
-        if in.Hour < 0 { // 时辰未知，按 12:00 占位并打标记
-            solar := calendar.NewSolarFromYmdHms(in.Year, in.Month, in.Day, 12, 0, 0)
-            lunar = solar.GetLunar()
-        } else {
-            solar := calendar.NewSolarFromYmdHms(in.Year, in.Month, in.Day, in.Hour, in.Minute, 0)
-            lunar = solar.GetLunar()
-        }
-    } else { // lunar 农历（支持闰月：月份传负数表示闰月）
-        month := in.Month
-        if in.IsLeapMonth {
-            month = -in.Month
-        }
-        h := in.Hour
-        if h < 0 {
-            h = 12
-        }
-        lunar = calendar.NewLunarFromYmdHms(in.Year, month, in.Day, h, in.Minute, 0)
-    }
+    // Input 已是真太阳时对应的最终公历日期时间，可能与用户输入的民用日期不同。
+    solar := calendar.NewSolarFromYmdHms(in.Year, in.Month, in.Day, in.Hour, in.Minute, 0)
+    lunar := solar.GetLunar()
 
     // 2. 取八字（四柱）
     ec := lunar.GetEightChar()
+    if in.DayBoundaryRule == "LATE_ZI_23" {
+        ec.SetSect(1)
+    } else {
+        ec.SetSect(2) // 默认 MIDNIGHT_00
+    }
     // 四柱：年/月/日/时 的天干地支字符串，如 "戊午"
     yearGZ := ec.GetYear()   // 年柱
     monthGZ := ec.GetMonth() // 月柱
@@ -992,7 +1046,7 @@ func Calculate(in Input) (*model.ChartData, error) {
         Strength:     strength,     // "strong" / "weak" / "balanced"
         Favorable:    favorable,    // 喜用神五行，如 ["水","木"]
         LuckCycles:   cycles,
-        HourUnknown:  in.Hour < 0,  // 时辰不明标记，前端/解读据此弱化时柱
+        HourUnknown:  false,
     }, nil
 }
 
@@ -1023,8 +1077,8 @@ func buildPillar(ganzhi, shiShenGan string, hideGan, shiShenZhi []string, naYin 
 ```go
 // internal/bazi/calculator_test.go
 func TestCalculate_Case1(t *testing.T) {
-    // 1990-08-15 14:30 公历 男（北京时间）
-    in := Input{Gender: 1, CalendarType: 0, Year: 1990, Month: 8, Day: 15, Hour: 14, Minute: 30}
+    // 上游已完成地点、历史时区和真太阳时处理；此处只验证最终排盘时间。
+    in := Input{Gender: 1, Year: 1990, Month: 8, Day: 15, Hour: 14, Minute: 30, DayBoundaryRule: "MIDNIGHT_00"}
     c, err := Calculate(in)
     require.NoError(t, err)
     // 期望四柱：庚午 / 甲申 / 壬子 / 丁未
@@ -1042,14 +1096,14 @@ func TestCalculate_Case1(t *testing.T) {
 
 func TestCalculate_Deterministic(t *testing.T) {
     // 同输入两次，结果必须完全一致（P1 可复现性）
-    in := Input{Gender: 0, CalendarType: 0, Year: 2000, Month: 1, Day: 1, Hour: 0, Minute: 0}
+    in := Input{Gender: 0, Year: 2000, Month: 1, Day: 1, Hour: 0, Minute: 0, DayBoundaryRule: "MIDNIGHT_00"}
     a, _ := Calculate(in)
     b, _ := Calculate(in)
     assert.Equal(t, a, b)
 }
 ```
 
-> **验证方法**:Case1 的期望四柱可用任意权威排盘工具核对(同一生辰任何正确实现都应得出相同四柱)。若 DeepSeek 跑出来与期望不符,说明 lunar-go 调用有误(常见错误:公历农历传反、闰月符号、时辰边界),必须修到通过为止。
+> **验证方法**：该单元测试只验证最终真太阳时到 `lunar-go` 的映射；完整验收还必须覆盖专项规范第 12 章的地点、历史时区、DST、真太阳时、跨日和双接口一致性测试。若结果不符，必须先定位是上游时间链还是 `lunar-go` 适配问题，禁止通过硬编码干支修正。
 
 ---
 
@@ -1773,12 +1827,63 @@ CHROMIUM_PATH=/usr/bin/chromium
 - [ ] 前端:登录流程、账户页、出生信息表单(公历/农历、时辰、性别、出生地、时区)。
 - **验收**:能用 Google 登录、能创建/查看出生档案;**新增 mock auth provider 仅需实现接口 + 注册**。
 
-### Phase 2 — 排盘(核心 P1)
-- [ ] 接入 `lunar-go`,实现 `bazi.Calculate`(第 7 章),输出标准命盘 JSON。
-- [ ] 干支/五行/十神 四语映射表。
-- [ ] `POST /charts`(含 chart_hash 缓存)。
-- [ ] 前端:命盘可视化组件(四柱 + 五行色点,复用落地页样式)。
-- **验收**:输入出生信息能得到正确四柱/五行/十神/大运(用已知 case 对拍验证)。
+### Phase 2 — 管理端基础、内容运营、档案联动与排盘(核心 P1)
+
+> **范围调整说明**：本阶段先建立独立管理端与内容运营能力，同时完成出生档案/报告资料联动和确定性排盘。管理端的“报告管理”不在本阶段实现；它依赖用户端报告创建、状态与结果链路完成后，再在后续管理端深化阶段接入，避免重复建设不稳定的字段和页面。
+
+#### 2.1 管理端独立认证与安全边界
+- [ ] 管理端使用独立入口 `/admin/login`，仅支持用户名、密码、图形验证码登录；不支持 Google 登录、注册或找回密码入口。
+- [ ] C 端用户 JWT 与管理端 Admin JWT 完全隔离：独立密钥 `JWT_SECRET` / `ADMIN_JWT_SECRET`、独立 token 存储键、独立认证中间件与会话失效逻辑；两类 token 互相不能访问对方接口。
+- [ ] 管理员暂不做细粒度权限；所有状态正常的管理员拥有全部后台功能。保留 `admin_users`、审计日志与后续 RBAC 扩展基础，但不得再以 `users.role` 作为后台鉴权依据。
+- [ ] 提供图形验证码接口与登录接口；验证码仅存 Cache，建议有效期 5 分钟、一次性使用并限制错误次数。登录失败统一返回，不泄露用户名、密码或验证码的具体错误原因；后台登录接口需限流并记录不含敏感信息的安全日志。
+- [ ] 管理员退出只清除管理端会话，不影响 C 端用户会话；反之亦然。
+- [ ] 管理员初始化采用私有脚本：`backend/init/README.md` 可提交，`backend/init/private/001-admin.sql` 必须被忽略且不上传 Git。脚本须使用 bcrypt 密码哈希并可重复执行；明文密码、真实哈希、JWT 密钥均不得进入仓库。
+- **验收**：管理员可用账号密码与图形验证码登录后台；普通用户不能访问后台；后台 token 与用户 token 不能混用；所有本地凭证和私有初始化数据均未进入 Git。
+
+#### 2.2 管理端壳与用户只读管理
+- [ ] 建立独立后台布局、导航、管理员信息区与退出入口；未登录访问 `/admin/*` 自动跳转 `/admin/login`，会话失效自动退出。
+- [ ] 建立可复用的后台列表能力：分页、搜索、筛选、加载中、空状态、错误提示与确认弹窗，为后续内容、价格与报告模块复用。
+- [ ] 实现用户只读列表与详情：展示用户 ID、昵称、脱敏邮箱、登录方式、注册/最近登录时间、账户状态、积分、出生档案数量，并预留报告数量与最近报告时间字段。
+- [ ] 用户详情展示基础资料、账户资料与出生档案摘要；完整出生资料默认不得暴露。密码哈希、JWT、Google 凭证等敏感数据绝不返回。
+- [ ] 提供仅管理员可调用的 `GET /api/v1/admin/users`、`GET /api/v1/admin/users/:id`，支持安全的分页、关键字搜索与状态/登录方式筛选。
+- [ ] 本阶段不实现后台报告列表、报告详情、重试、删除或人工处理；报告模块在用户端报告链路稳定后再接入。
+- **验收**：管理员能登录、浏览用户分页列表和详情；普通用户无法调用后台用户接口；敏感资料不会被返回或显示。
+
+#### 2.3 内容中心：八字知识、FAQ、客户案例
+- [ ] 将八字知识库、常见问题、客户案例设计为后台可维护内容，而非硬编码前端 Markdown。
+- [ ] 八字知识支持标题、slug、分类、标签、摘要、封面、Markdown 正文、语言、排序、状态及发布时间的创建、编辑、草稿、预览、发布、取消发布与归档。
+- [ ] FAQ 支持分类、问题、回答、语言、排序与发布状态的管理。
+- [ ] 客户案例支持标题、摘要、正文、主题标签、适合人群、封面、语言、排序、状态、匿名化展示名称与授权/隐私说明；不得对外暴露真实姓名、出生资料或联系方式。
+- [ ] 内容统一生命周期：`draft → preview → published → unpublished / archived`。用户端只读取 `published` 内容；优先归档而非物理删除；每次写操作记录管理端审计日志。
+- [ ] 四语内容支持 en / zh / ja / ko；缺少翻译时按既定规则回退英文。Markdown 渲染必须经过安全过滤，不得直接注入原始 HTML 或脚本。
+- [ ] C 端 Learn、FAQ、Cases 页面接入只读公共接口：`/api/v1/public/knowledge`、`/api/v1/public/faqs`、`/api/v1/public/cases` 及相应 slug 详情接口；后台管理接口不得暴露给用户端。
+- [ ] 初期允许管理员逐篇录入现有 Markdown；批量 Markdown 导入工具作为后续独立任务，不阻塞本阶段。
+- **验收**：管理员可管理并发布三类内容；用户端仅可看到已发布内容；多语言、状态控制、隐私保护和 Markdown 安全渲染有效。
+
+#### 2.4 定价套餐管理与用户端展示
+- [ ] 管理员可维护套餐 SKU、名称、展示价格、原价、币种、权益、报告/积分数量、排序、启用状态与四语文案。
+- [ ] Pricing 页面改为读取公共价格接口；支付尚未开放时不得制造虚假支付成功或扣款流程。
+- [ ] 价格由服务端按 SKU 定义；未来订单须保存下单时的价格快照，后续改价不得改变历史订单。
+- [ ] 提供后台价格 CRUD/启停接口与 `GET /api/v1/public/pricing` 公共只读接口。
+- **验收**：后台改动套餐后用户端展示同步更新；禁用套餐不对用户端展示；客户端不能自行提交或信任金额。
+
+#### 2.5 出生档案与报告资料联动
+- [ ] Google 首次登录只创建普通用户，不自动创建出生档案，也不得在后续登录覆盖用户手工修改的资料。
+- [ ] 报告表单独立校验报告必填出生信息；缺少报告必填信息时不能生成报告，但用户无需先创建个人档案。
+- [ ] 当报告资料完整、但用户无完整档案时，提供可选保存动作：仅生成本次报告、保存/补充到明确选定的已有档案、另存为新档案。选择不保存时报告仍须继续。
+- [ ] 用户档案完整时不弹出联动提示；替他人测算时不得自动覆盖用户自己的档案，只有明确选择目标档案并确认后才可写入。
+- **验收**：无档案用户可生成资料完整的报告；拒绝保存不阻塞报告；替他人测算不会误覆盖本人档案；完整档案用户不出现冗余提示。
+
+#### 2.6 lunar-go 确定性排盘核心与命盘展示
+- [ ] 接入 `lunar-go`,实现 `bazi.Calculate`(第 7 章),输出标准命盘 JSON；排盘必须是确定性计算，严禁由 LLM 生成或修正。
+- [ ] 按 `docs/全球出生时间与真太阳时架构规范.md` 实现唯一 `BirthChartEngine`：输入标准化、地点解析、历史时区/DST、当地标准时间、平太阳时、均时差、真太阳时、00:00 换日后再调用 `lunar-go`。
+- [ ] 免费排盘与完整报告建立独立前端、API、请求/响应 DTO；两者共用 `BirthChartEngine`、`chart_hash` 与命盘缓存，接口层不得复制核心计算逻辑。
+- [ ] 免费排盘必须登录、不扣积分、不限每日次数（仅防刷），不创建报告、不进报告列表、不保存档案；保存独立排盘历史并支持分页、详情、单删和批量删除。
+- [ ] 实现干支、五行、十神四语映射表与稳定 `chart_hash` 缓存。
+- [ ] 提供命盘计算接口 `POST /api/v1/bazi/chart`（最终路径以第 5 章 API 契约统一为准），输入须完成出生信息、时区和历法校验。
+- [ ] 前端实现命盘可视化组件，展示四柱、五行等确定性基础数据，复用既有设计系统；不把命盘展示伪装成完整解读报告。
+- [ ] 排盘与后续解读严格分离：命盘结构和 `chart_hash` 可被快速测算与完整报告复用，不能由不同链路重复自行排盘。日志仅记录 `chart_hash`、脱敏摘要和 trace_id，不记录完整出生资料或完整命盘。
+- **验收**：输入出生信息可得到与已知 case 对拍一致的四柱、五行、十神和大运；全球地点按出生当时历史时区/DST换算真太阳时；真太阳时自然跨日后按 00:00 换日；免费接口与完整报告接口对相同输入返回相同 `chart_hash` 与四柱；相同输入结果稳定；LLM 不参与排盘。
 
 ### Phase 3 — 简单测算(同步出图)
 - [ ] LLMProvider 接口 + **DeepSeek 实现**(默认,JSON mode);OpenAI 实现作为可切备选。
@@ -1804,13 +1909,13 @@ CHROMIUM_PATH=/usr/bin/chromium
 - [ ] 前端:`/payments/providers` 动态渲染按钮、按 `action` 跳转/SDK、支付成功页 → 触发完整报告。
 - **验收**:能用 $5.99 买一份报告并成功生成;能买积分包并到账;**新增一个 mock provider 仅需实现接口 + 注册,不改业务代码**(验证抽象到位)。
 
-### Phase 6 — 后台管理系统(Admin)
-- [ ] 先落 `admin/resource` 框架:`Resource` 接口 + Registry + 查询 DSL + Schema(见第 19 章)。
-- [ ] Admin 鉴权:账号密码登录 + 独立 JWT + RBAC 中间件 + 审计日志中间件。
-- [ ] 注册 6 个资源:user / order / report / reading / credit / catalog,自动生成路由。
-- [ ] Dashboard 聚合接口(今日营收/订单/新增用户/报告成功率)。
-- [ ] 后台前端:基于资源 Schema 自动渲染列表表格 + 筛选 + 详情/编辑(数据驱动,新增资源前端零改动)。
-- **验收**:能登录后台查/改用户、退款订单、重试失败报告、改商品价格;**新增一个资源仅需写一个 `xxx_resource.go` + 注册,前后端均零改动**。
+### Phase 6 — 管理端深化(依赖报告与支付完成)
+- [ ] 在 Phase 2 管理端基础上，接入真实报告管理：报告列表、详情、状态、失败原因、耗时与必要的重试操作；其字段和动作以用户端报告实际链路为准，不预先建设半成品模块。
+- [ ] 接入订单、支付事件、积分流水与套餐历史价格快照，支持与 PaymentProvider 一致的退款/对账等操作。
+- [ ] 实现 Dashboard 聚合接口：今日营收、订单、新增用户、报告成功率、支付渠道占比与趋势。
+- [ ] 视真实运营需求再启用资源 Registry、查询 DSL、Schema 驱动列表/详情等通用化能力；不得为了抽象而牺牲已确认的管理端体验。
+- [ ] 保留全部管理员权限的当前策略；若未来需要多人协作，再在既有 `admin_users`、审计日志基础上启用 RBAC。
+- **验收**：管理端报告数据与用户端真实报告一致；订单/支付/积分数据可追溯；所有后台写操作保留审计记录。
 
 ### Phase 7 — 打磨与上线
 - [ ] 隐私政策/服务条款/联系页。

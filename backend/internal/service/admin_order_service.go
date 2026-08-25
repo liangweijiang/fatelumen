@@ -29,20 +29,20 @@ type AdminOrderItem struct {
 
 // AdminOrderDetail 订单详情（含 ProviderMeta 原始回调 JSON，对账用）。
 type AdminOrderDetail struct {
-	ID             uint64          `json:"id"`
-	UserID         uint64          `json:"user_id"`
-	ReportID       uint64          `json:"report_id"`
-	Type           string          `json:"type"`
-	SKU            string          `json:"sku"`
-	AmountCents    int             `json:"amount_cents"`
-	Currency       string          `json:"currency"`
-	Status         string          `json:"status"`
-	Provider       string          `json:"provider"`
-	ProviderRef    string          `json:"provider_ref"`
-	ProviderTxnID  string          `json:"provider_txn_id"`
-	ProviderMeta   json.RawMessage `json:"provider_meta"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID            uint64          `json:"id"`
+	UserID        uint64          `json:"user_id"`
+	ReportID      uint64          `json:"report_id"`
+	Type          string          `json:"type"`
+	SKU           string          `json:"sku"`
+	AmountCents   int             `json:"amount_cents"`
+	Currency      string          `json:"currency"`
+	Status        string          `json:"status"`
+	Provider      string          `json:"provider"`
+	ProviderRef   string          `json:"provider_ref"`
+	ProviderTxnID string          `json:"provider_txn_id"`
+	ProviderMeta  json.RawMessage `json:"provider_meta"`
+	CreatedAt     time.Time       `json:"created_at"`
+	UpdatedAt     time.Time       `json:"updated_at"`
 }
 
 // AdminOrdersPage 分页结果。

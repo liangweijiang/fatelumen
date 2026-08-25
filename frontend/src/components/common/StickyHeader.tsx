@@ -52,6 +52,7 @@ export default function StickyHeader({ locale }: { locale: string }) {
   const navLinks = [
     { href: `${homeHref}#how`, label: t("howItWorks") },
     { href: `${homeHref}#report`, label: t("sample") },
+    { href: `/${locale}/free-chart`, label: t("freeChart") },
     { href: `${homeHref}#pricing`, label: t("pricing") },
     { href: `${homeHref}#faq`, label: t("faq") },
     { href: `/${locale}/learn`, label: t("learn") },
@@ -82,12 +83,12 @@ export default function StickyHeader({ locale }: { locale: string }) {
           </Link>
 
           {/* Desktop nav links - centered */}
-          <nav className="hidden md:flex flex-1 items-center justify-center gap-9">
+          <nav className="hidden md:flex flex-1 items-center justify-center gap-3 lg:gap-5 xl:gap-7">
             {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-[13px] tracking-[.3px] text-[var(--ink-soft)] hover:text-[var(--ink)]"
+                className="whitespace-nowrap text-[12px] tracking-[.2px] text-[var(--ink-soft)] hover:text-[var(--ink)] xl:text-[13px]"
               >
                 {link.label}
               </Link>

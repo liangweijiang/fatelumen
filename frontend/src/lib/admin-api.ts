@@ -1,4 +1,4 @@
-import api from "@/lib/api/client";
+import api from "@/lib/admin-client";
 
 export interface Me {
   id: number;
