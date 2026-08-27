@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 
 type Lang = "en" | "zh" | "ja" | "ko";
 
+const AUTH_REDIRECT_KEY = "fatelumen_auth_redirecting";
+
 const LANGS: { code: Lang; label: string }[] = [
   { code: "en", label: "English" },
   { code: "zh", label: "中文" },
@@ -32,6 +34,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     toRegister: "No tablet yet? Inscribe one",
     toLogin: "Already have a tablet? Return to enter",
     fail: "Something went wrong, please try again",
+    sessionExpired: "Your session has expired. Please sign in again.",
   },
   zh: {
     subLogin: "登入命理阁，开启您的推演之旅",
@@ -48,6 +51,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     toRegister: "尚无命牒？点此立牒注册",
     toLogin: "已有命牒？返回登入",
     fail: "操作失败，请稍后再试",
+    sessionExpired: "登录状态已失效，请重新登录。",
   },
   ja: {
     subLogin: "命理閣へ入り、推演の旅を始めましょう",
@@ -64,6 +68,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     toRegister: "命牒をお持ちでない方はこちら",
     toLogin: "既に命牒をお持ちの方は入る",
     fail: "操作に失敗しました。後でお試しください",
+    sessionExpired: "ログインの有効期限が切れました。もう一度ログインしてください。",
   },
   ko: {
     subLogin: "명리각에 들어 추연의 여정을 시작하세요",
@@ -80,6 +85,7 @@ const DICT: Record<Lang, Record<string, string>> = {
     toRegister: "명첩이 없으신가요? 등록하기",
     toLogin: "이미 명첩이 있으신가요? 입장",
     fail: "작업에 실패했습니다. 잠시 후 다시 시도하세요",
+    sessionExpired: "로그인 세션이 만료되었습니다. 다시 로그인해 주세요.",
   },
 };
 
@@ -112,7 +118,12 @@ export default function LoginPage() {
   useEffect(() => {
     const q = params.get("lang") as Lang | null;
     const fromQuery = q && ["en", "zh", "ja", "ko"].includes(q) ? q : null;
-    setLang(fromQuery || readCookieLocale() || "en");
+    const resolvedLang = fromQuery || readCookieLocale() || "en";
+    setLang(resolvedLang);
+    window.sessionStorage.removeItem(AUTH_REDIRECT_KEY);
+    if (params.get("reason") === "session-expired") {
+      setErr(DICT[resolvedLang].sessionExpired);
+    }
   }, [params]);
 
   const t = DICT[lang];

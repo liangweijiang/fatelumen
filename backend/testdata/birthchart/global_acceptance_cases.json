@@ -1,0 +1,14 @@
+{
+  "fixed_utc": "2026-08-26T06:30:00Z",
+  "description": "同一绝对时刻在全球不同地点的真太阳时与四柱回归基线",
+  "cases": [
+    {"name":"上海","timezone_id":"Asia/Shanghai","latitude":31.2304,"longitude":121.4737,"local_civil_time":"2026-08-26 14:30","expected_standard_time":"2026-08-26 14:30","expected_true_solar_minute":"2026-08-26 14:34","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"丁未"},
+    {"name":"东京","timezone_id":"Asia/Tokyo","latitude":35.6762,"longitude":139.6503,"local_civil_time":"2026-08-26 15:30","expected_standard_time":"2026-08-26 15:30","expected_true_solar_minute":"2026-08-26 15:46","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"戊申"},
+    {"name":"悉尼","timezone_id":"Australia/Sydney","latitude":-33.8688,"longitude":151.2093,"local_civil_time":"2026-08-26 16:30","expected_standard_time":"2026-08-26 16:30","expected_true_solar_minute":"2026-08-26 16:32","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"戊申"},
+    {"name":"加德满都","timezone_id":"Asia/Kathmandu","latitude":27.7172,"longitude":85.324,"local_civil_time":"2026-08-26 12:15","expected_standard_time":"2026-08-26 12:15","expected_true_solar_minute":"2026-08-26 12:09","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"丙午"},
+    {"name":"伦敦","timezone_id":"Europe/London","latitude":51.5074,"longitude":-0.1278,"local_civil_time":"2026-08-26 07:30","expected_standard_time":"2026-08-26 06:30","expected_true_solar_minute":"2026-08-26 06:27","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"癸卯"},
+    {"name":"纽约","timezone_id":"America/New_York","latitude":40.7128,"longitude":-74.006,"local_civil_time":"2026-08-26 02:30","expected_standard_time":"2026-08-26 01:30","expected_true_solar_minute":"2026-08-26 01:32","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"壬申","hour_pillar":"辛丑"},
+    {"name":"洛杉矶","timezone_id":"America/Los_Angeles","latitude":34.0522,"longitude":-118.2437,"local_civil_time":"2026-08-25 23:30","expected_standard_time":"2026-08-25 22:30","expected_true_solar_minute":"2026-08-25 22:35","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"辛未","hour_pillar":"己亥"},
+    {"name":"檀香山","timezone_id":"Pacific/Honolulu","latitude":21.3099,"longitude":-157.8581,"local_civil_time":"2026-08-25 20:30","expected_standard_time":"2026-08-25 20:30","expected_true_solar_minute":"2026-08-25 19:56","year_pillar":"丙午","month_pillar":"丙申","day_pillar":"辛未","hour_pillar":"戊戌"}
+  ]
+}

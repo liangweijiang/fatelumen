@@ -211,10 +211,10 @@ export default function ReportPage() {
             </div>
             <div className="grid grid-cols-4 gap-3 text-center">
               {([
-                { pos: "hour", label: "时柱" },
-                { pos: "day", label: "日柱" },
-                { pos: "month", label: "月柱" },
                 { pos: "year", label: "年柱" },
+                { pos: "month", label: "月柱" },
+                { pos: "day", label: "日柱" },
+                { pos: "hour", label: "时柱" },
               ] as const).map(({ pos, label }) => {
                 const p = chart.chart_data.pillars[pos];
                 const wx: Record<string, string> = {

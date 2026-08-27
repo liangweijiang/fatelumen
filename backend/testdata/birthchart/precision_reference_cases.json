@@ -1,0 +1,26 @@
+{
+  "metadata": {
+    "reference": "NOAA Solar Calculator equations (Julian-century equation of time)",
+    "reference_url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
+    "generated_at": "2026-08-26",
+    "production_algorithm": "eot-noaa-julian-century-v2",
+    "maximum_error_seconds": 30,
+    "notes": "The authoritative equations and input matrix execute offline and are independent of the production day-angle approximation."
+  },
+  "cases": [
+    {"name":"perihelion-season","local_standard_time":"2026-01-03T12:00:00","longitude":121.4737,"standard_utc_offset_seconds":28800},
+    {"name":"february-eot-minimum","local_standard_time":"2026-02-11T12:00:00","longitude":-74.0060,"standard_utc_offset_seconds":-18000},
+    {"name":"march-equinox","local_standard_time":"2026-03-20T12:00:00","longitude":0.0000,"standard_utc_offset_seconds":0},
+    {"name":"march-midnight-boundary","local_standard_time":"2026-03-20T00:07:40","longitude":0.0000,"standard_utc_offset_seconds":0},
+    {"name":"march-shichen-boundary","local_standard_time":"2026-03-20T01:07:40","longitude":0.0000,"standard_utc_offset_seconds":0},
+    {"name":"may-zero-crossing","local_standard_time":"2026-05-14T12:00:00","longitude":77.2090,"standard_utc_offset_seconds":19800},
+    {"name":"june-solstice","local_standard_time":"2026-06-21T12:00:00","longitude":151.2093,"standard_utc_offset_seconds":36000},
+    {"name":"july-aphelion-season","local_standard_time":"2026-07-06T12:00:00","longitude":139.6917,"standard_utc_offset_seconds":32400},
+    {"name":"september-equinox","local_standard_time":"2026-09-23T12:00:00","longitude":85.3240,"standard_utc_offset_seconds":20700},
+    {"name":"november-eot-maximum","local_standard_time":"2026-11-03T12:00:00","longitude":-157.8583,"standard_utc_offset_seconds":-36000},
+    {"name":"december-solstice","local_standard_time":"2026-12-21T12:00:00","longitude":-0.1276,"standard_utc_offset_seconds":0},
+    {"name":"leap-day","local_standard_time":"2024-02-29T23:59:30","longitude":174.7633,"standard_utc_offset_seconds":46800},
+    {"name":"historical-sample","local_standard_time":"1950-06-21T00:00:00","longitude":13.4050,"standard_utc_offset_seconds":3600},
+    {"name":"century-leap-rule","local_standard_time":"2000-12-31T23:59:59","longitude":-46.6333,"standard_utc_offset_seconds":-10800}
+  ]
+}

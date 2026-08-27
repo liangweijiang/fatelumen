@@ -62,7 +62,7 @@
     "eyebrow": "四柱命式ツール", "title": "四柱八字を無料で算出", "sub": "正確な出生情報を入力し、伝統暦に基づいて算出された年・月・日・時の四柱を確認できます。",
     "loginChecking": "ログイン状態を確認中…", "inputTitle": "出生情報", "inputNote": "基礎命式のみを表示し、鑑定文は生成せず、ポイントも消費しません。",
     "calendar": "暦", "solar": "西暦", "lunar": "旧暦", "leapMonth": "閏月", "year": "出生年", "month": "月", "day": "日", "hour": "時", "minute": "分",
-    "birthPlace": "出生地（任意）", "country": "国", "region": "都市・地域", "countrySearch": "国を検索または選択", "regionSearch": "都市・地域を検索または選択", "selectCountry": "先に国を選択", "citySearchHint": "入力して検索するか、一覧をスクロールしてください", "citySearching": "読み込み中…", "cityNoResults": "一致する都市・地域がありません", "cityCount": "{shown} / {total} 件を表示",
+    "birthPlace": "出生地（任意）", "country": "国", "region": "都市・地域", "countrySearch": "国を検索または選択", "countryNoResults": "一致する国がありません", "regionSearch": "都市・地域を検索または選択", "selectCountry": "先に国を選択", "citySearchHint": "入力して検索するか、一覧をスクロールしてください", "citySearching": "読み込み中…", "cityNoResults": "一致する都市・地域がありません", "cityCount": "{shown} / {total} 件を表示",
     "longitude": "経度", "latitude": "緯度", "placeHint": "国・地域または緯度経度のどちらかを入力し、両方の場合は同じ場所にしてください", "timezone": "出生記録のタイムゾーン", "timezoneSearch": "タイムゾーンを検索または選択", "timezoneHint": "都市から自動設定されます。出生記録が別の標準時を使用していた場合のみ変更してください。", "timezoneInvalid": "有効な出生記録のタイムゾーンを選択してください。", "gender": "性別", "male": "男性", "female": "女性",
     "submit": "命式を算出", "invalid": "生年月日、時刻、出生地情報を確認してください。",
     "resultEyebrow": "命式結果 · UIサンプル", "resultTitle": "四柱八字", "resultNote": "現在はローカル表示データです。正式版では完全レポートと同じ確定的な命式計算を使用します。",

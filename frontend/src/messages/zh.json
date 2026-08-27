@@ -69,7 +69,7 @@
     "calendar": "历法", "solar": "公历", "lunar": "农历", "leapMonth": "闰月",
     "year": "出生年", "month": "月", "day": "日", "hour": "时", "minute": "分",
     "birthPlace": "出生地（可选）", "country": "国家", "region": "城市/地区",
-    "countrySearch": "搜索或选择国家", "regionSearch": "搜索或下拉选择城市/地区", "selectCountry": "请先选择国家", "citySearchHint": "输入名称搜索，或滚动浏览城市列表", "citySearching": "正在加载…", "cityNoResults": "未找到匹配的城市或地区", "cityCount": "已显示 {shown} / {total}",
+    "countrySearch": "搜索或选择国家", "countryNoResults": "未找到匹配的国家", "regionSearch": "搜索或下拉选择城市/地区", "selectCountry": "请先选择国家", "citySearchHint": "输入名称搜索，或滚动浏览城市列表", "citySearching": "正在加载…", "cityNoResults": "未找到匹配的城市或地区", "cityCount": "已显示 {shown} / {total}",
     "longitude": "经度", "latitude": "纬度", "placeHint": "国家/地区与经纬度可任选一种；两种都填时必须表示同一地点", "timezone": "出生记录时区", "timezoneSearch": "搜索或选择时区", "timezoneHint": "已按城市自动填写；如果出生时间采用其他钟表时区，可以在此校正。", "timezoneInvalid": "请选择有效的出生记录时区。",
     "gender": "性别", "male": "乾 · 男", "female": "坤 · 女",
     "submit": "立即排盘", "invalid": "请检查出生日期、时间及出生地信息是否完整。",

@@ -37,3 +37,18 @@ func TestContainsHan(t *testing.T) {
 		t.Fatal("English fallback must not be treated as Chinese")
 	}
 }
+
+func TestExcludedCountryCodes(t *testing.T) {
+	want := []string{"AN", "AQ", "BV", "CS", "HM", "UM"}
+	if len(excludedCountryCodes) != len(want) {
+		t.Fatalf("unexpected exclusion count: %d", len(excludedCountryCodes))
+	}
+	for _, code := range want {
+		if _, ok := excludedCountryCodes[code]; !ok {
+			t.Fatalf("country code %s must be excluded", code)
+		}
+	}
+	if _, excluded := excludedCountryCodes["CN"]; excluded {
+		t.Fatal("active countries must remain importable")
+	}
+}

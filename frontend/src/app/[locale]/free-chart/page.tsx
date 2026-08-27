@@ -14,6 +14,7 @@ import { ChartResultDialog } from "./ChartResultDialog";
 import { CitySearchField } from "./CitySearchField";
 import { HistoryDialog } from "./HistoryDialog";
 import type { ChartRecord } from "./types";
+import { CountrySearchField } from "@/components/form/CountrySearchField";
 
 function numberValue(value: string) {
   const parsed = Number(value);
@@ -27,8 +28,8 @@ function localizedName(item: GeoCountry | GeoCity, locale: "en" | "zh" | "ja" | 
 function toRecord(result: FreeChartResult, locale: string): ChartRecord {
   const p = result.pillars;
   const pillars = [
-    { key: "hourPillar" as const, ...p.hour }, { key: "dayPillar" as const, ...p.day },
-    { key: "monthPillar" as const, ...p.month }, { key: "yearPillar" as const, ...p.year },
+    { key: "yearPillar" as const, ...p.year }, { key: "monthPillar" as const, ...p.month },
+    { key: "dayPillar" as const, ...p.day }, { key: "hourPillar" as const, ...p.hour },
   ].map(item => ({ key:item.key, stem:item.stem, branch:item.branch, stemElement:item.stem_element, branchElement:item.branch_element }));
   const names=[result.location.country_name,result.location.region_name||result.location.city].filter(Boolean).join(" · ");
   return {id:result.id,solarDate:result.solar_date||`${result.birth_year}-${result.birth_month}-${result.birth_day} ${result.birth_hour}:${result.birth_minute}`,lunarDate:result.lunar_date,gender:result.gender,place:names||result.location.display_name||"—",coordinates:`${result.location.longitude.toFixed(4)}, ${result.location.latitude.toFixed(4)}`,timezone:result.time_calculation?.timezone_id||result.location.timezone_id,trueSolarTime:result.time_calculation?.true_solar_time||"—",dayMaster:`${result.day_master.stem}${result.day_master.element}`,createdAt:new Date(result.created_at).toLocaleString(locale),pillars};
@@ -219,7 +220,7 @@ export default function FreeChartPage() {
             <fieldset>
               <legend className="mb-3 text-sm font-semibold text-[var(--ink)]">{t("birthPlace")}</legend>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label><span className={labelClass}>{t("country")}</span><input aria-describedby="free-chart-place-hint" list="free-chart-countries" value={countryQuery} placeholder={t("countrySearch")} onChange={(event) => { const query = event.target.value; const match = countryOptions.find((item) => item.label.toLocaleLowerCase() === query.trim().toLocaleLowerCase()); setCountryQuery(query); setCountryCode(match?.code ?? ""); setSelectedCity(null); setRegionQuery(""); }} className={fieldClass} /><datalist id="free-chart-countries">{countryOptions.map((item) => <option key={item.code} value={item.label} />)}</datalist></label>
+                <div><span className={labelClass}>{t("country")}</span><CountrySearchField id="free-chart-country" value={countryQuery} selectedCode={countryCode} options={countryOptions} placeholder={t("countrySearch")} ariaLabel={t("country")} emptyText={t("countryNoResults")} className={fieldClass} onChange={(query) => { setCountryQuery(query); setCountryCode(""); setSelectedCity(null); setRegionQuery(""); }} onSelect={(country) => { setCountryQuery(country.label); setCountryCode(country.code); setSelectedCity(null); setRegionQuery(""); }} /></div>
                 <div><span className={labelClass}>{t("region")}</span><CitySearchField value={regionQuery} disabled={!selectedCountry} loading={cityLoading} loadingMore={cityLoadingMore} options={geoCities} total={cityTotal} selectedID={selectedCity?.id} placeholder={selectedCountry ? t("regionSearch") : t("selectCountry")} ariaLabel={t("region")} searchHint={t("citySearchHint")} loadingText={t("citySearching")} emptyText={t("cityNoResults")} statusText={t("cityCount",{shown:geoCities.length,total:cityTotal})} getName={(city)=>localizedName(city,dataLocale)} onChange={(query)=>{setRegionQuery(query);setSelectedCity(null);}} onSelect={(city)=>{setSelectedCity(city);setRegionQuery(localizedName(city,dataLocale));setLongitude(String(city.longitude));setLatitude(String(city.latitude));setTimezone(city.country_code === "CN" ? "Asia/Shanghai" : city.timezone_id);}} onLoadMore={()=>void loadMoreCities()} className={fieldClass} /></div>
               </div>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">

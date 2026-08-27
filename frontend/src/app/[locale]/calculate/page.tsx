@@ -10,6 +10,7 @@ import type { CreateProfilePayload, GeoCity, GeoCountry } from "@/types/api";
 import { normalizeLocale } from "@/lib/location-options";
 import { timeZoneOptions } from "@/lib/timezone-options";
 import { CitySearchField } from "./CitySearchField";
+import { CountrySearchField } from "@/components/form/CountrySearchField";
 
 function stripLeadingZero(v: string): number {
   if (v === "" || v === "-") return 0;
@@ -351,26 +352,15 @@ export default function CalculatePage() {
 
           {/* Leap month (lunar only) */}
           {calendarType === 1 && (
-            <div className="mb-6 flex items-center gap-3">
-              <label
-                className="text-[14px] tracking-[.3px]"
-                style={{ color: "var(--ink)" }}
-              >
-                {t("leapMonth")}
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsLeapMonth(!isLeapMonth)}
-                className="rounded-full px-4 py-1.5 text-[13px] font-semibold transition-all"
-                style={{
-                  background: isLeapMonth ? "var(--gold)" : "var(--bg)",
-                  color: isLeapMonth ? "var(--bg-card)" : "var(--ink-soft)",
-                  border: `1px solid ${isLeapMonth ? "var(--gold)" : "var(--line)"}`,
-                }}
-              >
-                {isLeapMonth ? "✓" : "—"}
-              </button>
-            </div>
+            <label className="mb-6 flex items-center gap-3 text-sm text-[var(--ink-soft)]">
+              <input
+                type="checkbox"
+                checked={isLeapMonth}
+                onChange={(event) => setIsLeapMonth(event.target.checked)}
+                className="h-4 w-4 accent-[var(--gold-deep)]"
+              />
+              {t("leapMonth")}
+            </label>
           )}
 
           {/* Birth place */}
@@ -381,8 +371,7 @@ export default function CalculatePage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label htmlFor="birth-country" className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>{t("country")}</label>
-                <input id="birth-country" type="search" list="calculate-countries" value={countryQuery} placeholder={t("countrySearch")} autoComplete="off" onChange={(event) => { const query = event.target.value; const match = countryOptions.find((item) => item.label.toLocaleLowerCase() === query.trim().toLocaleLowerCase()); setCountryQuery(query); setCountryCode(match?.code ?? ""); setSelectedCity(null); setRegionQuery(""); }} className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2" style={{ background: "var(--bg)", borderColor: "var(--line)", color: "var(--ink)" }} />
-                <datalist id="calculate-countries">{countryOptions.map((item) => <option key={item.code} value={item.label} />)}</datalist>
+                <CountrySearchField id="birth-country" value={countryQuery} selectedCode={countryCode} options={countryOptions} placeholder={t("countrySearch")} ariaLabel={t("country")} emptyText={t("noLocationResults")} className="w-full rounded-xl border px-4 py-2.5 text-[14px] outline-none transition-all focus:ring-2" onChange={(query) => { setCountryQuery(query); setCountryCode(""); setSelectedCity(null); setRegionQuery(""); }} onSelect={(country) => { setCountryQuery(country.label); setCountryCode(country.code); setSelectedCity(null); setRegionQuery(""); }} />
               </div>
               <div>
                 <label className="mb-1 block text-[12px] tracking-[.3px]" style={{ color: "var(--ink-faint)" }}>{t("region")}</label>

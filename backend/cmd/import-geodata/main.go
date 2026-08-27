@@ -30,6 +30,15 @@ type importStats struct {
 	DroppedChinaWithoutZH                                             int
 }
 
+var excludedCountryCodes = map[string]struct{}{
+	"AN": {}, // former Netherlands Antilles
+	"AQ": {}, // no supported city records
+	"BV": {}, // no supported city records
+	"CS": {}, // former Serbia and Montenegro
+	"HM": {}, // no supported city records
+	"UM": {}, // aggregate territory without a single birth location
+}
+
 var chinaAdmin1ZH = map[string]string{
 	"01": "安徽", "02": "浙江", "03": "江西", "04": "江苏", "05": "吉林",
 	"06": "青海", "07": "福建", "08": "黑龙江", "09": "河南", "10": "河北",
@@ -129,6 +138,9 @@ func readCountries(path string) ([]model.GeoCountry, map[string]uint64, error) {
 			continue
 		}
 		code, name := p[0], p[4]
+		if _, excluded := excludedCountryCodes[code]; excluded {
+			continue
+		}
 		rows = append(rows, model.GeoCountry{Code: code, NameEN: name, NameZH: name, NameJA: name, NameKO: name})
 		ids[code] = id
 	}
