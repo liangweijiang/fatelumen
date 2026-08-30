@@ -1,0 +1,92 @@
+{
+  "facts_hash": "example-facts-hash-not-production",
+  "input": {
+    "calendar_type": 0,
+    "year": 1990,
+    "month": 8,
+    "day": 15,
+    "hour": 13,
+    "minute": 30,
+    "is_leap_month": false,
+    "gender": 1,
+    "country_code": "CN",
+    "region_code": "44",
+    "place_id": "example-place",
+    "longitude": 113.7487,
+    "latitude": 23.018,
+    "timezone_id": "Asia/Shanghai",
+    "locale": "zh",
+    "profile_mode": "report_only",
+    "schema_version": "report-input-v1"
+  },
+  "time_calculation": {
+    "local_civil_time": "1990-08-15 13:30:00",
+    "timezone_id": "Asia/Shanghai",
+    "historical_utc_offset_seconds": 28800,
+    "standard_utc_offset_seconds": 28800,
+    "dst_applied": false,
+    "dst_offset_seconds": 0,
+    "standard_meridian": 120,
+    "longitude_correction_minutes": -25.0052,
+    "equation_of_time_minutes": -4.5,
+    "local_standard_time": "1990-08-15 13:30:00",
+    "mean_solar_time": "1990-08-15 13:04:59",
+    "true_solar_time": "1990-08-15 13:00:29",
+    "crossed_date_boundary": false,
+    "day_boundary_rule": "MIDNIGHT_00",
+    "solar_algorithm_version": "eot-noaa-julian-century-v2",
+    "location_database_version": "geonames-fixed-snapshot-v1",
+    "timezone_database_version": "go-tzdata-v1"
+  },
+  "chart": {
+    "chart_hash": "example-chart-hash-not-production",
+    "chart_schema_version": "chart-snapshot-v1",
+    "engine_version": "birth-chart-engine-v1",
+    "lunar_go_version": "v1.4.6",
+    "data": {
+      "pillars": {
+        "year": {"stem":"庚","branch":"午","stem_element":"金","branch_element":"火","ten_god_stem":"偏印","ten_god_hidden":["正财","正官"],"hidden_stems":["丁","己"],"nayin":"路旁土"},
+        "month": {"stem":"甲","branch":"申","stem_element":"木","branch_element":"金","ten_god_stem":"食神","ten_god_hidden":["偏印","比肩","食神"],"hidden_stems":["庚","壬","戊"],"nayin":"泉中水"},
+        "day": {"stem":"壬","branch":"子","stem_element":"水","branch_element":"水","ten_god_stem":"日主","ten_god_hidden":["劫财"],"hidden_stems":["癸"],"nayin":"桑柘木"},
+        "hour": {"stem":"丁","branch":"未","stem_element":"火","branch_element":"土","ten_god_stem":"正财","ten_god_hidden":["正官","正财","伤官"],"hidden_stems":["己","丁","乙"],"nayin":"天河水"}
+      },
+      "day_master": {"stem":"壬","element":"水","yin_yang":"阳"},
+      "five_elements_count": {"wood":2,"fire":3,"earth":3,"metal":2,"water":3},
+      "strength": {"level":"balanced","score":55,"favorable":["木","火"],"unfavorable":["水","金"]},
+      "luck_cycles": [{"ganzhi":"乙酉","start_age":3,"start_year":1993,"element":"木"}],
+      "current_year_fortune": {"year":2026,"stem":"丙","branch":"午","element":"火"},
+      "annual_fortunes": [{"year":2026,"age":37,"ganzhi":"丙午","stem":"丙","branch":"午","element":"火","luck_cycle_ganzhi":"丁亥","luck_cycle_start_age":33,"luck_cycle_start_year":2023}],
+      "hour_unknown": false,
+      "meta": {"solar_date":"1990-08-15 13:00:29","lunar_date":"一九九〇年六月廿五","zodiac":"马","gender":"male","calc_lib":"lunar-go","calc_version":"v1.4.6","time_calculation":{}}
+    }
+  },
+  "element_strength": [
+    {"code":"element.water","level":"balanced","score":55,"values":["水"],"evidence":[{"rule_code":"ELEMENT_WEIGHT_V1","source":"pillars_and_hidden_stems","pillars":["year","month","day","hour"],"reason":"示例数据，仅演示契约"}]}
+  ],
+  "day_master_strength": {"code":"day_master.strength","level":"balanced","score":55,"evidence":[{"rule_code":"DAY_MASTER_STRENGTH_V1","source":"deterministic_rule_engine","pillars":["month","day"],"symbols":["壬","申","子"],"reason":"示例数据，仅演示可追溯依据"}]},
+  "ten_god_structure": [],
+  "stem_relations": [],
+  "branch_relations": [],
+  "pattern_candidates": [],
+  "favorable_elements": {"code":"favorable.elements","values":["木","火"],"evidence":[{"rule_code":"FAVORABLE_ELEMENT_V1","source":"deterministic_rule_engine","reason":"示例数据"}]},
+  "luck_cycles": [{"ganzhi":"乙酉","start_age":3,"start_year":1993,"element":"木"}],
+  "annual_fortunes": [{"year":2026,"age":37,"ganzhi":"丙午","stem":"丙","branch":"午","element":"火","luck_cycle_ganzhi":"丁亥","luck_cycle_start_age":33,"luck_cycle_start_year":2023}],
+  "chapter_facts": [
+    {"chapter_key":"structure","fact_codes":["day_master.strength"]},
+    {"chapter_key":"day_master","fact_codes":["day_master.strength","element.water"]}
+  ],
+  "rule_matches": [{"rule_code":"DAY_MASTER_STRENGTH_V1","module":"strength","matched":true,"priority":100,"evidence":[]}],
+  "warnings": ["example_only_not_a_validated_reading"],
+  "versions": {
+    "bazi_base_data_version":"bazi-base-data-v1",
+    "input_schema_version":"report-input-v1",
+    "chart_schema_version":"chart-snapshot-v1",
+    "facts_schema_version":"interpretation-facts-v1",
+    "rule_set_version":"rules-draft-v1",
+    "prompt_version":"full-draft-v1",
+    "solar_algorithm_version":"eot-noaa-julian-century-v2",
+    "location_database_version":"geonames-fixed-snapshot-v1",
+    "timezone_database_version":"go-tzdata-v1",
+    "lunar_go_version":"v1.4.6"
+  }
+}

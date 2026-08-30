@@ -1,0 +1,168 @@
+package handler
+
+import (
+	"encoding/json"
+	"errors"
+	"strconv"
+
+	"fatelumen/backend/internal/llm/prompts"
+	"fatelumen/backend/internal/middleware"
+	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/pkg/logger"
+	"fatelumen/backend/internal/pkg/response"
+	"fatelumen/backend/internal/repository"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+)
+
+type AdminReportTraceHandler struct {
+	reports *repository.ReportRepo
+	audit   *repository.AuditRepo
+}
+
+func NewAdminReportTraceHandler(reports *repository.ReportRepo, audit *repository.AuditRepo) *AdminReportTraceHandler {
+	return &AdminReportTraceHandler{reports: reports, audit: audit}
+}
+
+func (h *AdminReportTraceHandler) Facts(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	row, err := h.reports.AdminGetFactSnapshot(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report facts unavailable", reportID)
+		return
+	}
+	var input model.ReportInputSnapshot
+	var tc model.TimeCalculationSnapshot
+	var chart model.ChartSnapshot
+	var facts model.InterpretationFacts
+	if err := decodeSnapshot(row, &input, &tc, &chart, &facts); err != nil {
+		logger.FromCtx(c.Request.Context()).Error("decode report fact snapshot failed", "err", err, "report_id", reportID)
+		response.Error(c, "report facts unavailable")
+		return
+	}
+	h.auditRead(c, "view_facts", reportID, "")
+	response.OK(c, model.AdminReportFactsResponse{ReportID: reportID, Snapshot: model.ReportFactSnapshotContract{ReportID: reportID, InputSnapshot: input, TimeCalculationSnapshot: tc, ChartSnapshot: chart, Facts: facts, ChartHash: row.ChartHash, FactsHash: row.FactsHash, CreatedAt: row.CreatedAt}})
+}
+
+func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	page, size := 1, 20
+	if v, err := strconv.Atoi(c.DefaultQuery("page", "1")); err == nil && v > 0 {
+		page = v
+	}
+	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "20")); err == nil && v > 0 && v <= 100 {
+		size = v
+	}
+	rows, total, err := h.reports.AdminListLLMCalls(c.Request.Context(), reportID, size, (page-1)*size)
+	if err != nil {
+		h.readError(c, err, "report call traces unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_llm_calls", reportID, "")
+	response.OK(c, gin.H{"report_id": reportID, "items": rows, "total": total, "page": page, "page_size": size})
+}
+
+func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	callID, ok := reportTraceID(c, "callId")
+	if !ok {
+		return
+	}
+	row, err := h.reports.AdminGetLLMCall(c.Request.Context(), reportID, callID)
+	if err != nil {
+		h.readError(c, err, "report call trace unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_llm_call", reportID, strconv.FormatUint(callID, 10))
+	response.OK(c, row)
+}
+
+type promptPreviewRequest struct {
+	ChapterKey string `json:"chapter_key" binding:"required"`
+	Locale     string `json:"locale" binding:"required"`
+}
+
+// PromptPreview builds the exact chapter prompt and filtered fact payload
+// without invoking an external provider or mutating the immutable snapshot.
+func (h *AdminReportTraceHandler) PromptPreview(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	var req promptPreviewRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Fail(c, response.CodeBadRequest, "chapter_key and locale are required")
+		return
+	}
+	row, err := h.reports.AdminGetFactSnapshot(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report facts unavailable", reportID)
+		return
+	}
+	var input model.ReportInputSnapshot
+	var tc model.TimeCalculationSnapshot
+	var chart model.ChartSnapshot
+	var facts model.InterpretationFacts
+	if err := decodeSnapshot(row, &input, &tc, &chart, &facts); err != nil {
+		logger.FromCtx(c.Request.Context()).Error("decode prompt preview facts failed", "err", err, "report_id", reportID)
+		response.Error(c, "prompt preview unavailable")
+		return
+	}
+	preview, err := prompts.BuildChapterPromptPreview(req.Locale, req.ChapterKey, facts)
+	if err != nil {
+		logger.FromCtx(c.Request.Context()).Warn("prompt preview rejected", "err", err, "report_id", reportID, "chapter_key", req.ChapterKey, "locale", req.Locale)
+		response.Fail(c, response.CodeBadRequest, err.Error())
+		return
+	}
+	h.auditRead(c, "preview_prompt", reportID, "")
+	response.OK(c, preview)
+}
+
+func (h *AdminReportTraceHandler) PromptRegistry(c *gin.Context) {
+	response.OK(c, gin.H{"version": prompts.ChapterRegistryVersion, "chapters": prompts.ChapterDefinitions(), "locales": prompts.SupportedLocales()})
+}
+
+func reportTraceID(c *gin.Context, name string) (uint64, bool) {
+	id, err := strconv.ParseUint(c.Param(name), 10, 64)
+	if err != nil || id == 0 {
+		response.Fail(c, response.CodeBadRequest, "invalid id")
+		return 0, false
+	}
+	return id, true
+}
+
+func decodeSnapshot(row *model.ReportFactSnapshot, input *model.ReportInputSnapshot, tc *model.TimeCalculationSnapshot, chart *model.ChartSnapshot, facts *model.InterpretationFacts) error {
+	for _, item := range []struct {
+		raw model.JSONRaw
+		dst any
+	}{{row.InputSnapshot, input}, {row.TimeCalculationSnapshot, tc}, {row.ChartSnapshot, chart}, {row.FactsSnapshot, facts}} {
+		if err := json.Unmarshal(item.raw, item.dst); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (h *AdminReportTraceHandler) readError(c *gin.Context, err error, message string, reportID uint64) {
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, response.CodeNotFound, "report trace not found")
+		return
+	}
+	logger.FromCtx(c.Request.Context()).Error(message, "err", err, "report_id", reportID)
+	response.Error(c, message)
+}
+
+func (h *AdminReportTraceHandler) auditRead(c *gin.Context, action string, reportID uint64, callID string) {
+	detail, _ := json.Marshal(gin.H{"call_id": callID})
+	h.audit.Write(c.Request.Context(), model.AdminAuditLog{AdminID: middleware.GetAdminID(c), AdminName: c.GetString("admin_name"), Action: action, Resource: "report_trace", ResourceID: strconv.FormatUint(reportID, 10), Detail: model.JSONRaw(detail), IP: c.ClientIP()})
+}

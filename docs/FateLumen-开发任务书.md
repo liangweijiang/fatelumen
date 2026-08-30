@@ -31,11 +31,12 @@
 ## 1. 项目总览与核心原则
 
 ### 1.1 产品一句话
-FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网站：用户输入出生信息 → 系统**用确定性算法精确排盘** → 生成清晰、专业、易读的命理解读(简单测算出图，完整测算导出 PDF)。
+FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网站：用户输入出生信息 → 系统**用确定性算法精确排盘并形成可追溯事实包** → 生成清晰、专业、易读的完整命理解读报告。
 
 ### 1.2 商业模式(MVP)
-- **简单测算(Quick Reading)**：免费，每日 3 次额度，输出一张可分享的图片。
-- **完整测算(Full Reading)**：付费 **$5.99 / 次** 或消耗 **10 积分**，输出一份精美 PDF 报告(12 章)。
+- **当前实施范围**：免费排盘 + 完整测算。简单测算入口暂时隐藏，本阶段不继续建设。
+- **简单测算(Quick Reading，后续恢复)**：代码、接口和数据结构保留；恢复时必须复用完整报告的事实包，只裁剪章节和文案长度，不建立第二套基础计算。
+- **完整测算(Full Reading)**：付费 **$5.99 / 次** 或消耗 **10 积分**，输出一份精美 PDF 报告（10 章）。
 - 订阅模式**不做**，留到 v2。
 
 ### 1.3 五条不可违背的核心原则
@@ -117,9 +118,9 @@ FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网�
    ├── AuthProvider 接口 ──► Google / Apple / Email(可插拔) + JWT
    ├── Bazi 排盘服务 ──► [6tail/lunar-go] (确定性算法，无 LLM)
    ├── Reading 服务
-   │      ├── Quick: 排盘 → LLM(1次) → Renderer 出图 → Storage
-   │      └── Full : 排盘 → JobQueue 异步任务
-   │                    └── LLM(分批多次) → 组装 → Renderer 出 PDF → Storage
+   │      ├── Quick(暂时隐藏): 未来裁剪 Full 事实包 → Renderer 出图 → Storage
+   │      └── Full : 排盘 → 确定性事实包 + 不可变快照 → JobQueue 异步任务
+   │                    └── LLM(分批多次且逐次留痕) → 组装 → Renderer 出 PDF → Storage
    │                         └── 状态机: pending→processing→done/failed → Notifier 通知
    ├── LLMProvider 接口 ──► DeepSeek(默认)/ OpenAI / Claude(可切，仅解读)
    ├── Renderer 接口 ──► chromedp(可换 wkhtmltopdf/云渲染)→ 图片/PDF
@@ -138,7 +139,7 @@ FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网�
 
 ### 3.2 关键数据流
 
-**简单测算(Quick，同步)**
+**简单测算(Quick，同步，暂时隐藏/后续恢复)**
 1. 前端提交出生信息 → `POST /api/v1/readings/quick`
 2. 后端校验每日额度(免费 3 次/天)
 3. `lunar-go` 排盘 → 得到结构化命盘 JSON
@@ -150,8 +151,9 @@ FateLumen 是一个面向**海外市场**的八字(四柱命理)在线测算网�
 1. 前端确认付费/扣积分 → `POST /api/v1/readings/full`(需已支付或有积分)
 2. 后端创建 `report` 记录，状态 `pending`，立即返回 `report_id`
 3. 后台 goroutine：`pending→processing`
-  - `lunar-go` 排盘
-  - 分 3–4 批调 LLM，生成 12 章结构化 JSON
+  - `lunar-go` 排盘并生成版本化 `InterpretationFacts`
+  - 保存报告输入、时间换算、命盘和事实包的不可变快照
+  - 分 4 批调 LLM；每次尝试保存Prompt、事实输入、原始输出、解析输出、Schema结果、耗时与版本
   - 组装完整报告 JSON → HTML 模板 → chromedp 渲染 PDF → 上传 R2
   - `processing→done`(写入 PDF URL);异常则 `failed`(记录错误)
 4. 前端轮询 `GET /api/v1/readings/full/{report_id}` 直到 `done`，拿 PDF URL
@@ -281,7 +283,7 @@ CREATE TABLE reports (
   locale        VARCHAR(8)   NOT NULL DEFAULT 'en',
   status        VARCHAR(16)  NOT NULL DEFAULT 'pending' COMMENT 'pending/processing/done/failed',
   pay_method    VARCHAR(16)  NOT NULL COMMENT 'order(付费订单) / credit(扣积分)',
-  content       JSON         COMMENT '12章完整报告结构化 JSON',
+  content       JSON         COMMENT '10章完整报告结构化 JSON',
   pdf_url       VARCHAR(512) COMMENT 'PDF R2 URL',
   error_msg     VARCHAR(512) COMMENT '失败原因',
   retry_count   INT          NOT NULL DEFAULT 0,
@@ -435,47 +437,43 @@ CREATE TABLE geo_cities (
 ```
 > 字段命名以 `lunar-go` 实际可计算项为准；上表是目标结构，排盘服务负责把库的输出映射成此 schema。
 
-### 4.4 完整报告 JSON 结构(`reports.content`，12 章)
+### 4.4 完整报告 JSON 结构(`reports.content`，10 章)
 
 ```json
 {
   "locale": "en",
   "summary_line": "一句话命局总结",
   "chapters": [
-    {"no": 1,  "key": "structure",   "title": "...", "body": "...", "tags": []},
-    {"no": 2,  "key": "day_master",  "title": "...", "body": "...", "strength_score": 38},
-    {"no": 3,  "key": "personality", "title": "...", "body": "..."},
-    {"no": 4,  "key": "career",      "title": "...", "body": "..."},
-    {"no": 5,  "key": "wealth",      "title": "...", "body": "..."},
-    {"no": 6,  "key": "marriage",    "title": "...", "body": "..."},
-    {"no": 7,  "key": "health",      "title": "...", "body": "..."},
-    {"no": 8,  "key": "luck_cycles", "title": "...", "body": "...", "cycles": []},
-    {"no": 9,  "key": "yearly",      "title": "...", "body": "...", "years": []},
-    {"no": 10, "key": "elements_advice", "title": "...", "body": "..."},
-    {"no": 11, "key": "relationships",   "title": "...", "body": "..."},
-    {"no": 12, "key": "lifetime_summary","title": "...", "body": "..."}
+    {"no": 1,  "key": "destiny_depth",   "title": "...", "body": "..."},
+    {"no": 2,  "key": "ten_gods_full",  "title": "...", "body": "..."},
+    {"no": 3,  "key": "luck_cycle",     "title": "...", "body": "..."},
+    {"no": 4,  "key": "ten_year_years", "title": "...", "body": "...", "years": []},
+    {"no": 5,  "key": "career_depth",   "title": "...", "body": "..."},
+    {"no": 6,  "key": "wealth_depth",   "title": "...", "body": "..."},
+    {"no": 7,  "key": "love_depth",     "title": "...", "body": "..."},
+    {"no": 8,  "key": "health_depth",   "title": "...", "body": "..."},
+    {"no": 9,  "key": "element_tuning", "title": "...", "body": "..."},
+    {"no": 10, "key": "life_plan",      "title": "...", "body": "..."}
   ]
 }
 ```
 
-**12 章 key 全集(渲染模板与 Prompt 必须严格对齐此表,不得增删改 key):**
+**10 章 key 全集（渲染模板、Prompt 与管理端编排必须读取同一注册表，不得复制定义）：**
 
 | no | key | 含义 | 额外字段 | 生成批次 |
 |---|---|---|---|---|
-| 1 | `structure` | 格局结构 | — | Batch 1 |
-| 2 | `day_master` | 日主强弱 | `strength_score`(int 0–100) | Batch 1 |
-| 3 | `personality` | 性格特质 | — | Batch 1 |
-| 4 | `career` | 事业 | — | Batch 2 |
-| 5 | `wealth` | 财运 | — | Batch 2 |
-| 6 | `marriage` | 婚姻感情 | — | Batch 2 |
-| 7 | `health` | 健康 | — | Batch 3 |
-| 8 | `luck_cycles` | 大运 | `cycles`:[{`ganzhi`,`start_age`,`start_year`,`note`}] | Batch 3 |
-| 9 | `yearly` | 流年(近 5–10 年) | `years`:[{`year`,`ganzhi`,`note`}] | Batch 3 |
-| 10 | `elements_advice` | 五行调理建议 | — | Batch 4 |
-| 11 | `relationships` | 人际关系 | — | Batch 4 |
-| 12 | `lifetime_summary` | 终身总结 | — | Batch 4 |
+| 1 | `destiny_depth` | 命格深析 | — | 独立章节调用 |
+| 2 | `ten_gods_full` | 十神全览 | — | 独立章节调用 |
+| 3 | `luck_cycle` | 大运走势 | — | 独立章节调用 |
+| 4 | `ten_year_years` | 未来十年流年 | `years`:[{`year`,`ganzhi`,`note`}] | 总览 + 分段调用 |
+| 5 | `career_depth` | 事业深析 | — | 独立章节调用 |
+| 6 | `wealth_depth` | 财富格局 | — | 独立章节调用 |
+| 7 | `love_depth` | 情感姻缘 | — | 独立章节调用 |
+| 8 | `health_depth` | 健康养生 | — | 独立章节调用 |
+| 9 | `element_tuning` | 五行调候 | — | 独立章节调用 |
+| 10 | `life_plan` | 人生规划 | — | 独立章节调用 |
 
-> 公共字段:每章必含 `no`(int)、`key`(string)、`title`(本地化标题)、`body`(180–320 词正文)。`cycles`/`years` 数组的数据**来自命盘 `chart_data` 的真实大运/流年**(LLM 只加 `note` 解读,不得编造年份/干支)。**渲染模板按 `key` 渲染各章,前端/PDF 与此表一一对应。**
+> 公共字段：每章必含 `no`、`key`、本地化 `title` 和 `body`。`years` 的年份与干支必须来自确定性事实包，解读层只能补充 `note`，不得增删、重排或改写。十章权威运行时注册表位于 `backend/internal/llm/prompts/registry.go`。
 
 ---
 
@@ -596,7 +594,17 @@ CREATE TABLE geo_cities (
 **响应（统一信封）：** `{"order_id":99,"provider":"stripe","action":"redirect","checkout_url":"https://checkout.stripe.com/..."}`
 > `action` 取值：`redirect`(跳转托管页,Stripe/Paddle)或 `client_confirm`(返回 `client_token`,前端 SDK 内确认,如 PayPal)。前端按 `action` 分支处理,无需关心具体渠道。
 
-### 5.7 业务错误码表
+### 5.7 管理端报告追溯接口（B0契约，后续实现）
+
+| 方法 | 路径 | 说明 | 鉴权 |
+|---|---|---|---|
+| GET | `/api/v1/admin/reports/:id/facts` | 查看报告原始输入、时间换算、命盘及事实包快照 | Admin |
+| GET | `/api/v1/admin/reports/:id/llm-calls` | 分页查看该报告全部LLM批次与重试 | Admin |
+| GET | `/api/v1/admin/reports/:id/llm-calls/:callId` | 查看单次Prompt、输入、输出和Schema校验 | Admin |
+
+完整契约、隐私边界与持久化草案见 `docs/深度解读基础数据与追溯规范.md`。C端Token必须被拒绝；接口不得返回API Key、认证头、邮箱、电话或支付凭证。
+
+### 5.8 业务错误码表
 
 | code | 含义 |
 |---|---|
@@ -686,7 +694,7 @@ fatelumen-backend/
 │   │   ├── profile.go
 │   │   ├── chart.go             # 含 ChartData 结构体(命盘 JSON)
 │   │   ├── reading.go
-│   │   ├── report.go            # 含 ReportContent 结构体(12章 JSON)
+│   │   ├── report.go            # 含 ReportContent 结构体（10章 JSON）
 │   │   ├── order.go
 │   │   ├── payment_event.go
 │   │   └── credit.go
@@ -1109,6 +1117,12 @@ func TestCalculate_Deterministic(t *testing.T) {
 
 ## 8. 报告生成模块(LLM + 异步状态机)
 
+### 8.0 事实快照与调用追溯（强制）
+
+每份完整报告在首次LLM调用前必须生成并保存不可变 `InterpretationFacts` 快照；每次LLM尝试（包括失败和重试）必须独立保存Prompt、实际事实输入、原始输出、解析输出、Schema校验、模型参数、token、耗时、错误摘要、trace_id及版本。历史报告不得被新规则或新Prompt覆盖。
+
+Go契约位于 `backend/internal/model/interpretation_facts.go` 与 `report_trace_contract.go`，完整专项规范见 `docs/深度解读基础数据与追溯规范.md`。B0阶段只固定契约，不注册AutoMigrate、不新增运行时路由。
+
 ### 8.1 状态机
 
 ```
@@ -1127,7 +1141,7 @@ pending ───────────────► processing ──成功
 
 ### 8.2 分批生成策略(降低单次失败影响 + 控制 token)
 
-12 章分 **4 批** 并发/串行调用 LLM(建议串行，避免触发限流):
+10 章按注册表分章调用解读引擎；未来十年流年允许拆分为总览与分段年份调用，最终仍合并为同一章节：
 
 | 批次 | 章节 |
 |---|---|
@@ -1207,27 +1221,26 @@ Task: Produce a concise quick reading. Return STRICT JSON:
 }
 ```
 
-### 9.3 完整测算 Prompt(Full，分 4 批)
+### 9.3 完整测算 Prompt（Full，十章注册表编排）
 
-**每批 User prompt 模板：**
+**每章 User prompt 模板：**
 ```
 locale: {{locale}}
-chart: {{chart_json}}
-chapters_to_write: {{batch_chapter_keys}}   // e.g. ["structure","day_master","personality"]
+chapter_key: {{chapter_key}}
+facts_hash: {{facts_hash}}
+input_facts: {{filtered_facts_json}}
 
-Task: For EACH requested chapter, write a detailed interpretation (180-320 words each)
-grounded in the chart facts. Return STRICT JSON:
+Task: Interpret only the supplied deterministic facts for this chapter. Return STRICT JSON:
 {
   "chapters": [
-    {"key":"structure","title":"...","body":"..."},
-    {"key":"day_master","title":"...","body":"...","strength_score": <int from chart>},
-    ...
+    {"no": {{chapter_no}}, "key":"{{chapter_key}}", "title":"...", "body":"..."}
   ]
 }
 Constraints:
-- title localized to {{locale}}.
-- body references concrete chart details (pillars, elements count, strength, ten-gods, luck cycle years).
-- For "luck_cycles"/"yearly" chapters, include a "cycles"/"years" array echoing the chart's actual cycle/year data with short per-period notes.
+- `title` 与 `body` 直接使用 `locale` 指定语言生成，不做二次翻译。
+- 只能引用 `input_facts` 中存在的事实，不得自行排盘或补算干支、大运、流年和月份干支。
+- `ten_year_years` 的 `years` 必须原样复用后端给出的年份和干支，只允许补充 `note`。
+- 章节名称、key、顺序、默认事实和必需事实统一读取 `backend/internal/llm/prompts/registry.go`。
 ```
 
 ### 9.4 调用参数建议
@@ -1263,7 +1276,7 @@ Constraints:
 
 ### 10.3 PDF 渲染(Full)
 
-1. Go template 把 12 章 `report.content` 填入 `full_report.html`(A4 排版,封面+目录+章节)。
+1. Go template 把 10 章 `report.content` 填入 `full_report.html`（A4 排版、封面、目录和章节）。
 2. chromedp `page.PrintToPDF`(设置 A4、页边距、`printBackground=true`)。
 3. 上传 R2 → 返回 URL。
 
@@ -1313,7 +1326,7 @@ Constraints:
 
 ### 10.6 full_report.html 骨架(A4 多页 PDF)
 
-> chromedp `PrintToPDF`(A4 / printBackground=true)。封面 + 目录 + 12 章循环。变量来自 `report.content`(4.4 的 12 章结构)。
+> chromedp `PrintToPDF`（A4 / printBackground=true）。封面 + 目录 + 10 章循环。变量来自 `report.content`（4.4 的 10 章结构）。
 
 ```html
 <!doctype html><html><head><meta charset="utf-8">
@@ -1349,7 +1362,7 @@ Constraints:
   <section class="toc"><h2>{{.T.Contents}}</h2><ol>
     {{range .Content.Chapters}}<li>{{.Title}}</li>{{end}}
   </ol></section>
-  <!-- 12 章正文：按 key 渲染，luck_cycles/yearly 额外渲染表格 -->
+  <!-- 10 章正文：按 key 渲染，ten_year_years 额外渲染年份表格 -->
   {{range .Content.Chapters}}
   <section class="chapter">
     <h2>{{.No}}. {{.Title}}</h2>
@@ -1885,21 +1898,34 @@ CHROMIUM_PATH=/usr/bin/chromium
 - [ ] 排盘与后续解读严格分离：命盘结构和 `chart_hash` 可被快速测算与完整报告复用，不能由不同链路重复自行排盘。日志仅记录 `chart_hash`、脱敏摘要和 trace_id，不记录完整出生资料或完整命盘。
 - **验收**：输入出生信息可得到与已知 case 对拍一致的四柱、五行、十神和大运；全球地点按出生当时历史时区/DST换算真太阳时；真太阳时自然跨日后按 00:00 换日；免费接口与完整报告接口对相同输入返回相同 `chart_hash` 与四柱；相同输入结果稳定；LLM 不参与排盘。
 
-### Phase 3 — 简单测算(同步出图)
-- [ ] LLMProvider 接口 + **DeepSeek 实现**(默认,JSON mode);OpenAI 实现作为可切备选。
-- [ ] Quick prompt(第 9.2),生成简短解读 JSON。
-- [ ] `Renderer` 接口 + chromedp 实现;`quick_image.html` 模板截图 → `Storage`(R2)。
-- [ ] 每日免费额度(3 次/天,Redis 或 daily_quota 表)。
-- [ ] `POST /readings/quick` 全链路;前端结果页展示图片 + 分享。
-- **验收**:免费用户每天 3 次,能拿到一张带命盘的解读图。
+### Phase 3 — 深度解读基础数据与追溯
+- [ ] B0：固定 `InterpretationFacts`、报告事实快照、LLM调用记录、版本与管理端只读接口契约。
+- [ ] 建立版本化命理基础数据中心 `bazi-base-data-v1`，统一提供五行、天干、地支藏干、十神映射、干支关系、月令矩阵、位置权重和旺衰阈值；固定事实不进入业务数据库。管理端通过 Admin Token 只读查询、搜索、筛选和分页，不提供增删改。
+- [x] 建立公共干支日历 `annual_calendar_years`：从运行年份起保存连续 60 年的年份、干支、五行、阴阳、生肖和六十甲子序号；报告与计算档案只截取计算当年起连续 10 年，再结合个人年龄和所属大运生成 `annual_fortunes`。公共数据与个人化结果分层，10 年结果及其范围说明必须固化进不可变快照。
+- [ ] 隐藏简单测算可见入口；保留Quick代码、接口和表，后续以完整事实包裁剪版恢复。
+- [ ] 身强身弱采用独立、确定性、版本化规则引擎；V1 规则及原始稿见 `docs/rules/八字身强身弱判定算法-v1.md` 和 `docs/rules/八字身强身弱判定算法-v1-原始稿.md`。输出必须包含月令、逐项贡献、根气、合冲刑害、从格与规则版本；本模块不推导喜用神。
+- [ ] 将身强身弱完整明细写入 `InterpretationFacts.day_master_strength.analysis`；干支关系从该明细投影，禁止二次计算。`facts_hash` 必须包含强弱规则版本，但不受 Prompt 版本变化影响。
+- [ ] 审计并补齐五行力量、十神结构、喜忌、大运与流年等其余确定性事实；干支关系由身强身弱规则引擎先行输出证据，后续事实包只能复用，不得重复计算。
+  - [x] 十神结构 V1：按显干、藏干和位置权重计算十神原始力量，聚合比劫、印星、食伤、财星、官杀五类，复用身强身弱引擎的关系证据形成类别调整，并写入版本化事实快照。
+  - [x] V2-A 五行力量：按 `bazi-power-v1.0` 输出原始、季节修正和基础生克后的有效力量，保存贡献、根气、交互、节气进度与版本证据；历史版本继续保留用于快照兼容。
+  - [x] V2-B 结构交互与身强弱：按 `bazi-power-v2.0` 接入合会冲刑害破、合化置信度与有效力量；按 `strength-v2.0` 输出连续强弱分、得令得地得势、置信度与格局候选；按 `ten-god-effective-v2.0` 输出保留原始阴阳证据的有效十神。实现边界见 `docs/rules/五行结构交互与身强弱-v2-B实现规范.md`。
+  - [x] V2-C 调候、格局、病药与通关：四个独立、版本化确定性模块消费 V2-B 结果，保存候选、否决原因、严重度、通关状态、规则证据及待校准警告；结果进入命盘快照、报告事实包和哈希。实现边界见 `docs/rules/调候格局病药通关-v2-C实现规范.md`。
+  - [x] V2-D 喜用神：按 `useful-god-v1.1` 对五行全部候选执行静态评分、四档 What-If 重算、边际效用、副作用和硬否决；候选模拟与静态评分共用同一组动态权重，输出第一/第二用神及喜忌仇闲角色；完整过程进入命盘快照、事实包和哈希。实现边界见 `docs/rules/喜用神-v2-D实现规范.md`。
+  - [ ] 喜用神：采用 `docs/rules/八字五行力量身强身弱与喜用神算法-v2.0-原始稿.md`，作为独立确定性模块按 V2-B 至 V2-D 依赖顺序实现，不得由十神结构或 LLM 猜测生成。
+- [ ] 实现事实包编排、规范JSON、`facts_hash`、规则版本、章节事实白名单与隐私校验。
+- [ ] 保存每份报告不可变事实快照，并为管理端提供只读追溯能力。
+- **验收**：关闭LLM仍可生成完整事实包；相同输入结果及哈希稳定；每个判断可定位规则和依据；历史快照不受升级影响。
 
-### Phase 4 — 完整测算(异步 + PDF)
+### Phase 4 — 完整测算(异步 + DeepSeek + PDF)
 - [ ] `JobQueue` 接口 + goroutine 实现(worker pool);report 状态机经队列驱动(第 8 章)。
-- [ ] Full prompt 分 4 批(第 9.3),组装 12 章 JSON。
+- [ ] Full prompt 按十章注册表分章编排并生成严格 JSON；未来十年流年可拆分调用后合并。
+- [ ] 每次调用和重试均保存实际Prompt、事实输入、原始/解析输出、Schema结果、token、耗时、trace_id和版本。
 - [ ] `Renderer` 出 PDF:`full_report.html`(A4)→ `Storage`(R2)。
 - [ ] `Notifier` 接口 + Resend/noop 实现;报告完成发「report_ready」邮件。
 - [ ] `POST /readings/full` + 轮询接口;前端进度页 + PDF 预览/下载。
-- **验收**:扣积分能生成一份完整 12 章 PDF;失败能重试/退积分;报告完成有通知。
+- **验收**：扣积分能生成一份完整 10 章 PDF；失败能重试/退积分；报告完成有通知。
+
+> **后续保留能力：简单测算**。待完整报告的确定性事实与生成链路稳定后恢复；它只能裁剪 `InterpretationFacts` 和完整报告章节，不得复制排盘、强弱、喜忌、大运或流年逻辑。
 
 ### Phase 5 — 支付(多渠道抽象,MVP 接 Stripe)
 - [ ] 先落 `payment` 包:`PaymentProvider` 接口 + Registry + Catalog(SKU)。
@@ -1946,7 +1972,7 @@ CHROMIUM_PATH=/usr/bin/chromium
 - [ ] Google 登录 + 单设备登录。
 - [ ] 出生档案 CRUD(公历/农历)。
 - [ ] 简单测算:每日 3 次免费,出图。
-- [ ] 完整测算:$5.99 或 10 积分,出 12 章 PDF。
+- [ ] 完整测算：$5.99 或 10 积分，输出 10 章 PDF。
 - [ ] 多渠道支付(Stripe MVP)+ Webhook 验签/幂等 + 积分;新增渠道零重构。
 - [ ] 后台管理:登录 + RBAC + 审计;6 类资源 CRUD;新增资源前后端零改动(结构化框架验证)。
 

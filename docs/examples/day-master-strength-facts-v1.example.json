@@ -1,0 +1,46 @@
+{
+  "code": "day_master.strength",
+  "level": "strong",
+  "score": 82,
+  "values": ["木", "strong", "normal"],
+  "evidence": [
+    {
+      "rule_code": "strength-rule-v1",
+      "source": "strength_summary",
+      "reason": "support=82.00 restraint=18.00 ratio=0.8200 root=strong pattern=normal"
+    }
+  ],
+  "conflicts": [],
+  "analysis": {
+    "rule_version": "strength-rule-v1",
+    "day_element": "木",
+    "month_score": 40,
+    "support_score": 82,
+    "restraint_score": 18,
+    "support_ratio": 0.82,
+    "root_level": "strong",
+    "pattern": "normal",
+    "false_following": false,
+    "contributions": [
+      {
+        "code": "month_command",
+        "source": "month_command",
+        "position": "month_branch",
+        "symbol": "寅",
+        "element": "木",
+        "category": "support",
+        "score": 40
+      }
+    ],
+    "relations": [
+      {
+        "code": "branch_clash",
+        "type": "clash",
+        "positions": ["day_branch", "hour_branch"],
+        "symbols": ["寅", "申"],
+        "score": -16,
+        "reason": "clash adjustment"
+      }
+    ]
+  }
+}

@@ -3,9 +3,14 @@ package bazi
 import (
 	"container/list"
 	"fmt"
-	"sort"
+	"math"
 	"time"
 
+	"fatelumen/backend/internal/bazi/annualcalendar"
+	elementcalc "fatelumen/backend/internal/bazi/elementpower"
+	strengthcalc "fatelumen/backend/internal/bazi/strength"
+	strengthv2calc "fatelumen/backend/internal/bazi/strengthv2"
+	tengodcalc "fatelumen/backend/internal/bazi/tengod"
 	"fatelumen/backend/internal/model"
 
 	"github.com/6tail/lunar-go/LunarUtil"
@@ -26,6 +31,7 @@ type BirthInput struct {
 	Longitude       float64 // Deprecated: true solar time is calculated by birthchart.Engine.
 	NormalizedSolar bool
 	DayBoundaryRule string
+	AnnualCalendar  []model.AnnualCalendarYear
 }
 
 func Calculate(in BirthInput) (*model.ChartData, error) {
@@ -148,9 +154,48 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 	fiveCount := computeFiveElementsCount(chartData)
 	chartData.FiveElementsCount = fiveCount
 
-	// 身强身弱
-	strength := computeStrength(dayWuXing, fiveCount)
-	chartData.Strength = strength
+	// 五行力量 V2 是独立、版本化的确定性计算。当前 V2-A 先输出原始、
+	// 季节与基础生克力量；结构合化将在 V2-B 接入后移除 pending 警告。
+	elementResult, err := elementcalc.Evaluate(elementcalc.Input{
+		Year: elementcalc.Pillar{Stem: yearStem, Branch: yearBranch}, Month: elementcalc.Pillar{Stem: monthStem, Branch: monthBranch},
+		Day: elementcalc.Pillar{Stem: dayStem, Branch: dayBranch}, Hour: elementcalc.Pillar{Stem: timeStem, Branch: timeBranch},
+		SeasonProgress: seasonProgress(lunar),
+		LongLifeStages: map[string]string{"year": eightChar.GetYearDiShi(), "month": eightChar.GetMonthDiShi(), "day": eightChar.GetDayDiShi(), "hour": eightChar.GetTimeDiShi()},
+	}, elementcalc.RuleV2())
+	if err != nil {
+		return nil, fmt.Errorf("evaluate element power: %w", err)
+	}
+	chartData.ElementPower = toModelElementPower(elementResult)
+
+	// 身强身弱是独立的版本化确定性算法，不参与喜用神推导。
+	strengthResult, err := strengthcalc.Evaluate(strengthcalc.Input{
+		Year:  strengthcalc.Pillar{Stem: yearStem, Branch: yearBranch},
+		Month: strengthcalc.Pillar{Stem: monthStem, Branch: monthBranch},
+		Day:   strengthcalc.Pillar{Stem: dayStem, Branch: dayBranch},
+		Hour:  strengthcalc.Pillar{Stem: timeStem, Branch: timeBranch},
+	}, strengthcalc.RuleV1())
+	if err != nil {
+		return nil, fmt.Errorf("evaluate day-master strength: %w", err)
+	}
+	chartData.Strength = toModelStrength(strengthResult)
+	tenGodResult, err := tengodcalc.Evaluate(toTenGodInput(dayStem, dayWuXing, strengthResult))
+	if err != nil {
+		return nil, fmt.Errorf("evaluate ten-god structure: %w", err)
+	}
+	chartData.TenGodAnalysis = toModelTenGod(tenGodResult)
+	tenGodEffective, err := tengodcalc.EvaluateEffective(tengodcalc.EffectiveInput{Raw: tenGodResult, ElementRatios: elementRatioMap(elementResult.EffectiveRatio)})
+	if err != nil {
+		return nil, fmt.Errorf("evaluate effective ten-god structure: %w", err)
+	}
+	chartData.TenGodEffective = toModelTenGod(tenGodEffective)
+	strengthV2, err := strengthv2calc.Evaluate(toStrengthV2Input(dayWuXing, monthBranch, hourUnknown, elementResult, tenGodEffective))
+	if err != nil {
+		return nil, fmt.Errorf("evaluate day-master strength v2: %w", err)
+	}
+	chartData.StrengthV2 = toModelStrengthV2(strengthV2)
+	if err := evaluatePreanalysis(chartData); err != nil {
+		return nil, fmt.Errorf("evaluate deterministic preanalysis: %w", err)
+	}
 
 	// 大运
 	gender := int(in.Gender)
@@ -179,8 +224,15 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 
 	// 本年流年
 	currentYear := time.Now().Year()
-	annualFortunes := buildAnnualFortunes(daYunList, currentYear, 10)
+	calendarYears := in.AnnualCalendar
+	if len(calendarYears) == 0 {
+		calendarYears, _ = annualcalendar.Generate(currentYear, annualcalendar.ReportRangeYears)
+	}
+	annualFortunes := buildAnnualFortunes(daYunList, calendarYears)
 	chartData.AnnualFortunes = annualFortunes
+	if len(calendarYears) > 0 {
+		chartData.AnnualFortuneRange = &model.AnnualFortuneRange{StartYear: calendarYears[0].Year, EndYear: calendarYears[len(calendarYears)-1].Year, Count: len(calendarYears), Source: annualcalendar.ReportRangeSource, DataVersion: calendarYears[0].DataVersion, SelectionRule: "calculation_year_to_plus_9"}
+	}
 	for _, dy := range daYunList {
 		liuNianList := dy.GetLiuNian()
 		for _, ln := range liuNianList {
@@ -203,13 +255,12 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 	return chartData, nil
 }
 
-func buildAnnualFortunes(daYunList []*calendar.DaYun, startYear, count int) []model.AnnualFortune {
-	if count <= 0 {
+func buildAnnualFortunes(daYunList []*calendar.DaYun, calendarYears []model.AnnualCalendarYear) []model.AnnualFortune {
+	if len(calendarYears) == 0 {
 		return nil
 	}
-
-	endYear := startYear + count - 1
-	byYear := make(map[int]model.AnnualFortune, count)
+	startYear, endYear := calendarYears[0].Year, calendarYears[len(calendarYears)-1].Year
+	personal := make(map[int]model.AnnualFortune, len(calendarYears))
 
 	for _, dy := range daYunList {
 		if dy.GetEndYear() < startYear || dy.GetStartYear() > endYear {
@@ -227,7 +278,7 @@ func buildAnnualFortunes(daYunList []*calendar.DaYun, startYear, count int) []mo
 			}
 			stem := string(runes[0])
 			branch := string(runes[1])
-			byYear[year] = model.AnnualFortune{
+			personal[year] = model.AnnualFortune{
 				Year:               year,
 				Age:                ln.GetAge(),
 				GanZhi:             gz,
@@ -241,15 +292,11 @@ func buildAnnualFortunes(daYunList []*calendar.DaYun, startYear, count int) []mo
 		}
 	}
 
-	years := make([]int, 0, len(byYear))
-	for year := range byYear {
-		years = append(years, year)
-	}
-	sort.Ints(years)
-
-	annualFortunes := make([]model.AnnualFortune, 0, len(years))
-	for _, year := range years {
-		annualFortunes = append(annualFortunes, byYear[year])
+	annualFortunes := make([]model.AnnualFortune, 0, len(calendarYears))
+	for _, base := range calendarYears {
+		item := personal[base.Year]
+		item.Year, item.GanZhi, item.Stem, item.Branch, item.Element = base.Year, base.GanZhi, base.Stem, base.Branch, base.StemElement
+		annualFortunes = append(annualFortunes, item)
 	}
 	return annualFortunes
 }
@@ -269,54 +316,139 @@ func computeFiveElementsCount(cd *model.ChartData) map[string]int {
 	return counts
 }
 
-func computeStrength(dayElement string, fiveCount map[string]int) model.Strength {
-	gen := map[string]string{
-		"木": "水",
-		"火": "木",
-		"土": "火",
-		"金": "土",
-		"水": "金",
+func toModelStrength(in strengthcalc.Result) model.Strength {
+	contributions := make([]model.StrengthContribution, 0, len(in.Contributions))
+	for _, c := range in.Contributions {
+		contributions = append(contributions, model.StrengthContribution{Code: c.Code, Source: c.Source, Position: c.Position, Symbol: c.Symbol, Element: c.Element, TenGod: c.TenGod, Category: c.Category, Score: c.Score, Adjustment: c.Adjustment})
 	}
-	sheng := gen[dayElement]
-
-	sameCount := fiveCount[dayElement]
-	producingCount := fiveCount[sheng]
-	supportive := sameCount + producingCount
-
-	level := "balanced"
-	if supportive >= 5 {
-		level = "strong"
-	} else if supportive <= 2 {
-		level = "weak"
+	relations := make([]model.StrengthRelation, 0, len(in.Relations))
+	for _, r := range in.Relations {
+		relations = append(relations, model.StrengthRelation{Code: r.Code, Type: r.Type, Positions: r.Positions, Symbols: r.Symbols, Element: r.Element, Score: r.Score, Transformed: r.Transformed, Reason: r.Reason})
 	}
+	return model.Strength{Level: in.Level, Score: int(math.Round(in.SupportRatio * 100)), Analysis: &model.StrengthAnalysis{
+		RuleVersion: in.RuleVersion, DayElement: in.DayElement, MonthScore: in.MonthScore, SupportScore: in.SupportScore,
+		RestraintScore: in.RestraintScore, SupportRatio: in.SupportRatio, RootLevel: in.RootLevel, Pattern: in.Pattern,
+		PatternSubtype: in.PatternSubtype, FalseFollowing: in.FalseFollowing, Contributions: contributions, Relations: relations, Warnings: in.Warnings,
+	}}
+}
 
-	allElements := []string{"木", "火", "土", "金", "水"}
-	var favorable, unfavorable []string
-	if level == "strong" || level == "balanced" {
-		for _, e := range allElements {
-			if e != dayElement && e != sheng {
-				favorable = append(favorable, e)
-			}
+func toTenGodInput(dayStem, dayElement string, in strengthcalc.Result) tengodcalc.Input {
+	contributions := make([]tengodcalc.Contribution, 0, len(in.Contributions))
+	for _, c := range in.Contributions {
+		contributions = append(contributions, tengodcalc.Contribution{Code: c.Code, Source: c.Source, Position: c.Position, Symbol: c.Symbol, Element: c.Element, TenGod: c.TenGod, Category: c.Category, Score: c.Score})
+	}
+	relations := make([]tengodcalc.Relation, 0, len(in.Relations))
+	for _, r := range in.Relations {
+		relations = append(relations, tengodcalc.Relation{Code: r.Code, Type: r.Type, Element: r.Element, Reason: r.Reason, Positions: append([]string{}, r.Positions...), Symbols: append([]string{}, r.Symbols...), Score: r.Score, Transformed: r.Transformed})
+	}
+	return tengodcalc.Input{DayStem: dayStem, DayElement: dayElement, Contributions: contributions, Relations: relations}
+}
+
+func toModelTenGod(in tengodcalc.Result) *model.TenGodAnalysis {
+	gods := make([]model.TenGodScore, 0, len(in.Gods))
+	for _, x := range in.Gods {
+		gods = append(gods, model.TenGodScore{Code: x.Code, Name: x.Name, Category: x.Category, RawScore: x.RawScore, EffectiveScore: x.EffectiveScore, Ratio: x.Ratio, Rank: x.Rank, Visible: x.Visible, Rooted: x.Rooted})
+	}
+	categories := make([]model.TenGodCategoryScore, 0, len(in.Categories))
+	for _, x := range in.Categories {
+		categories = append(categories, model.TenGodCategoryScore{Category: x.Category, RawScore: x.RawScore, RelationAdjustment: x.RelationAdjustment, EffectiveScore: x.EffectiveScore, Ratio: x.Ratio, Rank: x.Rank})
+	}
+	evidence := make([]model.TenGodEvidence, 0, len(in.Evidence))
+	for _, x := range in.Evidence {
+		evidence = append(evidence, model.TenGodEvidence{Code: x.Code, Source: x.Source, Position: x.Position, Symbols: append([]string{}, x.Symbols...), TenGod: x.TenGod, Category: x.Category, RawScore: x.RawScore, Adjustment: x.Adjustment, Reason: x.Reason})
+	}
+	return &model.TenGodAnalysis{RuleVersion: in.RuleVersion, DayStem: in.DayStem, DayElement: in.DayElement, TotalScore: in.TotalScore, DominantGods: append([]string{}, in.DominantGods...), SecondaryGods: append([]string{}, in.SecondaryGods...), MissingGods: append([]string{}, in.MissingGods...), VisibleGods: append([]string{}, in.VisibleGods...), RootedGods: append([]string{}, in.RootedGods...), Concentration: in.Concentration, Gods: gods, Categories: categories, Evidence: evidence, Warnings: append([]string{}, in.Warnings...)}
+}
+
+func toModelElementPower(in elementcalc.Result) *model.ElementPowerAnalysis {
+	contributions := make([]model.ElementPowerContribution, 0, len(in.Contributions))
+	for _, x := range in.Contributions {
+		contributions = append(contributions, model.ElementPowerContribution{Code: x.Code, Position: x.Position, Symbol: x.Symbol, Element: x.Element, HiddenLevel: x.HiddenLevel, BaseWeight: x.BaseWeight, HiddenRatio: x.HiddenRatio, RawPower: x.RawPower, SeasonCoefficient: x.SeasonCoefficient, VisibilityMultiplier: x.VisibilityMultiplier, SeasonalPower: x.SeasonalPower})
+	}
+	roots := make([]model.ElementRootEvidence, 0, len(in.Roots))
+	for _, x := range in.Roots {
+		roots = append(roots, model.ElementRootEvidence{Position: x.Position, Branch: x.Branch, Stem: x.Stem, Level: x.Level, HiddenRatio: x.HiddenRatio, Quality: x.Quality, Power: x.Power})
+	}
+	interactions := make([]model.ElementInteractionEvidence, 0, len(in.Interactions))
+	for _, x := range in.Interactions {
+		interactions = append(interactions, model.ElementInteractionEvidence{Iteration: x.Iteration, Type: x.Type, SourceElement: x.SourceElement, TargetElement: x.TargetElement, SourceBefore: x.SourceBefore, TargetBefore: x.TargetBefore, Amount: x.Amount, Efficiency: x.Efficiency, ContactFactor: x.ContactFactor, RatioFactor: x.RatioFactor})
+	}
+	structures := make([]model.ElementStructureEvidence, 0, len(in.Structures))
+	for _, x := range in.Structures {
+		structures = append(structures, model.ElementStructureEvidence{Code: x.Code, Type: x.Type, TargetElement: x.TargetElement, State: x.State, Reason: x.Reason, Positions: append([]string{}, x.Positions...), Symbols: append([]string{}, x.Symbols...), Confidence: x.Confidence, TransferRate: x.TransferRate, Before: toModelElementVector(x.Before), After: toModelElementVector(x.After)})
+	}
+	return &model.ElementPowerAnalysis{RuleVersion: in.RuleVersion, Season: model.ElementSeasonAnalysis{Branch: in.Season.Branch, NextBranch: in.Season.NextBranch, Progress: in.Season.Progress, Coefficients: toModelElementVector(in.Season.Coefficients)}, RawPower: toModelElementVector(in.RawPower), SeasonalPower: toModelElementVector(in.SeasonalPower), EffectivePower: toModelElementVector(in.EffectivePower), EffectiveRatio: toModelElementVector(in.EffectiveRatio), Contributions: contributions, Roots: roots, RootPower: in.RootPower, Interactions: interactions, Structures: structures, Warnings: append([]string{}, in.Warnings...)}
+}
+
+func toModelElementVector(v elementcalc.Vector) model.ElementPowerVector {
+	return model.ElementPowerVector{Wood: v.Wood, Fire: v.Fire, Earth: v.Earth, Metal: v.Metal, Water: v.Water}
+}
+
+func elementRatioMap(v elementcalc.Vector) map[string]float64 {
+	return map[string]float64{"木": v.Wood, "火": v.Fire, "土": v.Earth, "金": v.Metal, "水": v.Water}
+}
+
+func toStrengthV2Input(dayElement, monthBranch string, hourUnknown bool, power elementcalc.Result, gods tengodcalc.Result) strengthv2calc.Input {
+	c := strengthv2calc.CategoryPower{}
+	for _, x := range gods.Categories {
+		switch x.Category {
+		case "peer":
+			c.Peer = x.EffectiveScore
+		case "resource":
+			c.Resource = x.EffectiveScore
+		case "output":
+			c.Output = x.EffectiveScore
+		case "wealth":
+			c.Wealth = x.EffectiveScore
+		case "officer":
+			c.Officer = x.EffectiveScore
 		}
-		unfavorable = []string{dayElement, sheng}
-	} else {
-		favorable = []string{dayElement, sheng}
-		for _, e := range allElements {
-			if e != dayElement && e != sheng {
-				unfavorable = append(unfavorable, e)
-			}
+	}
+	structures := make([]strengthv2calc.Structure, 0, len(power.Structures))
+	for _, x := range power.Structures {
+		structures = append(structures, strengthv2calc.Structure{Code: x.Code, Type: x.Type, TargetElement: x.TargetElement, State: x.State, Confidence: x.Confidence})
+	}
+	coeff := elementRatioMap(power.Season.Coefficients)[dayElement]
+	return strengthv2calc.Input{DayElement: dayElement, MonthBranch: monthBranch, SeasonCoefficient: coeff, SeasonProgress: power.Season.Progress, RootPower: power.RootPower, Categories: c, ElementRatios: elementRatioMap(power.EffectiveRatio), Structures: structures, HourUnknown: hourUnknown}
+}
+
+func toModelStrengthV2(in strengthv2calc.Result) *model.StrengthV2Analysis {
+	patterns := make([]model.StrengthPatternCandidate, 0, len(in.Patterns))
+	for _, x := range in.Patterns {
+		patterns = append(patterns, model.StrengthPatternCandidate{Type: x.Type, Subtype: x.Subtype, Alternative: x.Alternative, Matched: x.Matched, Confidence: x.Confidence, Evidence: append([]string{}, x.Evidence...), RejectedBy: append([]string{}, x.RejectedBy...)})
+	}
+	trace := make([]model.StrengthV2Trace, 0, len(in.Trace))
+	for _, x := range in.Trace {
+		values := map[string]float64{}
+		for k, v := range x.Values {
+			values[k] = v
 		}
+		trace = append(trace, model.StrengthV2Trace{Rule: x.Rule, Result: x.Result, Reason: x.Reason, Score: x.Score, Values: values})
 	}
+	return &model.StrengthV2Analysis{RuleVersion: in.RuleVersion, Level: in.Level, BaseScore: in.BaseScore, Score: in.Score, Confidence: in.Confidence, Support: in.Support, Pressure: in.Pressure, SupportRatio: in.SupportRatio, DeLing: in.DeLing, DeDi: in.DeDi, DeShi: in.DeShi, RootPower: in.RootPower, Patterns: patterns, Trace: trace, Warnings: append([]string{}, in.Warnings...)}
+}
 
-	sort.Strings(favorable)
-	sort.Strings(unfavorable)
-
-	return model.Strength{
-		Level:       level,
-		Score:       supportive,
-		Favorable:   favorable,
-		Unfavorable: unfavorable,
+func seasonProgress(lunar *calendar.Lunar) float64 {
+	prev, next := lunar.GetPrevJie(), lunar.GetNextJie()
+	if prev == nil || next == nil || prev.GetSolar() == nil || next.GetSolar() == nil {
+		return 0
 	}
+	toTime := func(s *calendar.Solar) time.Time {
+		return time.Date(s.GetYear(), time.Month(s.GetMonth()), s.GetDay(), s.GetHour(), s.GetMinute(), s.GetSecond(), 0, time.UTC)
+	}
+	start, end := toTime(prev.GetSolar()), toTime(next.GetSolar())
+	current := time.Date(lunar.GetSolar().GetYear(), time.Month(lunar.GetSolar().GetMonth()), lunar.GetSolar().GetDay(), lunar.GetSolar().GetHour(), lunar.GetSolar().GetMinute(), lunar.GetSolar().GetSecond(), 0, time.UTC)
+	if !end.After(start) {
+		return 0
+	}
+	p := current.Sub(start).Seconds() / end.Sub(start).Seconds()
+	if p < 0 {
+		return 0
+	}
+	if p > 1 {
+		return 1
+	}
+	return p
 }
 
 func genderLabel(g int8) string {

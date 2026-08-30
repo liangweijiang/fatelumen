@@ -17,6 +17,8 @@ type CachedEngine struct {
 	ttl   time.Duration
 }
 
+const cacheSchemaVersion = "birthchart-cache-v2"
+
 func NewCachedEngine(next Engine, c cache.Cache, ttl time.Duration) Engine {
 	if next == nil {
 		next = NewDefaultEngine()
@@ -29,9 +31,10 @@ func NewCachedEngine(next Engine, c cache.Cache, ttl time.Duration) Engine {
 
 func (e *CachedEngine) Calculate(ctx context.Context, input Input) (*Result, error) {
 	raw, _ := json.Marshal(struct {
-		Version string `json:"version"`
-		Input   Input  `json:"input"`
-	}{EngineVersion, input})
+		CacheSchema string `json:"cache_schema"`
+		Version     string `json:"version"`
+		Input       Input  `json:"input"`
+	}{cacheSchemaVersion, EngineVersion, input})
 	sum := sha256.Sum256(raw)
 	key := fmt.Sprintf("birthchart:%x", sum)
 	if value, err := e.cache.Get(ctx, key); err != nil {

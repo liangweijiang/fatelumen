@@ -125,6 +125,10 @@ type BaziCalculator interface {
 	Calculate(ctx context.Context, input CalculatorInput) (*model.ChartData, error)
 }
 
+type AnnualCalendarProvider interface {
+	Range(ctx context.Context, startYear, count int) ([]model.AnnualCalendarYear, error)
+}
+
 type Engine interface {
 	Calculate(ctx context.Context, input Input) (*Result, error)
 }

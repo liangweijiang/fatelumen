@@ -23,6 +23,7 @@ type reportGetter interface {
 	UpdateStatus(uint64, string, string) error
 	UpdateResult(uint64, model.ReportContent, string) error
 	UpdateChartID(uint64, uint64) error
+	CreateFactSnapshot(context.Context, *model.ReportFactSnapshot) error
 }
 
 type chartSaver interface {
@@ -168,6 +169,19 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		return "", fmt.Errorf("update chart_id: %w", err)
 	}
 
+	// Persist the complete deterministic facts before any interpretation call.
+	// This is append-once evidence: retries may confirm the same hash but may
+	// never replace a report with newly calculated facts.
+	snapshot, err := buildReportFactSnapshot(reportID, profile, locale, chartHash, chartResult)
+	if err != nil {
+		logger.FromCtx(ctx).Error("build report fact snapshot failed", "err", err, "report_id", reportID, "chart_id", chartID)
+		return "", fmt.Errorf("build report fact snapshot: %w", err)
+	}
+	if err := h.reportRepo.CreateFactSnapshot(ctx, snapshot); err != nil {
+		logger.FromCtx(ctx).Error("persist report fact snapshot failed", "err", err, "report_id", reportID, "chart_id", chartID, "facts_hash", snapshot.FactsHash)
+		return "", fmt.Errorf("persist report fact snapshot: %w", err)
+	}
+
 	// 3. UpdateStatus → processing
 	if err := h.reportRepo.UpdateStatus(reportID, model.ReportStatusProcessing, ""); err != nil {
 		logger.FromCtx(ctx).Error("report status update to processing failed", "err", err,
@@ -262,6 +276,40 @@ func (h *reportHandler) Handle(ctx context.Context, j *job.Job) (result string, 
 		"profile_id", profileID,
 	)
 	return "", nil
+}
+
+func buildReportFactSnapshot(reportID uint64, profile *model.BirthProfile, locale, chartHash string, result *birthchart.Result) (*model.ReportFactSnapshot, error) {
+	engineInput := birthchart.Input{Gender: profile.Gender, CalendarType: profile.CalendarType, Year: int(profile.BirthYear), Month: int(profile.BirthMonth), Day: int(profile.BirthDay), Hour: int(profile.BirthHour), Minute: int(profile.BirthMinute), IsLeapMonth: profile.IsLeapMonth == 1, Location: birthchart.LocationInput{CountryCode: profile.CountryCode, CountryName: profile.CountryName, RegionCode: profile.RegionCode, RegionName: profile.RegionName, City: profile.City, PlaceID: profile.PlaceID, DisplayName: profile.BirthPlace, Latitude: profile.Latitude, Longitude: profile.Longitude, TimezoneID: profile.Timezone, HasCoordinates: profile.HasCoordinates || profile.Latitude != 0 || profile.Longitude != 0}}
+	input, timeSnapshot, chartSnapshot, built, err := BuildDeterministicSnapshot(engineInput, locale, chartHash, result)
+	if err != nil {
+		return nil, err
+	}
+	profileID := profile.ID
+	input.ProfileMode = "saved_profile"
+	input.TargetProfileID = &profileID
+	inputJSON, err := json.Marshal(input)
+	if err != nil {
+		return nil, err
+	}
+	timeJSON, err := json.Marshal(timeSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	chartJSON, err := json.Marshal(chartSnapshot)
+	if err != nil {
+		return nil, err
+	}
+	factsJSON, err := json.Marshal(built)
+	if err != nil {
+		return nil, err
+	}
+	return &model.ReportFactSnapshot{ReportID: reportID, InputSnapshot: model.JSONRaw(inputJSON), TimeCalculationSnapshot: model.JSONRaw(timeJSON), ChartSnapshot: model.JSONRaw(chartJSON), FactsSnapshot: model.JSONRaw(factsJSON), ChartHash: chartHash, FactsHash: built.FactsHash, CreatedAt: time.Now()}, nil
+}
+
+func sameCivilDate(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
 }
 
 // 编译期接口校验

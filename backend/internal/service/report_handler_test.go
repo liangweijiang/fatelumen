@@ -16,9 +16,23 @@ import (
 // ---------- fakes for report handler tests ----------
 
 type fakeReportGetter struct {
-	mu      sync.Mutex
-	reports map[uint64]*model.Report
-	errOn   string
+	mu       sync.Mutex
+	reports  map[uint64]*model.Report
+	errOn    string
+	snapshot *model.ReportFactSnapshot
+}
+
+func (f *fakeReportGetter) CreateFactSnapshot(_ context.Context, row *model.ReportFactSnapshot) error {
+	if f.errOn == "create_snapshot" {
+		return errors.New("fake snapshot error")
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.snapshot != nil && f.snapshot.FactsHash != row.FactsHash {
+		return errors.New("immutable report fact snapshot conflict")
+	}
+	f.snapshot = row
+	return nil
 }
 
 func newFakeReportGetter() *fakeReportGetter {
@@ -207,6 +221,9 @@ func TestReportHandler_Success(t *testing.T) {
 	// so chapters are only produced by the real LLM for chapters_a/chapters_b groups
 	if r.ChartID == 0 {
 		t.Fatal("expected chart_id > 0")
+	}
+	if reportGetter.snapshot == nil || reportGetter.snapshot.FactsHash == "" {
+		t.Fatal("expected immutable fact snapshot before interpretation")
 	}
 
 	// 验证 chart 已落库

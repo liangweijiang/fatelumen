@@ -1,6 +1,7 @@
 package bazi
 
 import (
+	"math"
 	"reflect"
 	"testing"
 	"time"
@@ -79,11 +80,42 @@ func TestCalculate_Case1(t *testing.T) {
 	if chart.Strength.Level == "" {
 		t.Error("Strength.Level should not be empty")
 	}
-	if len(chart.Strength.Favorable) == 0 {
-		t.Error("Strength.Favorable should not be empty")
+	if chart.Strength.Score < 0 || chart.Strength.Score > 100 {
+		t.Errorf("Strength.Score should be a percentage, got %d", chart.Strength.Score)
 	}
-	if len(chart.Strength.Unfavorable) == 0 {
-		t.Error("Strength.Unfavorable should not be empty")
+	if chart.Strength.Analysis == nil {
+		t.Fatal("Strength.Analysis should contain traceable evidence")
+	}
+	if chart.Strength.Analysis.RuleVersion != "strength-rule-v1" {
+		t.Errorf("unexpected strength rule version: %s", chart.Strength.Analysis.RuleVersion)
+	}
+	if len(chart.Strength.Analysis.Contributions) == 0 {
+		t.Error("Strength.Analysis.Contributions should not be empty")
+	}
+	if chart.TenGodAnalysis == nil || chart.TenGodAnalysis.RuleVersion != "ten-god-rule-v1" {
+		t.Fatalf("TenGodAnalysis missing or unversioned: %+v", chart.TenGodAnalysis)
+	}
+	if len(chart.TenGodAnalysis.Gods) != 10 || len(chart.TenGodAnalysis.Categories) != 5 {
+		t.Fatalf("unexpected ten-god analysis size: %+v", chart.TenGodAnalysis)
+	}
+	if chart.ElementPower == nil || chart.ElementPower.RuleVersion != "bazi-power-v2.0" {
+		t.Fatalf("ElementPower missing or unversioned: %+v", chart.ElementPower)
+	}
+	if chart.TenGodEffective == nil || chart.TenGodEffective.RuleVersion != "ten-god-effective-v2.0" {
+		t.Fatalf("effective ten-god analysis missing: %+v", chart.TenGodEffective)
+	}
+	if chart.Climate == nil || chart.Pattern == nil || chart.Disease == nil || chart.Mediation == nil {
+		t.Fatalf("v2-c deterministic analyses missing: climate=%+v pattern=%+v disease=%+v mediation=%+v", chart.Climate, chart.Pattern, chart.Disease, chart.Mediation)
+	}
+	if chart.UsefulGod == nil || chart.UsefulGod.RuleVersion != "useful-god-v1.1" || len(chart.UsefulGod.Candidates) != 5 {
+		t.Fatalf("v2-d useful-god analysis missing: %+v", chart.UsefulGod)
+	}
+	if chart.StrengthV2 == nil || chart.StrengthV2.RuleVersion != "day-master-strength-v2.0" {
+		t.Fatalf("strength V2 missing: %+v", chart.StrengthV2)
+	}
+	ratioTotal := chart.ElementPower.EffectiveRatio.Wood + chart.ElementPower.EffectiveRatio.Fire + chart.ElementPower.EffectiveRatio.Earth + chart.ElementPower.EffectiveRatio.Metal + chart.ElementPower.EffectiveRatio.Water
+	if math.Abs(ratioTotal-100) > .001 {
+		t.Fatalf("element effective ratio total=%.4f", ratioTotal)
 	}
 
 	// 验证大运

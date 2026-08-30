@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -71,6 +72,46 @@ func (r *ReportRepo) UpdateResult(id uint64, content model.ReportContent, pdfURL
 // UpdateChartID 更新报告关联的排盘 ID（handler 排盘后回写）。
 func (r *ReportRepo) UpdateChartID(id uint64, chartID uint64) error {
 	return r.db.Model(&model.Report{}).Where("id = ?", id).Update("chart_id", chartID).Error
+}
+
+// CreateFactSnapshot inserts an immutable snapshot. Retries are idempotent
+// only when the already persisted facts hash is identical.
+func (r *ReportRepo) CreateFactSnapshot(ctx context.Context, row *model.ReportFactSnapshot) error {
+	err := r.db.WithContext(ctx).Create(row).Error
+	if err == nil {
+		return nil
+	}
+	var existing model.ReportFactSnapshot
+	if findErr := r.db.WithContext(ctx).Where("report_id = ?", row.ReportID).First(&existing).Error; findErr != nil {
+		return err
+	}
+	if existing.FactsHash != row.FactsHash || existing.ChartHash != row.ChartHash {
+		return errors.New("immutable report fact snapshot conflict")
+	}
+	return nil
+}
+
+func (r *ReportRepo) AdminGetFactSnapshot(ctx context.Context, reportID uint64) (*model.ReportFactSnapshot, error) {
+	var row model.ReportFactSnapshot
+	err := r.db.WithContext(ctx).Where("report_id = ?", reportID).First(&row).Error
+	return &row, err
+}
+
+func (r *ReportRepo) AdminListLLMCalls(ctx context.Context, reportID uint64, limit, offset int) ([]model.ReportLLMCall, int64, error) {
+	q := r.db.WithContext(ctx).Model(&model.ReportLLMCall{}).Where("report_id = ?", reportID)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var rows []model.ReportLLMCall
+	err := q.Order("batch_no ASC, attempt_no ASC").Limit(limit).Offset(offset).Find(&rows).Error
+	return rows, total, err
+}
+
+func (r *ReportRepo) AdminGetLLMCall(ctx context.Context, reportID, callID uint64) (*model.ReportLLMCall, error) {
+	var row model.ReportLLMCall
+	err := r.db.WithContext(ctx).Where("report_id = ? AND id = ?", reportID, callID).First(&row).Error
+	return &row, err
 }
 
 // MarkPaid 标记报告已付款，关联订单 ID。

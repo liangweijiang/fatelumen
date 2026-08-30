@@ -3,13 +3,14 @@ package birthchart
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"fatelumen/backend/internal/bazi"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/logger"
 )
 
-const EngineVersion = "birth-chart-engine-v1"
+const EngineVersion = "birth-chart-engine-v2"
 
 type DefaultEngine struct {
 	normalizer InputNormalizer
@@ -69,14 +70,25 @@ func (e *DefaultEngine) Calculate(ctx context.Context, input Input) (*Result, er
 	return &Result{Location: *location, Timezone: *timezone, SolarTime: *solar, Mode: TrueSolarTime, DayBoundaryRule: Midnight00, Chart: chart, EngineVersion: EngineVersion, LocationVersion: e.locations.Version()}, nil
 }
 
-type LunarGoCalculator struct{}
+type LunarGoCalculator struct{ AnnualCalendar AnnualCalendarProvider }
 
-func (LunarGoCalculator) Calculate(_ context.Context, input CalculatorInput) (*model.ChartData, error) {
+func (c LunarGoCalculator) Calculate(ctx context.Context, input CalculatorInput) (*model.ChartData, error) {
 	rule := string(input.DayBoundaryRule)
+	var years []model.AnnualCalendarYear
+	if c.AnnualCalendar != nil {
+		var err error
+		years, err = c.AnnualCalendar.Range(ctx, time.Now().Year(), 10)
+		if err != nil {
+			return nil, fmt.Errorf("load annual calendar: %w", err)
+		}
+		if len(years) != 10 {
+			return nil, fmt.Errorf("annual calendar incomplete: expected 10 years, got %d", len(years))
+		}
+	}
 	return bazi.Calculate(bazi.BirthInput{
 		Gender: input.Gender, CalendarType: 0,
 		Year: input.TrueSolarTime.Year(), Month: int(input.TrueSolarTime.Month()), Day: input.TrueSolarTime.Day(),
 		Hour: input.TrueSolarTime.Hour(), Minute: input.TrueSolarTime.Minute(),
-		NormalizedSolar: true, DayBoundaryRule: rule,
+		NormalizedSolar: true, DayBoundaryRule: rule, AnnualCalendar: years,
 	})
 }

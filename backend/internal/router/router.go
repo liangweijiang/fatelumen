@@ -40,29 +40,32 @@ func (h *DBHealthChecker) Ping(ctx context.Context) error {
 
 // App 包含所有路由依赖的上下文。
 type App struct {
-	DB                 *gorm.DB
-	Auth               *middleware.AuthMiddleware
-	AdminAuth          *middleware.AdminAuthMiddleware
-	HealthChecker      HealthChecker
-	StaticDir          string
-	AuthHandler        *handler.AuthHandler
-	AdminAuthHandler   *handler.AdminAuthHandler
-	ContentHandler     *handler.ContentHandler
-	PricingHandler     *handler.PricingHandler
-	ReportInputHandler *handler.ReportInputHandler
-	ProfHandler        *handler.ProfileHandler
-	ChartHandler       *handler.ChartHandler
-	FreeChartHandler   *handler.FreeChartHandler
-	LocationHandler    *handler.LocationHandler
-	GeoHandler         *handler.GeoHandler
-	AdminGeoHandler    *handler.AdminGeoHandler
-	ReadingHandler     *handler.ReadingHandler
-	ReportHandler      *handler.ReportHandler
-	OrderHandler       *handler.OrderHandler
-	WebhookHandler     *handler.WebhookHandler
-	DevPayHandler      *handler.DevPayHandler
-	AdminHandler       *handler.AdminHandler
-	ResourceHandler    *handler.ResourceHandler
+	DB                      *gorm.DB
+	Auth                    *middleware.AuthMiddleware
+	AdminAuth               *middleware.AdminAuthMiddleware
+	HealthChecker           HealthChecker
+	StaticDir               string
+	AuthHandler             *handler.AuthHandler
+	AdminAuthHandler        *handler.AdminAuthHandler
+	ContentHandler          *handler.ContentHandler
+	PricingHandler          *handler.PricingHandler
+	ReportInputHandler      *handler.ReportInputHandler
+	ProfHandler             *handler.ProfileHandler
+	ChartHandler            *handler.ChartHandler
+	FreeChartHandler        *handler.FreeChartHandler
+	LocationHandler         *handler.LocationHandler
+	GeoHandler              *handler.GeoHandler
+	AdminGeoHandler         *handler.AdminGeoHandler
+	AdminBaziBaseHandler    *handler.AdminBaziBaseHandler
+	AdminReportTraceHandler *handler.AdminReportTraceHandler
+	AdminCalculationHandler *handler.AdminCalculationHandler
+	ReadingHandler          *handler.ReadingHandler
+	ReportHandler           *handler.ReportHandler
+	OrderHandler            *handler.OrderHandler
+	WebhookHandler          *handler.WebhookHandler
+	DevPayHandler           *handler.DevPayHandler
+	AdminHandler            *handler.AdminHandler
+	ResourceHandler         *handler.ResourceHandler
 
 	// Pre-built rate-limit middleware (set by main)
 	RateLimitAuth    gin.HandlerFunc
@@ -250,6 +253,42 @@ func Setup(app *App) *gin.Engine {
 			if app.AdminGeoHandler != nil {
 				admin.GET("/geo", app.AdminGeoHandler.List)
 				admin.PATCH("/geo/:id", app.AdminGeoHandler.Update)
+			}
+			if app.GeoHandler != nil {
+				admin.GET("/geo/countries", app.GeoHandler.Countries)
+				admin.GET("/geo/cities", app.GeoHandler.Cities)
+			}
+			if app.AdminBaziBaseHandler != nil {
+				admin.GET("/bazi-base/summary", app.AdminBaziBaseHandler.Summary)
+				admin.GET("/bazi-base/elements", app.AdminBaziBaseHandler.Elements)
+				admin.GET("/bazi-base/stems", app.AdminBaziBaseHandler.Stems)
+				admin.GET("/bazi-base/branches", app.AdminBaziBaseHandler.Branches)
+				admin.GET("/bazi-base/ten-gods", app.AdminBaziBaseHandler.TenGods)
+				admin.GET("/bazi-base/relations", app.AdminBaziBaseHandler.Relations)
+				admin.GET("/bazi-base/strength-rules", app.AdminBaziBaseHandler.StrengthRules)
+				admin.GET("/bazi-base/annual-calendar", app.AdminBaziBaseHandler.AnnualCalendar)
+			}
+			if app.AdminReportTraceHandler != nil {
+				admin.GET("/prompt-registry", app.AdminReportTraceHandler.PromptRegistry)
+				admin.GET("/reports/:id/facts", app.AdminReportTraceHandler.Facts)
+				admin.POST("/reports/:id/prompt-preview", app.AdminReportTraceHandler.PromptPreview)
+				admin.GET("/reports/:id/llm-calls", app.AdminReportTraceHandler.LLMCalls)
+				admin.GET("/reports/:id/llm-calls/:callId", app.AdminReportTraceHandler.LLMCall)
+			}
+			if app.AdminCalculationHandler != nil {
+				admin.GET("/calculation-archives", app.AdminCalculationHandler.List)
+				admin.POST("/calculation-archives", app.AdminCalculationHandler.Create)
+				admin.POST("/calculation-archives/batch-delete", app.AdminCalculationHandler.BatchDelete)
+				admin.GET("/calculation-archives/:id", app.AdminCalculationHandler.Get)
+				admin.PATCH("/calculation-archives/:id", app.AdminCalculationHandler.Update)
+				admin.POST("/calculation-archives/:id/recalculate", app.AdminCalculationHandler.Recalculate)
+				admin.DELETE("/calculation-archives/:id", app.AdminCalculationHandler.Delete)
+			}
+			if app.ResourceHandler != nil {
+				admin.GET("/resources/:resource/_schema", app.ResourceHandler.Schema)
+				admin.GET("/resources/:resource", app.ResourceHandler.List)
+				admin.GET("/resources/:resource/:id", app.ResourceHandler.Detail)
+				admin.POST("/resources/:resource/:id/actions/:action", app.ResourceHandler.Action)
 			}
 		}
 	}

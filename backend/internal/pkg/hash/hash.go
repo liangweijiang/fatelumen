@@ -2,10 +2,22 @@ package hash
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// CanonicalJSONSHA256 hashes Go values using encoding/json's deterministic
+// map-key ordering. Callers must normalize semantically unordered slices first.
+func CanonicalJSONSHA256(value any) (string, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return "", fmt.Errorf("marshal canonical json: %w", err)
+	}
+	sum := sha256.Sum256(payload)
+	return fmt.Sprintf("%x", sum), nil
+}
 
 // CalcChartHash 计算 chart_hash = sha256(normalized birth info)。
 // 命中 charts 表即复用，避免重复计算。
