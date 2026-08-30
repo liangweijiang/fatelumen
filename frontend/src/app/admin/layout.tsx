@@ -11,11 +11,10 @@ const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30
 const nav = [
   { href: "/admin", label: "数据概览" },
   { href: "/admin/users", label: "用户管理" },
-  { href: "/admin/content/knowledge", label: "八字知识" },
-  { href: "/admin/content/faq", label: "常见问题" },
-  { href: "/admin/content/case", label: "客户案例" },
+  { href: "/admin/content/knowledge", label: "内容管理" },
   { href: "/admin/pricing", label: "定价套餐" },
-  { href: "/admin/geo", label: "地理数据" },
+  { href: "/admin/base-data/geo", label: "基础数据" },
+  { href: "/admin/report-workspace/calculations", label: "报告工作台" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -39,7 +38,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="flex items-center justify-between border-b px-8 py-4" style={{ borderColor: "var(--line)" }}>
         <div className="flex items-center gap-8">
           <span className="font-[var(--serif)] text-xl font-medium" style={{ color: "var(--ink)" }}>FateLumen 管理后台</span>
-          <nav className="flex flex-wrap gap-5">{nav.map((item) => <Link key={item.href} href={item.href} className="text-sm" style={{ color: pathname === item.href ? "var(--gold-deep)" : "var(--ink-soft)" }}>{item.label}</Link>)}</nav>
+          <nav className="flex flex-wrap gap-5">{nav.map((item) => {
+            const active = pathname === item.href
+              || (item.href.startsWith("/admin/base-data") && pathname.startsWith("/admin/base-data"))
+              || (item.href.startsWith("/admin/report-workspace") && pathname.startsWith("/admin/report-workspace"))
+              || (item.href.startsWith("/admin/content") && pathname.startsWith("/admin/content"));
+            return <Link key={item.href} href={item.href} className="text-sm" style={{ color: active ? "var(--gold-deep)" : "var(--ink-soft)" }}>{item.label}</Link>;
+          })}</nav>
         </div>
         <button type="button" onClick={() => { void adminApi.post("/admin/auth/logout"); removeAdminToken(); router.replace("/admin/login"); }} className="text-sm hover:underline" style={{ color: "var(--ink-faint)" }}>退出登录</button>
       </header>

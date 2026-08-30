@@ -83,7 +83,7 @@ export default function AdminGeoPage() {
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  return <div className="mx-auto max-w-6xl">
+  return <section className="w-full">
     <header className="mb-6">
       <h1 className="text-2xl font-medium">地理数据</h1>
       <p className="mt-1 text-sm" style={{ color: "var(--ink-soft)" }}>查看国家、地区及对应经纬度；发现错误时可直接修正。</p>
@@ -109,5 +109,5 @@ export default function AdminGeoPage() {
     <footer className="mt-4 flex items-center justify-between text-sm"><span style={{ color: "var(--ink-soft)" }}>共 {total.toLocaleString()} 条</span><div className="flex items-center gap-3"><button type="button" disabled={page <= 1 || loading} onClick={() => setPage((value) => value - 1)} className="border px-3 py-1.5 disabled:opacity-40" style={{ borderColor: "var(--line)" }}>上一页</button><span>第 {page} / {pageCount} 页</span><button type="button" disabled={page >= pageCount || loading} onClick={() => setPage((value) => value + 1)} className="border px-3 py-1.5 disabled:opacity-40" style={{ borderColor: "var(--line)" }}>下一页</button></div></footer>
 
     {editing && <div className="fixed inset-0 z-50 grid place-items-center bg-black/35 p-4" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditing(null); }}><section role="dialog" aria-modal="true" aria-labelledby="geo-edit-title" className="w-full max-w-md border p-6 shadow-2xl" style={{ background: "var(--bg-card)", borderColor: "var(--line)" }}><div className="mb-5 flex items-start justify-between"><div><h2 id="geo-edit-title" className="text-xl">修改经纬度</h2><p className="mt-1 text-sm" style={{ color: "var(--ink-soft)" }}>{editing.country_name} · {editing.region_name}</p></div><button type="button" onClick={() => setEditing(null)} aria-label="关闭" className="text-2xl leading-none">×</button></div><form onSubmit={save} className="space-y-4"><label className="block text-sm">经度<input autoFocus inputMode="decimal" value={longitude} onChange={(event) => setLongitude(event.target.value)} className="mt-1 w-full border px-3 py-2" style={{ background: "var(--bg)", borderColor: "var(--line)" }} /></label><label className="block text-sm">纬度<input inputMode="decimal" value={latitude} onChange={(event) => setLatitude(event.target.value)} className="mt-1 w-full border px-3 py-2" style={{ background: "var(--bg)", borderColor: "var(--line)" }} /></label>{error && <p role="alert" className="text-sm text-red-700">{error}</p>}<div className="flex justify-end gap-2 pt-2"><button type="button" onClick={() => setEditing(null)} className="btn-ghost px-4 py-2">取消</button><button type="submit" disabled={saving} className="btn-gold px-4 py-2 disabled:opacity-50">{saving ? "保存中…" : "保存"}</button></div></form></section></div>}
-  </div>;
+  </section>;
 }

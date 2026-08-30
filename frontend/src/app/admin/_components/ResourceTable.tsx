@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import {
   fetchResourceSchema,
   fetchResourceList,
@@ -28,7 +29,7 @@ function renderCell(field: ResourceField, value: unknown): string {
   return String(value);
 }
 
-export default function ResourceTable({ resource }: { resource: string }) {
+export default function ResourceTable({ resource, detailHref }: { resource: string; detailHref?: (id: string) => string }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -150,14 +151,11 @@ export default function ResourceTable({ resource }: { resource: string }) {
                       </td>
                     ))}
                     <td className="border-b px-4 py-3" style={{ borderColor: "var(--line-soft)" }}>
-                      <button
-                        type="button"
-                        onClick={() => setActiveId(rowId)}
-                        className="rounded-md border px-3 py-1 text-[13px]"
-                        style={{ borderColor: "var(--line)", color: "var(--gold-deep)" }}
-                      >
-                        查看
-                      </button>
+                      {detailHref ? (
+                        <Link href={detailHref(rowId)} className="rounded-md border px-3 py-1 text-[13px]" style={{ borderColor: "var(--line)", color: "var(--gold-deep)" }}>查看</Link>
+                      ) : (
+                        <button type="button" onClick={() => setActiveId(rowId)} className="rounded-md border px-3 py-1 text-[13px]" style={{ borderColor: "var(--line)", color: "var(--gold-deep)" }}>查看</button>
+                      )}
                     </td>
                   </tr>
                 );

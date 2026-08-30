@@ -1,0 +1,3 @@
+import { SecondaryNav } from "../_components/SecondaryNav";
+const items=[{href:"/admin/base-data/geo",label:"地理数据",description:"国家、城市与坐标"},{href:"/admin/base-data/bazi",label:"命理基础数据",description:"干支、十神与规则"},{href:"/admin/base-data/calendar",label:"干支日历",description:"公共60年年份数据"},{href:"/admin/base-data/chapter-facts",label:"章节事实配置",description:"10章数据白名单"},{href:"/admin/base-data/prompt-versions",label:"Prompt版本",description:"版本与发布记录"}];
+export default function BaseDataLayout({children}:{children:React.ReactNode}){return <div className="mx-auto max-w-[1500px]"><SecondaryNav title="基础数据" items={items}/>{children}</div>}

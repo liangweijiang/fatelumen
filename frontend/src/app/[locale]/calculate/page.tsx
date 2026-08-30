@@ -61,7 +61,6 @@ export default function CalculatePage() {
   const [latitude, setLatitude] = useState("");
   const [timezone, setTimezone] = useState("UTC");
   const [displayName, setDisplayName] = useState("");
-  const [depth, setDepth] = useState<"quick" | "deep">("deep");
 
   const selectedCountry = geoCountries.find((country) => country.code === countryCode);
   const countryOptions = useMemo(() => geoCountries.map((item) => ({ code: item.code, label: localizedName(item, locationLocale) })), [geoCountries, locationLocale]);
@@ -158,11 +157,6 @@ export default function CalculatePage() {
     if (!profileInput) return;
     setSubmitting(true);
     try {
-      if (depth === "quick") {
-        toast.error("Quick Reading will be available after the deterministic chart flow is completed.");
-        return;
-      }
-
       const report = await createReportFromInput({ profile: profileInput, save_action: "new", locale });
       router.push(`/${locale}/reports/${report.report_id}`);
     } catch {
@@ -456,67 +450,6 @@ export default function CalculatePage() {
             </div>
           </div>
 
-        </div>
-
-        {/* Depth cards */}
-        <div className="mb-8">
-          <label
-            className="mb-3 block text-[13px] font-semibold tracking-[.4px]"
-            style={{ color: "var(--ink)" }}
-          >
-            {t("depth")}
-          </label>
-          <div className="grid grid-cols-2 gap-4">
-            {/* Quick card */}
-            <button
-              type="button"
-              onClick={() => setDepth("quick")}
-              className="relative rounded-2xl border p-5 text-left transition-all"
-              style={{
-                background: depth === "quick" ? "var(--bg-card)" : "var(--bg)",
-                borderColor: depth === "quick" ? "var(--gold)" : "var(--line)",
-                boxShadow: depth === "quick" ? "0 0 0 2px var(--gold)" : "none",
-              }}
-            >
-              <p
-                className="mb-1 text-[16px] font-semibold"
-                style={{ fontFamily: "var(--serif-d)", color: "var(--ink)" }}
-              >
-                {t("quickCard")}
-              </p>
-              <p className="text-[12px]" style={{ color: "var(--ink-faint)" }}>
-                {t("quickDesc")}
-              </p>
-            </button>
-
-            {/* Deep card */}
-            <button
-              type="button"
-              onClick={() => setDepth("deep")}
-              className="relative rounded-2xl border p-5 text-left transition-all"
-              style={{
-                background: depth === "deep" ? "var(--bg-card)" : "var(--bg)",
-                borderColor: depth === "deep" ? "var(--gold)" : "var(--line)",
-                boxShadow: depth === "deep" ? "0 0 0 2px var(--gold)" : "none",
-              }}
-            >
-              <span
-                className="absolute right-3 top-3 rounded-full px-2.5 py-0.5 text-[11px] font-semibold tracking-[.3px]"
-                style={{ background: "var(--gold-deep)", color: "var(--bg-card)" }}
-              >
-                {t("deepBadge")}
-              </span>
-              <p
-                className="mb-1 text-[16px] font-semibold"
-                style={{ fontFamily: "var(--serif-d)", color: "var(--ink)" }}
-              >
-                {t("deepCard")}
-              </p>
-              <p className="text-[12px]" style={{ color: "var(--ink-faint)" }}>
-                {t("deepDesc")}
-              </p>
-            </button>
-          </div>
         </div>
 
         {/* Submit */}
