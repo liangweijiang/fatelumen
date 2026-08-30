@@ -264,6 +264,7 @@ func Setup(app *App) *gin.Engine {
 				admin.GET("/bazi-base/stems", app.AdminBaziBaseHandler.Stems)
 				admin.GET("/bazi-base/branches", app.AdminBaziBaseHandler.Branches)
 				admin.GET("/bazi-base/ten-gods", app.AdminBaziBaseHandler.TenGods)
+				admin.GET("/bazi-base/display-dictionary", app.AdminBaziBaseHandler.DisplayDictionary)
 				admin.GET("/bazi-base/relations", app.AdminBaziBaseHandler.Relations)
 				admin.GET("/bazi-base/strength-rules", app.AdminBaziBaseHandler.StrengthRules)
 				admin.GET("/bazi-base/annual-calendar", app.AdminBaziBaseHandler.AnnualCalendar)
@@ -282,6 +283,10 @@ func Setup(app *App) *gin.Engine {
 				admin.GET("/calculation-archives/:id", app.AdminCalculationHandler.Get)
 				admin.PATCH("/calculation-archives/:id", app.AdminCalculationHandler.Update)
 				admin.POST("/calculation-archives/:id/recalculate", app.AdminCalculationHandler.Recalculate)
+				admin.POST("/calculation-archives/:id/prompt-preview", app.AdminCalculationHandler.PromptPreview)
+				admin.GET("/prompt-configs", app.AdminCalculationHandler.PromptConfigs)
+				admin.PUT("/prompt-configs/:chapterKey", app.AdminCalculationHandler.SavePromptConfig)
+				admin.DELETE("/prompt-configs/:chapterKey", app.AdminCalculationHandler.ResetPromptConfig)
 				admin.DELETE("/calculation-archives/:id", app.AdminCalculationHandler.Delete)
 			}
 			if app.ResourceHandler != nil {

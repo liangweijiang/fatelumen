@@ -1,36 +1,18 @@
 "use client";
-import { useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { Calculator, Languages, Search } from "lucide-react";
-import { PromptWorkspace } from "../../prompt-studio/PromptWorkspace";
-import { initialRecords } from "../../prompt-studio/data";
+import {useEffect,useMemo,useState} from "react";
+import {useSearchParams} from "next/navigation";
+import {Calculator,Languages,LoaderCircle,Search} from "lucide-react";
+import {PromptWorkspace} from "../../prompt-studio/PromptWorkspace";
+import {fetchCalculation,fetchCalculations,fetchPromptConfigs,fetchPromptRegistry,type CalculationArchive,type CalculationVersion,type PromptRegistryResponse} from "@/lib/admin-api";
 
-const locales = [
-  { value: "zh", label: "中文 · zh" },
-  { value: "en", label: "English · en" },
-  { value: "ja", label: "日本語 · ja" },
-  { value: "ko", label: "한국어 · ko" },
-];
-
-export default function PromptComposerPage() {
-  const params = useSearchParams();
-  const initialId = Number(params.get("calculation_id")) || initialRecords[0].id;
-  const [selectedId, setSelectedId] = useState(initialId);
-  const [query, setQuery] = useState("");
-  const [locale, setLocale] = useState("zh");
-  const records = useMemo(() => initialRecords.filter((item) => `${item.name}${item.birth}${item.place}`.toLowerCase().includes(query.toLowerCase())), [query]);
-  const record = initialRecords.find((item) => item.id === selectedId) ?? initialRecords[0];
-  return <section>
-    <header className="mb-5"><h2 className="text-2xl">Prompt 编排</h2><p className="mt-1 text-sm" style={{color:"var(--ink-soft)"}}>选择计算档案、版本与目标语言，再配置十个章节使用的前置数据并生成完整调用指令。</p></header>
-    <div className="mb-5 border p-4" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_minmax(18rem,2fr)_12rem_11rem]">
-        <label className="flex items-center gap-2 border px-3 py-2" style={{borderColor:"var(--line)"}}><Search size={15}/><span className="sr-only">搜索档案</span><input value={query} onChange={e=>setQuery(e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="搜索计算档案"/></label>
-        <label><span className="sr-only">选择计算档案</span><select value={selectedId} onChange={e=>setSelectedId(Number(e.target.value))} className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{records.map(item=><option value={item.id} key={item.id}>{item.name} · {item.birth} · {item.place}</option>)}</select></label>
-        <label><span className="sr-only">选择计算版本</span><select className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{Array.from({length:record.versions},(_,i)=>record.versions-i).map(v=><option key={v}>计算版本 v{v}</option>)}</select></label>
-        <label><span className="sr-only">目标语言</span><select value={locale} onChange={e=>setLocale(e.target.value)} className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{locales.map(item=><option value={item.value} key={item.value}>{item.label}</option>)}</select></label>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs" style={{color:"var(--ink-faint)"}}><p className="flex items-center gap-2"><Calculator size={14}/>当前事实哈希 {record.factsHash}；仅消费该版本已保存的确定性计算结果。</p><p className="flex items-center gap-2"><Languages size={14}/><strong style={{color:"var(--ink-soft)"}}>统一生成方式：</strong>同一套章节 Prompt + locale 指令，直接生成目标语言，不经过二次翻译。</p></div>
-    </div>
-    <PromptWorkspace record={record} locale={locale}/>
-  </section>;
+export default function PromptComposerPage(){
+ const params=useSearchParams();const requested=Number(params.get("calculation_id"))||0;const [archives,setArchives]=useState<CalculationArchive[]>([]);const [selectedId,setSelectedId]=useState(requested);const [versions,setVersions]=useState<CalculationVersion[]>([]);const [versionId,setVersionId]=useState(0);const [registry,setRegistry]=useState<PromptRegistryResponse|null>(null);const [configs,setConfigs]=useState<Record<string,string[]>>({});const [query,setQuery]=useState("");const [locale,setLocale]=useState("zh");const [loading,setLoading]=useState(true);const [error,setError]=useState("");
+ useEffect(()=>{Promise.all([fetchCalculations("",1,100),fetchPromptRegistry(),fetchPromptConfigs().catch(()=>({configured:{}}))]).then(([list,reg,cfg])=>{setArchives(list.items);setRegistry(reg);setConfigs(cfg.configured);setSelectedId(v=>v&&list.items.some(a=>a.id===v)?v:(list.items[0]?.id??0))}).catch(()=>setError("计算档案或 Prompt 注册表读取失败。" )).finally(()=>setLoading(false))},[]);
+ useEffect(()=>{if(!selectedId)return;setVersions([]);fetchCalculation(selectedId).then(d=>{setVersions(d.versions);setVersionId(d.archive.latest_version_id??d.versions[0]?.id??0)}).catch(()=>setError("计算版本读取失败。"))},[selectedId]);
+ const visible=useMemo(()=>archives.filter(a=>`${a.name}${JSON.stringify(a.input)}`.toLowerCase().includes(query.toLowerCase())),[archives,query]);const archive=archives.find(a=>a.id===selectedId);const version=versions.find(v=>v.id===versionId);
+ if(loading)return <div className="flex min-h-64 items-center justify-center"><LoaderCircle className="mr-2 animate-spin"/>正在读取 Prompt 编排数据</div>;
+ return <section><header className="mb-5"><h2 className="text-2xl">Prompt 编排</h2><p className="mt-1 text-sm" style={{color:"var(--ink-soft)"}}>选择真实计算档案、不可变版本与目标语言，再由后端统一生成十章调用指令。</p></header>{error&&<p role="alert" className="mb-4 border p-3 text-sm text-red-800" style={{borderColor:"var(--line)"}}>{error}</p>}
+ <div className="mb-5 border p-4" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_minmax(18rem,2fr)_12rem_11rem]"><label className="flex items-center gap-2 border px-3 py-2" style={{borderColor:"var(--line)"}}><Search size={15}/><span className="sr-only">搜索档案</span><input value={query} onChange={e=>setQuery(e.target.value)} className="min-w-0 flex-1 bg-transparent text-sm outline-none" placeholder="搜索计算档案"/></label><label><span className="sr-only">选择计算档案</span><select value={selectedId} onChange={e=>setSelectedId(Number(e.target.value))} className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{visible.map(a=><option value={a.id} key={a.id}>{a.name} · v{a.latest_version_no}</option>)}</select></label><label><span className="sr-only">选择计算版本</span><select value={versionId} onChange={e=>setVersionId(Number(e.target.value))} className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{versions.map(v=><option value={v.id} key={v.id}>计算版本 v{v.version_no}</option>)}</select></label><label><span className="sr-only">目标语言</span><select value={locale} onChange={e=>setLocale(e.target.value)} className="h-full w-full border px-3 py-2 text-sm" style={{borderColor:"var(--line)",background:"var(--bg-card)"}}>{registry?.locales.map(l=><option value={l.code} key={l.code}>{l.name} · {l.code}</option>)}</select></label></div><div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs" style={{color:"var(--ink-faint)"}}><p className="flex items-center gap-2"><Calculator size={14}/>只消费所选版本已保存的确定性事实，不重新排盘。</p><p className="flex items-center gap-2"><Languages size={14}/>同一套 Prompt + locale 指令，直接生成目标语言。</p></div></div>
+ {!archives.length?<div className="border p-10 text-center" style={{borderColor:"var(--line)"}}><h3 className="text-lg">暂无可编排的计算档案</h3><p className="mt-2 text-sm">请先在“计算档案”中新增并完成计算。</p></div>:archive&&version&&registry?<PromptWorkspace archive={archive} version={version} registry={registry} locale={locale} initialConfig={configs}/>:<div className="border p-10 text-center text-sm" style={{borderColor:"var(--line)"}}>正在读取所选计算版本……</div>}
+ </section>
 }

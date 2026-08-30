@@ -172,12 +172,13 @@ export interface PromptPreviewResponse {
   registry_version: string;
   prompt_version: string;
   locale: { code: string; name: string; instruction: string };
-  chapter: { no: number; key: string; name: string; purpose: string; required_facts: string[]; default_facts: string[] };
+  chapter: { no: number; key: string; name: string; purpose: string; required_facts: string[]; default_facts: string[]; sections:{key:string;name:string}[]; source_prompt:string };
   system_prompt: string;
   user_prompt: string;
   input_facts: Record<string, unknown>;
   output_schema: Record<string, unknown>;
   facts_hash: string;
+  dictionary_version: string;
 }
 
 export interface PromptRegistryResponse {
@@ -190,6 +191,14 @@ export async function fetchPromptRegistry(): Promise<PromptRegistryResponse> {
   const { data } = await api.get("/admin/prompt-registry");
   return unwrap<PromptRegistryResponse>(data);
 }
+
+export async function previewCalculationPrompt(id:string|number, versionId:number, chapterKey:string, locale:string, factKeys:string[]):Promise<PromptPreviewResponse>{
+  const {data}=await api.post(`/admin/calculation-archives/${id}/prompt-preview`,{version_id:versionId,chapter_key:chapterKey,locale,fact_keys:factKeys});
+  return unwrap<PromptPreviewResponse>(data);
+}
+export async function fetchPromptConfigs(){const {data}=await api.get("/admin/prompt-configs");return unwrap<{configured:Record<string,string[]>}>(data)}
+export async function savePromptConfig(chapterKey:string,factKeys:string[]){const {data}=await api.put(`/admin/prompt-configs/${chapterKey}`,{fact_keys:factKeys});return unwrap<{chapter_key:string;fact_keys:string[]}>(data)}
+export async function resetPromptConfig(chapterKey:string){const {data}=await api.delete(`/admin/prompt-configs/${chapterKey}`);return unwrap<{chapter_key:string;fact_keys:string[]}>(data)}
 
 export async function previewReportPrompt(id: string | number, chapterKey: string, locale: string): Promise<PromptPreviewResponse> {
   const { data } = await api.post(`/admin/reports/${id}/prompt-preview`, { chapter_key: chapterKey, locale });

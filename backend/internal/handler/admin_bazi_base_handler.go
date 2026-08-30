@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"fatelumen/backend/internal/bazi/basedata"
+	"fatelumen/backend/internal/bazi/displaydict"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/pkg/response"
 	"fatelumen/backend/internal/repository"
@@ -36,6 +37,9 @@ func (h *AdminBaziBaseHandler) Elements(c *gin.Context) { h.list(c, toAny(h.cata
 func (h *AdminBaziBaseHandler) Stems(c *gin.Context)    { h.list(c, toAny(h.catalog.Stems)) }
 func (h *AdminBaziBaseHandler) Branches(c *gin.Context) { h.list(c, toAny(h.catalog.Branches)) }
 func (h *AdminBaziBaseHandler) TenGods(c *gin.Context)  { h.list(c, toAny(h.catalog.TenGodRules)) }
+func (h *AdminBaziBaseHandler) DisplayDictionary(c *gin.Context) {
+	h.listVersion(c, toAny(displaydict.Terms()), displaydict.Version)
+}
 func (h *AdminBaziBaseHandler) Relations(c *gin.Context) {
 	items := h.catalog.Relations
 	if typ := strings.TrimSpace(c.Query("type")); typ != "" {
@@ -83,6 +87,10 @@ func (h *AdminBaziBaseHandler) AnnualCalendar(c *gin.Context) {
 }
 
 func (h *AdminBaziBaseHandler) list(c *gin.Context, items []any) {
+	h.listVersion(c, items, h.catalog.Version)
+}
+
+func (h *AdminBaziBaseHandler) listVersion(c *gin.Context, items []any, version string) {
 	q := strings.ToLower(strings.TrimSpace(c.Query("q")))
 	if q != "" {
 		filtered := make([]any, 0)
@@ -103,7 +111,7 @@ func (h *AdminBaziBaseHandler) list(c *gin.Context, items []any) {
 	if end > total {
 		end = total
 	}
-	response.OK(c, gin.H{"items": items[start:end], "total": total, "page": page, "page_size": size, "version": h.catalog.Version})
+	response.OK(c, gin.H{"items": items[start:end], "total": total, "page": page, "page_size": size, "version": version})
 }
 func toAny[T any](in []T) []any {
 	out := make([]any, len(in))

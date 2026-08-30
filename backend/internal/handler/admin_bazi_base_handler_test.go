@@ -47,6 +47,15 @@ func TestAdminBaziBaseRelationFilter(t *testing.T) {
 		t.Fatalf("bad filter: %s", payload)
 	}
 }
+
+func TestAdminBaziDisplayDictionary(t *testing.T) {
+	h := NewAdminBaziBaseHandler(basedata.V1())
+	out := callBaziBase(t, "?q=element.power.wood&page=1&page_size=20", h.DisplayDictionary)
+	payload, _ := json.Marshal(out.Data)
+	if out.Code != 0 || !containsJSON(payload, "木力量") {
+		t.Fatalf("display dictionary response=%+v", out)
+	}
+}
 func containsJSON(v []byte, s string) bool {
 	for i := 0; i+len(s) <= len(v); i++ {
 		if string(v[i:i+len(s)]) == s {

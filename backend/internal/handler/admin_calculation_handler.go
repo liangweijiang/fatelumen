@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"fatelumen/backend/internal/birthchart"
+	"fatelumen/backend/internal/llm/prompts"
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/logger"
@@ -149,6 +150,107 @@ func (h *AdminCalculationHandler) Recalculate(c *gin.Context) {
 	}
 	h.writeAudit(c, "recalculate", id)
 	response.OK(c, a)
+}
+
+type calculationPromptPreviewInput struct {
+	VersionID  uint64   `json:"version_id" binding:"required"`
+	ChapterKey string   `json:"chapter_key" binding:"required"`
+	Locale     string   `json:"locale" binding:"required"`
+	FactKeys   []string `json:"fact_keys"`
+}
+
+// PromptPreview composes a chapter prompt from one immutable calculation version.
+// It does not invoke an LLM or mutate the saved calculation snapshot.
+func (h *AdminCalculationHandler) PromptPreview(c *gin.Context) {
+	archiveID, ok := parseID(c)
+	if !ok {
+		return
+	}
+	var in calculationPromptPreviewInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, response.CodeBadRequest, "请选择计算版本、章节和目标语言")
+		return
+	}
+	var version model.CalculationVersion
+	if err := h.db.WithContext(c).Where("id=? AND archive_id=?", in.VersionID, archiveID).First(&version).Error; err != nil {
+		response.Fail(c, response.CodeNotFound, "计算版本不存在")
+		return
+	}
+	var facts model.InterpretationFacts
+	if err := json.Unmarshal(version.FactsSnapshot, &facts); err != nil {
+		logger.FromCtx(c).Error("decode calculation facts failed", "err", err, "archive_id", archiveID, "version_id", in.VersionID)
+		response.Error(c, "计算事实快照无法读取")
+		return
+	}
+	preview, err := prompts.BuildChapterPromptPreviewWithFacts(in.Locale, in.ChapterKey, in.FactKeys, facts)
+	if err != nil {
+		logger.FromCtx(c).Warn("calculation prompt preview rejected", "err", err, "archive_id", archiveID, "version_id", in.VersionID, "chapter_key", in.ChapterKey)
+		response.Fail(c, response.CodeBadRequest, err.Error())
+		return
+	}
+	response.OK(c, preview)
+}
+
+func (h *AdminCalculationHandler) PromptConfigs(c *gin.Context) {
+	var rows []model.PromptChapterConfig
+	if err := h.db.WithContext(c).Order("chapter_key").Find(&rows).Error; err != nil {
+		logger.FromCtx(c).Error("list prompt chapter configs failed", "err", err)
+		response.Error(c, "章节配置读取失败")
+		return
+	}
+	configured := make(map[string][]string, len(rows))
+	for _, row := range rows {
+		var keys []string
+		if err := json.Unmarshal(row.FactKeys, &keys); err != nil {
+			logger.FromCtx(c).Error("decode prompt chapter config failed", "err", err, "chapter_key", row.ChapterKey)
+			response.Error(c, "章节配置无法读取")
+			return
+		}
+		configured[row.ChapterKey] = keys
+	}
+	response.OK(c, gin.H{"configured": configured})
+}
+
+func (h *AdminCalculationHandler) SavePromptConfig(c *gin.Context) {
+	chapterKey := strings.TrimSpace(c.Param("chapterKey"))
+	var in struct {
+		FactKeys []string `json:"fact_keys"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil {
+		response.Fail(c, response.CodeBadRequest, "前置数据配置格式不正确")
+		return
+	}
+	keys, err := prompts.ResolveChapterFactKeys(chapterKey, in.FactKeys)
+	if err != nil {
+		response.Fail(c, response.CodeBadRequest, err.Error())
+		return
+	}
+	raw, _ := json.Marshal(keys)
+	row := model.PromptChapterConfig{ChapterKey: chapterKey, FactKeys: model.JSONRaw(raw), UpdatedByAdminID: middleware.GetAdminID(c)}
+	err = h.db.WithContext(c).Where("chapter_key=?", chapterKey).Assign(map[string]any{"fact_keys": model.JSONRaw(raw), "updated_by_admin_id": middleware.GetAdminID(c)}).FirstOrCreate(&row).Error
+	if err != nil {
+		logger.FromCtx(c).Error("save prompt chapter config failed", "err", err, "chapter_key", chapterKey)
+		response.Error(c, "章节配置保存失败")
+		return
+	}
+	h.writeAudit(c, "save_prompt_config", row.ID)
+	response.OK(c, gin.H{"chapter_key": chapterKey, "fact_keys": keys, "updated_at": row.UpdatedAt})
+}
+
+func (h *AdminCalculationHandler) ResetPromptConfig(c *gin.Context) {
+	chapterKey := strings.TrimSpace(c.Param("chapterKey"))
+	chapter, ok := prompts.ChapterByKey(chapterKey)
+	if !ok {
+		response.Fail(c, response.CodeBadRequest, "章节不存在")
+		return
+	}
+	if err := h.db.WithContext(c).Where("chapter_key=?", chapterKey).Delete(&model.PromptChapterConfig{}).Error; err != nil {
+		logger.FromCtx(c).Error("reset prompt chapter config failed", "err", err, "chapter_key", chapterKey)
+		response.Error(c, "恢复默认配置失败")
+		return
+	}
+	h.writeAudit(c, "reset_prompt_config", 0)
+	response.OK(c, gin.H{"chapter_key": chapterKey, "fact_keys": chapter.DefaultFacts})
 }
 func (h *AdminCalculationHandler) Delete(c *gin.Context) {
 	id, ok := parseID(c)

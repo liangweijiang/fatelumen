@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import adminApi from "@/lib/admin-client";
 import { getAdminToken, removeAdminToken } from "@/lib/admin-auth-storage";
+import { installDisplayDictionary } from "@/lib/bazi-display/dictionaries";
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: 1 } } });
 const nav = [
@@ -27,7 +28,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 	if (isLoginPage) return;
     if (!getAdminToken()) { router.replace("/admin/login"); return; }
     let alive = true;
-    adminApi.get("/admin/auth/me").then(() => alive && setReady(true)).catch(() => router.replace("/admin/login"));
+    Promise.all([
+      adminApi.get("/admin/auth/me"),
+      adminApi.get("/admin/bazi-base/display-dictionary",{params:{page:1,page_size:500}}),
+    ]).then(([,dictionary])=>{const payload=dictionary.data?.data??dictionary.data;installDisplayDictionary(payload.items??[]);if(alive)setReady(true);}).catch(() => router.replace("/admin/login"));
     return () => { alive = false; };
 	}, [isLoginPage, router]);
 

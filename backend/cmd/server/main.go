@@ -398,6 +398,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.ReportLLMCall{},
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
+		&model.PromptChapterConfig{},
 		&model.AnnualCalendarYear{},
 		&model.Order{},
 		&model.PaymentEvent{},

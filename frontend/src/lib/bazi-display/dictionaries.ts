@@ -27,6 +27,15 @@ export const zhDictionary: BaziDisplayDictionary = {
 export const enDictionary: BaziDisplayDictionary = {wood:"Wood",fire:"Fire",earth:"Earth",metal:"Metal",water:"Water",male:"Male",female:"Female",primary_useful:"Primary useful element",secondary_useful:"Secondary useful element",pending_review:"Pending review",calculating:"Calculating",ready:"Ready",failed:"Failed",true:"Yes",false:"No"};
 export const dictionaries: Readonly<Record<BaziDisplayLocale, BaziDisplayDictionary>> = {zh:zhDictionary,en:enDictionary,ja:{},ko:{}};
 
+// Runtime values from the versioned backend catalog are authoritative. The
+// bundled values only keep pre-auth/loading states readable.
+export function installDisplayDictionary(items:Array<{code:string;names?:Partial<Record<BaziDisplayLocale,string>>}>):void{
+  for(const locale of ["zh","en","ja","ko"] as const){
+    const target=dictionaries[locale] as Record<string,string>;
+    for(const item of items){const value=item.names?.[locale];if(value)target[item.code]=value;}
+  }
+}
+
 export function normalizeBaziDisplayLocale(locale?: string): BaziDisplayLocale {
   const value=locale?.toLowerCase().split("-")[0];
   return value==="en"||value==="ja"||value==="ko"?value:"zh";
