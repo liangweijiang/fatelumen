@@ -48,7 +48,7 @@ func TestBuildChapterPromptPreviewFiltersFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if preview.Locale.Code != "ja" || !strings.Contains(preview.SystemPrompt, "日文") {
+	if preview.Locale.Code != "ja" || !strings.Contains(preview.AdditiveInstruction, "日文") {
 		t.Fatal("locale not applied")
 	}
 	if preview.FactsHash != "facts-123" || preview.InputFacts["facts_hash"] != "facts-123" {
@@ -124,7 +124,7 @@ func TestChinesePromptDoesNotLeakKnownInternalCodes(t *testing.T) {
 			t.Fatalf("internal code %q leaked into Chinese prompt", forbidden)
 		}
 	}
-	for _, expected := range []string{"木力量=偏弱", "甲、己·天干五合", "\"章节\": \"命格深析\"", "\"名称\": \"日主强弱深层拆解\""} {
+	for _, expected := range []string{"木力量偏弱", "甲、己天干五合", "\"章节\": \"命格深析\"", "\"名称\": \"日主强弱深层拆解\""} {
 		if !strings.Contains(preview.UserPrompt, expected) {
 			t.Fatalf("translated prompt missing %q", expected)
 		}

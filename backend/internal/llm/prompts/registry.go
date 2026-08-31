@@ -35,16 +35,23 @@ type SectionDefinition struct {
 }
 
 type ChapterPromptPreview struct {
-	RegistryVersion   string            `json:"registry_version"`
-	PromptVersion     string            `json:"prompt_version"`
-	Locale            LocaleSpec        `json:"locale"`
-	Chapter           ChapterDefinition `json:"chapter"`
-	SystemPrompt      string            `json:"system_prompt"`
-	UserPrompt        string            `json:"user_prompt"`
-	InputFacts        map[string]any    `json:"input_facts"`
-	OutputSchema      map[string]any    `json:"output_schema"`
-	FactsHash         string            `json:"facts_hash"`
-	DictionaryVersion string            `json:"dictionary_version"`
+	RegistryVersion     string                      `json:"registry_version"`
+	PromptVersion       string                      `json:"prompt_version"`
+	Locale              LocaleSpec                  `json:"locale"`
+	Chapter             ChapterDefinition           `json:"chapter"`
+	SystemPrompt        string                      `json:"system_prompt"`
+	UserPrompt          string                      `json:"user_prompt"`
+	InputFacts          map[string]any              `json:"input_facts"`
+	OutputSchema        map[string]any              `json:"output_schema"`
+	FactsHash           string                      `json:"facts_hash"`
+	DictionaryVersion   string                      `json:"dictionary_version"`
+	SemanticDigest      SemanticDigest              `json:"semantic_digest"`
+	ChapterInstruction  string                      `json:"chapter_instruction"`
+	AdditiveInstruction string                      `json:"additive_instruction"`
+	CompleteInstruction string                      `json:"complete_instruction"`
+	TerminologyCoverage displaydict.Coverage        `json:"terminology_coverage"`
+	PhraseCoverage      PhraseCoverage              `json:"phrase_coverage"`
+	Glossary            []displaydict.GlossaryEntry `json:"glossary"`
 }
 
 var localeRegistry = map[string]LocaleSpec{
@@ -138,15 +145,22 @@ func BuildChapterPromptPreviewWithFacts(locale, chapterKey string, factKeys []st
 	if err != nil {
 		return nil, err
 	}
-	system := fmt.Sprintf("你只能解读系统提供的确定性事实，不得重新排盘，不得修改或自行推算干支、大运、流年及月份干支。\n%s\n只返回符合约定的严格 JSON，不要 Markdown、代码块或额外说明。", localeSpec.Instruction)
-	compactFacts := renderCompactChapterFacts(facts, selected)
-	user := composeAuthoredPrompt(chapter.SourcePrompt, compactFacts) + "\n\n" + jsonOutputRequirement(chapter)
+	system := "你只能解读系统提供的确定性事实，不得重新排盘，不得修改或自行推算干支、大运、流年及月份干支。"
+	digest, err := buildSemanticDigest(chapterKey, localeSpec.Code, facts, selected)
+	if err != nil {
+		return nil, err
+	}
+	chapterInstruction := composeAuthoredPrompt(chapter.SourcePrompt, digest.Text())
+	languageInstruction, glossary := buildLanguageInstruction(localeSpec, chapterInstruction)
+	additiveInstruction := languageInstruction
+	user := chapterInstruction + "\n\n" + languageInstruction + "\n\n" + jsonOutputRequirement(chapter)
+	completeInstruction := system + "\n\n" + user
 	sectionNames := make([]string, 0, len(chapter.Sections))
 	for _, section := range chapter.Sections {
 		sectionNames = append(sectionNames, section.Name)
 	}
 	schema := map[string]any{"type": "object", "required": []string{"章节", "模块"}, "properties": map[string]any{"章节": map[string]any{"const": chapter.Name}, "模块": map[string]any{"type": "array", "minItems": len(chapter.Sections), "maxItems": len(chapter.Sections), "items": map[string]any{"type": "object", "required": []string{"序号", "名称", "正文"}, "properties": map[string]any{"序号": map[string]any{"type": "integer", "minimum": 1, "maximum": len(chapter.Sections)}, "名称": map[string]any{"type": "string", "enum": sectionNames}, "正文": map[string]any{"type": "string", "minLength": 1}}}}}}
-	return &ChapterPromptPreview{ChapterRegistryVersion, ReportPromptVersion, localeSpec, chapter, system, user, filtered, schema, facts.FactsHash, displaydict.Version}, nil
+	return &ChapterPromptPreview{ChapterRegistryVersion, ReportPromptVersion, localeSpec, chapter, system, user, filtered, schema, facts.FactsHash, displaydict.Version, digest, chapterInstruction, additiveInstruction, completeInstruction, displaydict.LocaleCoverage(localeSpec.Code), phraseCoverage(localeSpec.Code), glossary}, nil
 }
 
 func jsonOutputRequirement(chapter ChapterDefinition) string {

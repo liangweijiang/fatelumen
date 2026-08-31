@@ -179,6 +179,13 @@ export interface PromptPreviewResponse {
   output_schema: Record<string, unknown>;
   facts_hash: string;
   dictionary_version: string;
+  semantic_digest: {version:string;locale:string;items:{fact:string;status:string;text:string}[];warnings?:string[];coverage:{selected_facts:number;covered_facts:number;unavailable_facts:number;pending_facts:number;coverage_rate:number;missing_facts?:string[];ready:boolean}};
+  chapter_instruction: string;
+  additive_instruction: string;
+  complete_instruction: string;
+  terminology_coverage: {locale:string;total:number;approved:number;draft:number;missing:number;rate:number;ready:boolean};
+  phrase_coverage: {locale:string;total:number;approved:number;draft:number;missing:number;rate:number;ready:boolean};
+  glossary: {source:string;target:string}[];
 }
 
 export interface PromptRegistryResponse {
