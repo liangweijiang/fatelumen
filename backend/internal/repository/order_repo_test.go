@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +20,7 @@ func setupTestOrderRepo(t *testing.T) (*OrderRepo, *gorm.DB) {
 	}
 	if err := db.AutoMigrate(
 		&model.Order{},
-		&model.Report{},
+		&model.FullReport{},
 		&model.ProcessedWebhookEvent{},
 	); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
@@ -28,14 +30,13 @@ func setupTestOrderRepo(t *testing.T) (*OrderRepo, *gorm.DB) {
 
 func createTestReport(t *testing.T, db *gorm.DB, id uint64) {
 	t.Helper()
-	report := &model.Report{
-		ID:        id,
-		UserID:    1,
-		ProfileID: 1,
-		Status:    "done",
-		Paid:      false,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	profileID := uint64(1)
+	report := &model.FullReport{
+		ID: id, PublicID: fmt.Sprintf("%026d", id), UserID: 1, ProfileID: &profileID,
+		Locale: "zh", PayMethod: "credit", Status: model.FullReportStatusCompleted, CurrentStage: model.FullReportStatusCompleted,
+		ChapterTotal: 10, ProviderChainKey: "default", ChapterConcurrency: 3,
+		FactsHash: strings.Repeat("0", 64), RetentionPolicy: "days:30", ExpiresAt: time.Now().AddDate(0, 0, 30),
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	if err := db.Create(report).Error; err != nil {
 		t.Fatalf("failed to create report: %v", err)
@@ -45,17 +46,17 @@ func createTestReport(t *testing.T, db *gorm.DB, id uint64) {
 func createTestOrder(t *testing.T, db *gorm.DB, id uint64, reportID uint64, status string) *model.Order {
 	t.Helper()
 	order := &model.Order{
-		ID:         id,
-		UserID:     1,
-		ReportID:   reportID,
-		Type:       "report",
-		SKU:        "report_single",
+		ID:          id,
+		UserID:      1,
+		ReportID:    reportID,
+		Type:        "report",
+		SKU:         "report_single",
 		AmountCents: 999,
-		Currency:   "usd",
-		Provider:   "stripe",
-		Status:     status,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		Currency:    "usd",
+		Provider:    "stripe",
+		Status:      status,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 	if err := db.Create(order).Error; err != nil {
 		t.Fatalf("failed to create order: %v", err)
@@ -85,7 +86,7 @@ func TestFulfillPaidOrder_Success(t *testing.T) {
 	}
 
 	// Verify report is unlocked
-	var report model.Report
+	var report model.FullReport
 	if err := db.First(&report, 1).Error; err != nil {
 		t.Fatalf("failed to load report: %v", err)
 	}
@@ -120,7 +121,7 @@ func TestFulfillPaidOrder_DuplicateEvent(t *testing.T) {
 	// Snapshot post-first-call state
 	var orderAfter model.Order
 	db.First(&orderAfter, 10)
-	var reportAfter model.Report
+	var reportAfter model.FullReport
 	db.First(&reportAfter, 1)
 
 	// Second call: same (provider, event_id) → ErrDuplicateEvent
@@ -140,7 +141,7 @@ func TestFulfillPaidOrder_DuplicateEvent(t *testing.T) {
 	}
 
 	// Report must not be re-written
-	var reportFinal model.Report
+	var reportFinal model.FullReport
 	db.First(&reportFinal, 1)
 	if reportFinal.UpdatedAt != reportAfter.UpdatedAt {
 		t.Error("report should not be re-written on duplicate event")
@@ -164,9 +165,9 @@ func TestFulfillPaidOrder_RollbackOnReportFail(t *testing.T) {
 	createTestReport(t, db, 1)
 	createTestOrder(t, db, 10, 1, model.OrderStatusCreated)
 
-	// Drop the reports table to force the UPDATE to fail
-	if err := db.Exec("DROP TABLE reports").Error; err != nil {
-		t.Fatalf("failed to drop reports table: %v", err)
+	// Drop the full_reports table to force the UPDATE to fail
+	if err := db.Exec("DROP TABLE full_reports").Error; err != nil {
+		t.Fatalf("failed to drop full_reports table: %v", err)
 	}
 
 	err := repo.FulfillPaidOrder("stripe", "evt_rollback", 10)
@@ -223,7 +224,7 @@ func TestFulfillPaidOrder_AlreadyPaidIdempotent(t *testing.T) {
 	}
 
 	// Report should not be re-unlocked
-	var report model.Report
+	var report model.FullReport
 	db.First(&report, 1)
 	if report.Paid {
 		t.Error("report should NOT be re-unlocked (was unpaid before this call too)")
@@ -257,7 +258,7 @@ func TestFulfillPaidOrder_IllegalTransition(t *testing.T) {
 	}
 
 	// Report must NOT be paid
-	var report model.Report
+	var report model.FullReport
 	db.First(&report, 1)
 	if report.Paid {
 		t.Error("report should NOT be paid after rollback")

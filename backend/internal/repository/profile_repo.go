@@ -58,6 +58,17 @@ func (r *ProfileRepo) FindByID(id uint64) (*model.BirthProfile, error) {
 	return &profile, nil
 }
 
+// FindByIDAndUserID returns both saved profiles and one-off report subjects,
+// while enforcing ownership before a report job is created.
+func (r *ProfileRepo) FindByIDAndUserID(id, userID uint64) (*model.BirthProfile, error) {
+	var profile model.BirthProfile
+	err := r.db.Where("id = ? AND user_id = ?", id, userID).First(&profile).Error
+	if err != nil {
+		return nil, err
+	}
+	return &profile, nil
+}
+
 // Delete 删除档案。
 func (r *ProfileRepo) Delete(id uint64) error {
 	return r.db.Delete(&model.BirthProfile{}, id).Error

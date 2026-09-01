@@ -100,7 +100,7 @@ type ReportAgg struct {
 // GetReportAgg 报告总数 + 按状态分组 + 已解锁数。
 func (r *StatsRepo) GetReportAgg() (*ReportAgg, error) {
 	var total int64
-	if err := r.db.Model(&model.Report{}).Count(&total).Error; err != nil {
+	if err := r.db.Model(&model.FullReport{}).Count(&total).Error; err != nil {
 		return nil, err
 	}
 
@@ -109,7 +109,7 @@ func (r *StatsRepo) GetReportAgg() (*ReportAgg, error) {
 		Cnt    int64
 	}
 	var rows []row
-	if err := r.db.Model(&model.Report{}).
+	if err := r.db.Model(&model.FullReport{}).
 		Select("status, count(*) as cnt").
 		Group("status").
 		Scan(&rows).Error; err != nil {
@@ -122,7 +122,7 @@ func (r *StatsRepo) GetReportAgg() (*ReportAgg, error) {
 	}
 
 	var unlocked int64
-	if err := r.db.Model(&model.Report{}).Where("paid = ?", true).Count(&unlocked).Error; err != nil {
+	if err := r.db.Model(&model.FullReport{}).Where("paid = ?", true).Count(&unlocked).Error; err != nil {
 		return nil, err
 	}
 

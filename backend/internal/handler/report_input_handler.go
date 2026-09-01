@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"errors"
 
 	"fatelumen/backend/internal/middleware"
+	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/response"
 	"fatelumen/backend/internal/service"
 
@@ -16,10 +18,14 @@ import (
 // requires an owned target_profile_id.
 type ReportInputHandler struct {
 	profiles *service.ProfileService
-	reports  *service.ReportService
+	reports  reportCreator
 }
 
-func NewReportInputHandler(p *service.ProfileService, r *service.ReportService) *ReportInputHandler {
+type reportCreator interface {
+	CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
+}
+
+func NewReportInputHandler(p *service.ProfileService, r reportCreator) *ReportInputHandler {
 	return &ReportInputHandler{profiles: p, reports: r}
 }
 

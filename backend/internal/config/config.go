@@ -56,13 +56,17 @@ type Config struct {
 	OpenAIAPIKey    string
 	OpenAIModel     string
 
-	PaymentProviders      []string
-	PaymentSuccessURL     string
-	PaymentCancelURL      string
-	OrderReportPriceCents int
-	ReportUnlockCredits   int
-	StripeSecretKey       string
-	StripeWebhookSecret   string
+	PaymentProviders            []string
+	PaymentSuccessURL           string
+	PaymentCancelURL            string
+	OrderReportPriceCents       int
+	ReportUnlockCredits         int
+	ReportChapterConcurrency    int
+	ReportChapterMaxAttempts    int
+	ReportChapterTimeoutSeconds int
+	ReportRetentionDays         int
+	StripeSecretKey             string
+	StripeWebhookSecret         string
 
 	PaymentMockEnabled bool
 	MockWebhookSecret  string
@@ -179,6 +183,10 @@ func Load() (*Config, error) {
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
 	viper.SetDefault("REPORT_UNLOCK_CREDITS", 30)
+	viper.SetDefault("REPORT_CHAPTER_CONCURRENCY", 3)
+	viper.SetDefault("REPORT_CHAPTER_MAX_ATTEMPTS", 2)
+	viper.SetDefault("REPORT_CHAPTER_TIMEOUT_SECONDS", 60)
+	viper.SetDefault("REPORT_RETENTION_DAYS", 30)
 	viper.SetDefault("MOCK_WEBHOOK_SECRET", "dev-mock-secret")
 	viper.SetDefault("RATELIMIT_ENABLED", true)
 	viper.SetDefault("RATELIMIT_READING_PER_MIN", 5)
@@ -235,12 +243,16 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:    viper.GetString("OPENAI_API_KEY"),
 		OpenAIModel:     viper.GetString("OPENAI_MODEL"),
 
-		PaymentProviders:      splitEnv("PAYMENT_PROVIDERS"),
-		PaymentSuccessURL:     viper.GetString("PAYMENT_SUCCESS_URL"),
-		PaymentCancelURL:      viper.GetString("PAYMENT_CANCEL_URL"),
-		OrderReportPriceCents: viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
-		ReportUnlockCredits:   viper.GetInt("REPORT_UNLOCK_CREDITS"),
-		StripeSecretKey:       viper.GetString("STRIPE_SECRET_KEY"),
+		PaymentProviders:            splitEnv("PAYMENT_PROVIDERS"),
+		PaymentSuccessURL:           viper.GetString("PAYMENT_SUCCESS_URL"),
+		PaymentCancelURL:            viper.GetString("PAYMENT_CANCEL_URL"),
+		OrderReportPriceCents:       viper.GetInt("ORDER_REPORT_PRICE_CENTS"),
+		ReportUnlockCredits:         viper.GetInt("REPORT_UNLOCK_CREDITS"),
+		ReportChapterConcurrency:    viper.GetInt("REPORT_CHAPTER_CONCURRENCY"),
+		ReportChapterMaxAttempts:    viper.GetInt("REPORT_CHAPTER_MAX_ATTEMPTS"),
+		ReportChapterTimeoutSeconds: viper.GetInt("REPORT_CHAPTER_TIMEOUT_SECONDS"),
+		ReportRetentionDays:         viper.GetInt("REPORT_RETENTION_DAYS"),
+		StripeSecretKey:             viper.GetString("STRIPE_SECRET_KEY"),
 
 		PaymentMockEnabled: viper.GetBool("PAYMENT_MOCK_ENABLED"),
 		MockWebhookSecret:  viper.GetString("MOCK_WEBHOOK_SECRET"),

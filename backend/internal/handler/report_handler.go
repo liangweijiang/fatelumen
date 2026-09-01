@@ -9,7 +9,6 @@ import (
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/response"
 	"fatelumen/backend/internal/repository"
-	"fatelumen/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -30,7 +29,7 @@ type ReportHandler struct {
 	svc reportSvc
 }
 
-func NewReportHandler(svc *service.ReportService) *ReportHandler {
+func NewReportHandler(svc reportSvc) *ReportHandler {
 	return &ReportHandler{svc: svc}
 }
 

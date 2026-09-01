@@ -17,11 +17,11 @@ import (
 )
 
 type AdminReportTraceHandler struct {
-	reports *repository.ReportRepo
+	reports *repository.FullReportRepo
 	audit   *repository.AuditRepo
 }
 
-func NewAdminReportTraceHandler(reports *repository.ReportRepo, audit *repository.AuditRepo) *AdminReportTraceHandler {
+func NewAdminReportTraceHandler(reports *repository.FullReportRepo, audit *repository.AuditRepo) *AdminReportTraceHandler {
 	return &AdminReportTraceHandler{reports: reports, audit: audit}
 }
 
@@ -30,7 +30,7 @@ func (h *AdminReportTraceHandler) Facts(c *gin.Context) {
 	if !ok {
 		return
 	}
-	row, err := h.reports.AdminGetFactSnapshot(c.Request.Context(), reportID)
+	trace, err := h.reports.AdminGetExecutionTrace(c.Request.Context(), reportID)
 	if err != nil {
 		h.readError(c, err, "report facts unavailable", reportID)
 		return
@@ -39,13 +39,20 @@ func (h *AdminReportTraceHandler) Facts(c *gin.Context) {
 	var tc model.TimeCalculationSnapshot
 	var chart model.ChartSnapshot
 	var facts model.InterpretationFacts
-	if err := decodeSnapshot(row, &input, &tc, &chart, &facts); err != nil {
+	if err := decodeExecutionTrace(trace, &input, &tc, &chart, &facts); err != nil {
 		logger.FromCtx(c.Request.Context()).Error("decode report fact snapshot failed", "err", err, "report_id", reportID)
 		response.Error(c, "report facts unavailable")
 		return
 	}
 	h.auditRead(c, "view_facts", reportID, "")
-	response.OK(c, model.AdminReportFactsResponse{ReportID: reportID, Snapshot: model.ReportFactSnapshotContract{ReportID: reportID, InputSnapshot: input, TimeCalculationSnapshot: tc, ChartSnapshot: chart, Facts: facts, ChartHash: row.ChartHash, FactsHash: row.FactsHash, CreatedAt: row.CreatedAt}})
+	response.OK(c, gin.H{
+		"report_id": reportID,
+		"snapshot": gin.H{
+			"metadata": trace.Snapshot, "input_snapshot": input, "time_calculation_snapshot": tc,
+			"chart_snapshot": chart, "facts": facts, "preflight_result": trace.Payload.PreflightResult,
+			"chapter_plan_snapshot": trace.Payload.ChapterPlanSnapshot, "runtime_config_snapshot": trace.Payload.RuntimeConfigSnapshot,
+		},
+	})
 }
 
 func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
@@ -60,7 +67,7 @@ func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
 	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "20")); err == nil && v > 0 && v <= 100 {
 		size = v
 	}
-	rows, total, err := h.reports.AdminListLLMCalls(c.Request.Context(), reportID, size, (page-1)*size)
+	rows, total, err := h.reports.AdminListAttempts(c.Request.Context(), reportID, size, (page-1)*size)
 	if err != nil {
 		h.readError(c, err, "report call traces unavailable", reportID)
 		return
@@ -78,7 +85,7 @@ func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
 	if !ok {
 		return
 	}
-	row, err := h.reports.AdminGetLLMCall(c.Request.Context(), reportID, callID)
+	row, err := h.reports.AdminGetAttemptTrace(c.Request.Context(), reportID, callID)
 	if err != nil {
 		h.readError(c, err, "report call trace unavailable", reportID)
 		return
@@ -104,7 +111,7 @@ func (h *AdminReportTraceHandler) PromptPreview(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "chapter_key and locale are required")
 		return
 	}
-	row, err := h.reports.AdminGetFactSnapshot(c.Request.Context(), reportID)
+	trace, err := h.reports.AdminGetExecutionTrace(c.Request.Context(), reportID)
 	if err != nil {
 		h.readError(c, err, "report facts unavailable", reportID)
 		return
@@ -113,7 +120,7 @@ func (h *AdminReportTraceHandler) PromptPreview(c *gin.Context) {
 	var tc model.TimeCalculationSnapshot
 	var chart model.ChartSnapshot
 	var facts model.InterpretationFacts
-	if err := decodeSnapshot(row, &input, &tc, &chart, &facts); err != nil {
+	if err := decodeExecutionTrace(trace, &input, &tc, &chart, &facts); err != nil {
 		logger.FromCtx(c.Request.Context()).Error("decode prompt preview facts failed", "err", err, "report_id", reportID)
 		response.Error(c, "prompt preview unavailable")
 		return
@@ -141,11 +148,11 @@ func reportTraceID(c *gin.Context, name string) (uint64, bool) {
 	return id, true
 }
 
-func decodeSnapshot(row *model.ReportFactSnapshot, input *model.ReportInputSnapshot, tc *model.TimeCalculationSnapshot, chart *model.ChartSnapshot, facts *model.InterpretationFacts) error {
+func decodeExecutionTrace(trace *repository.FullReportExecutionTrace, input *model.ReportInputSnapshot, tc *model.TimeCalculationSnapshot, chart *model.ChartSnapshot, facts *model.InterpretationFacts) error {
 	for _, item := range []struct {
 		raw model.JSONRaw
 		dst any
-	}{{row.InputSnapshot, input}, {row.TimeCalculationSnapshot, tc}, {row.ChartSnapshot, chart}, {row.FactsSnapshot, facts}} {
+	}{{trace.Payload.InputSnapshot, input}, {trace.Payload.TimeCalculationSnapshot, tc}, {trace.Payload.ChartSnapshot, chart}, {trace.Payload.FactsSnapshot, facts}} {
 		if err := json.Unmarshal(item.raw, item.dst); err != nil {
 			return err
 		}

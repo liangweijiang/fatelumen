@@ -26,3 +26,9 @@ func marshalSnapshot(v any) (model.JSONRaw, error) {
 	b, err := json.Marshal(v)
 	return model.JSONRaw(b), err
 }
+
+func sameCivilDate(a, b time.Time) bool {
+	ay, am, ad := a.Date()
+	by, bm, bd := b.Date()
+	return ay == by && am == bm && ad == bd
+}

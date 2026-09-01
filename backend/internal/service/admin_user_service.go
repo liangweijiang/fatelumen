@@ -69,7 +69,7 @@ type AdminUserService struct {
 	countRepo adminCountStore
 }
 
-func NewAdminUserService(userRepo *repository.UserRepo, orderRepo *repository.OrderRepo, reportRepo *repository.ReportRepo) *AdminUserService {
+func NewAdminUserService(userRepo *repository.UserRepo, orderRepo *repository.OrderRepo, reportRepo *repository.FullReportRepo) *AdminUserService {
 	return &AdminUserService{
 		userRepo:  userRepo,
 		countRepo: &repoCountBridge{orders: orderRepo, reports: reportRepo},

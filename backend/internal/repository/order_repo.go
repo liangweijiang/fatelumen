@@ -220,11 +220,12 @@ func (r *OrderRepo) FulfillPaidOrder(provider, eventID string, orderID uint64) e
 				}
 			}
 		default:
-			// report 单：解锁报告
+			// report 单：只解锁新的不可变完整报告域。
 			if order.ReportID > 0 {
-				if err := tx.Model(&model.Report{}).Where("id = ?", order.ReportID).Updates(map[string]interface{}{
-					"paid":     true,
-					"order_id": orderID,
+				if err := tx.Model(&model.FullReport{}).Where("id = ? AND user_id = ?", order.ReportID, order.UserID).Updates(map[string]interface{}{
+					"paid":       true,
+					"order_id":   orderID,
+					"pay_method": order.Provider,
 				}).Error; err != nil {
 					return err
 				}

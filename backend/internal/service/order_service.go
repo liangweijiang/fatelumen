@@ -53,18 +53,28 @@ type OrderService struct {
 
 func NewOrderService(
 	orderRepo *repository.OrderRepo,
-	reportRepo *repository.ReportRepo,
+	reportRepo *repository.FullReportRepo,
 	reg *payment.Registry,
 	successURL string,
 	cancelURL string,
 ) *OrderService {
 	return &OrderService{
 		orderRepo:  orderRepo,
-		reportRepo: reportRepo,
+		reportRepo: fullReportOrderAdapter{repo: reportRepo},
 		reg:        reg,
 		successURL: successURL,
 		cancelURL:  cancelURL,
 	}
+}
+
+type fullReportOrderAdapter struct{ repo *repository.FullReportRepo }
+
+func (a fullReportOrderAdapter) GetByID(id, userID uint64) (*model.Report, error) {
+	report, err := a.repo.GetByID(context.Background(), id, userID)
+	if err != nil {
+		return nil, err
+	}
+	return fullReportDTO(report, nil), nil
 }
 
 // CreateOrder 创建订单并发起支付，按 SKU 类型分流（report / credits）。

@@ -9,6 +9,8 @@ import (
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/repository"
+
+	"gorm.io/gorm"
 )
 
 // ---------- DTOs ----------
@@ -68,8 +70,41 @@ type AdminReportService struct {
 	userRepo   adminReportUserStore
 }
 
-func NewAdminReportService(reportRepo *repository.ReportRepo, userRepo *repository.UserRepo) *AdminReportService {
-	return &AdminReportService{reportRepo: reportRepo, userRepo: userRepo}
+func NewAdminReportService(reportRepo *repository.FullReportRepo, userRepo *repository.UserRepo) *AdminReportService {
+	return &AdminReportService{reportRepo: fullReportAdminAdapter{repo: reportRepo}, userRepo: userRepo}
+}
+
+type fullReportAdminAdapter struct{ repo *repository.FullReportRepo }
+
+func (a fullReportAdminAdapter) AdminListReports(filter repository.ReportFilter, limit, offset int) ([]model.Report, int64, error) {
+	rows, total, err := a.repo.AdminList(context.Background(), filter.Status, filter.Paid, filter.UserID, limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]model.Report, len(rows))
+	for i := range rows {
+		out[i] = *fullReportDTO(&rows[i], nil)
+	}
+	return out, total, nil
+}
+
+func (a fullReportAdminAdapter) AdminGetReportByID(id uint64) (*model.Report, error) {
+	report, err := a.repo.AdminGetByID(context.Background(), id)
+	if err != nil {
+		return nil, err
+	}
+	var result *model.FullReportResult
+	if report.Status == model.FullReportStatusCompleted {
+		result, err = a.repo.GetResult(context.Background(), id)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+	return fullReportDTO(report, result), nil
+}
+
+func (a fullReportAdminAdapter) MarkPaid(reportID, _ uint64) error {
+	return a.repo.AdminMarkPaid(context.Background(), reportID, "admin")
 }
 
 // ListReports admin 分页报告列表。

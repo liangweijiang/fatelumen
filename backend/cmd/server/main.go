@@ -97,7 +97,7 @@ func main() {
 	freeChartRepo := repository.NewFreeChartRepo(db)
 	geoRepo := repository.NewGeoRepo(db)
 	readingRepo := repository.NewReadingRepo(db)
-	reportRepo := repository.NewReportRepo(db)
+	fullReportRepo := repository.NewFullReportRepo(db)
 	orderRepo := repository.NewOrderRepo(db)
 
 	authReg := auth.NewRegistry()
@@ -189,13 +189,24 @@ func main() {
 		log.Info("job queue initialized", "type", "memory")
 	}
 
-	// Report service + handler
-	reportSvc := service.NewReportService(reportRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits)
-	reportHandler := service.NewReportHandler(profileRepo, chartRepo, llmProvider, imgRenderer, fileStorage, reportRepo, baseChartEngine)
+	// Full report service + immutable ten-chapter executor. The legacy report
+	// tables are deliberately not part of this execution path.
+	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
+	providerModel := cfg.DeepSeekModel
+	if cfg.LLMProvider == "openai" {
+		providerModel = cfg.OpenAIModel
+	}
+	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, llmProvider, baseChartEngine, service.FullReportRuntimeConfig{
+		ChapterConcurrency: cfg.ReportChapterConcurrency,
+		MaxAttempts:        cfg.ReportChapterMaxAttempts,
+		ChapterTimeout:     time.Duration(cfg.ReportChapterTimeoutSeconds) * time.Second,
+		Provider:           llmProvider.Name(),
+		Model:              providerModel,
+	})
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
-	handlerReg.Register("report", reportHandler)
+	handlerReg.Register("full_report_v2", fullReportExecutor)
 	worker := job.NewWorker(jobQueue, handlerReg, 0, 0, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -241,7 +252,7 @@ func main() {
 	}
 
 	orderSvc := service.NewOrderService(
-		orderRepo, reportRepo, payReg,
+		orderRepo, fullReportRepo, payReg,
 		cfg.PaymentSuccessURL,
 		cfg.PaymentCancelURL,
 	)
@@ -249,9 +260,9 @@ func main() {
 
 	statsRepo := repository.NewStatsRepo(db)
 	statsSvc := service.NewStatsService(statsRepo)
-	adminUserSvc := service.NewAdminUserService(userRepo, orderRepo, reportRepo)
+	adminUserSvc := service.NewAdminUserService(userRepo, orderRepo, fullReportRepo)
 	adminOrderSvc := service.NewAdminOrderService(orderRepo, userRepo)
-	adminReportSvc := service.NewAdminReportService(reportRepo, userRepo)
+	adminReportSvc := service.NewAdminReportService(fullReportRepo, userRepo)
 	adminHTTPHandler := handler.NewAdminHandler(statsSvc, adminUserSvc, adminOrderSvc, adminReportSvc)
 
 	auditRepo := repository.NewAuditRepo(db)
@@ -277,7 +288,7 @@ func main() {
 		return
 	}
 	adminBaziBaseHandler := handler.NewAdminBaziBaseHandler(baziBaseCatalog, annualCalendarRepo)
-	adminReportTraceHandler := handler.NewAdminReportTraceHandler(reportRepo, auditRepo)
+	adminReportTraceHandler := handler.NewAdminReportTraceHandler(fullReportRepo, auditRepo)
 	adminCalculationHandler := handler.NewAdminCalculationHandler(db, baseChartEngine, auditRepo)
 	locationHandler := handler.NewLocationHandler(locationResolver)
 	readingHandler := handler.NewReadingHandler(readingSvc)
@@ -393,9 +404,14 @@ func autoMigrate(db *gorm.DB) error {
 		&model.FreeChartRecord{},
 		&model.GeoCountry{}, &model.GeoCity{},
 		&model.Reading{},
-		&model.Report{},
-		&model.ReportFactSnapshot{},
-		&model.ReportLLMCall{},
+		&model.FullReport{},
+		&model.FullReportExecutionSnapshot{},
+		&model.FullReportExecutionPayload{},
+		&model.FullReportChapter{},
+		&model.FullReportChapterPayload{},
+		&model.FullReportAttempt{},
+		&model.FullReportAttemptPayload{},
+		&model.FullReportResult{},
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
 		&model.PromptChapterConfig{},
