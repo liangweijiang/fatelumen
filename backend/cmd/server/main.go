@@ -290,6 +290,7 @@ func main() {
 	adminBaziBaseHandler := handler.NewAdminBaziBaseHandler(baziBaseCatalog, annualCalendarRepo)
 	adminReportTraceHandler := handler.NewAdminReportTraceHandler(fullReportRepo, auditRepo)
 	adminCalculationHandler := handler.NewAdminCalculationHandler(db, baseChartEngine, auditRepo)
+	adminLLMConfigHandler := handler.NewAdminLLMConfigHandler(db, auditRepo, cfg.AdminJWTSecret)
 	locationHandler := handler.NewLocationHandler(locationResolver)
 	readingHandler := handler.NewReadingHandler(readingSvc)
 
@@ -329,6 +330,7 @@ func main() {
 		AdminBaziBaseHandler:    adminBaziBaseHandler,
 		AdminReportTraceHandler: adminReportTraceHandler,
 		AdminCalculationHandler: adminCalculationHandler,
+		AdminLLMConfigHandler:   adminLLMConfigHandler,
 		LocationHandler:         locationHandler,
 		ReadingHandler:          readingHandler,
 		ReportHandler:           reportHTTPHandler,
@@ -415,6 +417,8 @@ func autoMigrate(db *gorm.DB) error {
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
 		&model.PromptChapterConfig{},
+		&model.LLMProviderConfig{},
+		&model.LLMModelConfig{},
 		&model.AnnualCalendarYear{},
 		&model.Order{},
 		&model.PaymentEvent{},

@@ -159,7 +159,7 @@ func BuildChapterPromptPreviewWithFacts(locale, chapterKey string, factKeys []st
 	for _, section := range chapter.Sections {
 		sectionNames = append(sectionNames, section.Name)
 	}
-	schema := map[string]any{"type": "object", "required": []string{"章节", "模块"}, "properties": map[string]any{"章节": map[string]any{"const": chapter.Name}, "模块": map[string]any{"type": "array", "minItems": len(chapter.Sections), "maxItems": len(chapter.Sections), "items": map[string]any{"type": "object", "required": []string{"序号", "名称", "正文"}, "properties": map[string]any{"序号": map[string]any{"type": "integer", "minimum": 1, "maximum": len(chapter.Sections)}, "名称": map[string]any{"type": "string", "enum": sectionNames}, "正文": map[string]any{"type": "string", "minLength": 1}}}}}}
+	schema := map[string]any{"type": "object", "additionalProperties": false, "required": []string{"章节", "模块"}, "properties": map[string]any{"章节": map[string]any{"const": chapter.Name}, "模块": map[string]any{"type": "array", "minItems": len(chapter.Sections), "maxItems": len(chapter.Sections), "items": map[string]any{"type": "object", "additionalProperties": false, "required": []string{"序号", "名称", "正文"}, "properties": map[string]any{"序号": map[string]any{"type": "integer", "minimum": 1, "maximum": len(chapter.Sections)}, "名称": map[string]any{"type": "string", "enum": sectionNames}, "正文": map[string]any{"type": "string", "minLength": 1}}}}}}
 	return &ChapterPromptPreview{ChapterRegistryVersion, ReportPromptVersion, localeSpec, chapter, system, user, filtered, schema, facts.FactsHash, displaydict.Version, digest, chapterInstruction, additiveInstruction, completeInstruction, displaydict.LocaleCoverage(localeSpec.Code), phraseCoverage(localeSpec.Code), glossary}, nil
 }
 

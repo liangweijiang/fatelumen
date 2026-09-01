@@ -367,6 +367,59 @@ type FullReportChapterWithPayload struct {
 	Payload model.FullReportChapterPayload
 }
 
+type FullReportValidationTrace struct {
+	Run     model.FullReportValidationRun     `json:"run"`
+	Payload model.FullReportValidationPayload `json:"payload"`
+}
+
+func (r *FullReportRepo) AdminListValidationRuns(ctx context.Context, reportID uint64) ([]model.FullReportValidationRun, error) {
+	var report model.FullReport
+	if err := r.db.WithContext(ctx).Select("id").First(&report, reportID).Error; err != nil {
+		return nil, err
+	}
+	var rows []model.FullReportValidationRun
+	if err := r.db.WithContext(ctx).Where("report_id = ?", reportID).Order("round_no DESC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (r *FullReportRepo) AdminGetValidationTrace(ctx context.Context, reportID, validationID uint64) (*FullReportValidationTrace, error) {
+	var run model.FullReportValidationRun
+	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", validationID, reportID).First(&run).Error; err != nil {
+		return nil, err
+	}
+	var payload model.FullReportValidationPayload
+	if err := r.db.WithContext(ctx).Where("validation_run_id = ?", run.ID).First(&payload).Error; err != nil {
+		return nil, err
+	}
+	return &FullReportValidationTrace{Run: run, Payload: payload}, nil
+}
+
+func (r *FullReportRepo) AdminListChapters(ctx context.Context, reportID uint64) ([]model.FullReportChapter, error) {
+	var report model.FullReport
+	if err := r.db.WithContext(ctx).Select("id").First(&report, reportID).Error; err != nil {
+		return nil, err
+	}
+	var chapters []model.FullReportChapter
+	if err := r.db.WithContext(ctx).Where("report_id = ?", reportID).Order("chapter_no ASC").Find(&chapters).Error; err != nil {
+		return nil, err
+	}
+	return chapters, nil
+}
+
+func (r *FullReportRepo) AdminGetChapterTrace(ctx context.Context, reportID, chapterID uint64) (*FullReportChapterWithPayload, error) {
+	var chapter model.FullReportChapter
+	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
+		return nil, err
+	}
+	var payload model.FullReportChapterPayload
+	if err := r.db.WithContext(ctx).Where("chapter_id = ?", chapter.ID).First(&payload).Error; err != nil {
+		return nil, err
+	}
+	return &FullReportChapterWithPayload{Chapter: chapter, Payload: payload}, nil
+}
+
 // ListChaptersWithPayload uses two bounded queries, not one query per chapter.
 func (r *FullReportRepo) ListChaptersWithPayload(ctx context.Context, reportID uint64) ([]FullReportChapterWithPayload, error) {
 	var chapters []model.FullReportChapter
@@ -393,6 +446,107 @@ func (r *FullReportRepo) ListChaptersWithPayload(ctx context.Context, reportID u
 		rows[i] = FullReportChapterWithPayload{Chapter: chapter, Payload: byChapter[chapter.ID]}
 	}
 	return rows, nil
+}
+
+// BeginAssembling advances the report only after all chapter workers have
+// returned. Report-level validation runs in this explicit state.
+func (r *FullReportRepo) BeginAssembling(ctx context.Context, reportID uint64, at time.Time) error {
+	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
+		Where("id = ? AND status = ?", reportID, model.FullReportStatusGenerating).
+		Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling, "updated_at": at})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return ErrFullReportImmutableWrite
+	}
+	return nil
+}
+
+// SaveAggregateValidation appends one immutable report-level validation round.
+// Failed rounds remain queryable after the report reaches a terminal state.
+func (r *FullReportRepo) SaveAggregateValidation(ctx context.Context, run *model.FullReportValidationRun, payload *model.FullReportValidationPayload) error {
+	if run == nil || payload == nil {
+		return errors.New("full report aggregate validation is incomplete")
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, run.ReportID).Error; err != nil {
+			return err
+		}
+		if model.IsFullReportTerminalStatus(report.Status) {
+			return ErrFullReportTerminal
+		}
+		if run.RoundNo == 0 {
+			var latest uint16
+			if err := tx.Model(&model.FullReportValidationRun{}).Where("report_id = ?", run.ReportID).Select("COALESCE(MAX(round_no), 0)").Scan(&latest).Error; err != nil {
+				return err
+			}
+			run.RoundNo = latest + 1
+		}
+		if err := tx.Create(run).Error; err != nil {
+			return err
+		}
+		payload.ValidationRunID = run.ID
+		return tx.Create(payload).Error
+	})
+}
+
+// PrepareAggregateRetry moves only the chapters identified by a retryable
+// report-level validation failure back to pending. Previous attempts and the
+// failed aggregate validation round remain immutable and queryable.
+func (r *FullReportRepo) PrepareAggregateRetry(ctx context.Context, reportID uint64, chapterNos []uint8, at time.Time) error {
+	if len(chapterNos) == 0 {
+		return errors.New("aggregate retry has no affected chapters")
+	}
+	chapterNoValues := make([]int, len(chapterNos))
+	for i, chapterNo := range chapterNos {
+		chapterNoValues[i] = int(chapterNo)
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
+			return err
+		}
+		if model.IsFullReportTerminalStatus(report.Status) {
+			return ErrFullReportTerminal
+		}
+		if report.Status != model.FullReportStatusAssembling {
+			return ErrFullReportImmutableWrite
+		}
+		var chapters []model.FullReportChapter
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("report_id = ? AND chapter_no IN ?", reportID, chapterNoValues).
+			Find(&chapters).Error; err != nil {
+			return err
+		}
+		if len(chapters) != len(chapterNos) {
+			return ErrFullReportChapterCount
+		}
+		chapterIDs := make([]uint64, 0, len(chapters))
+		for _, chapter := range chapters {
+			if chapter.Status != model.FullReportChapterStatusSucceeded || chapter.SelectedAttemptID == nil {
+				return ErrFullReportImmutableWrite
+			}
+			chapterIDs = append(chapterIDs, chapter.ID)
+		}
+		if err := tx.Model(&model.FullReportChapterPayload{}).Where("chapter_id IN ?", chapterIDs).Updates(map[string]any{
+			"final_raw_output": "", "final_parsed_output": nil, "validation_result": nil,
+		}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.FullReportChapter{}).Where("id IN ?", chapterIDs).Updates(map[string]any{
+			"status": model.FullReportChapterStatusPending, "selected_attempt_id": nil,
+			"output_hash": "", "schema_valid": false, "validation_status": model.FullReportValidationStatusPending,
+			"error_code": "", "error_summary": "", "completed_at": nil, "updated_at": at,
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&model.FullReport{}).Where("id = ?", reportID).Updates(map[string]any{
+			"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating,
+			"chapter_succeeded": gorm.Expr("chapter_succeeded - ?", len(chapters)), "updated_at": at,
+		}).Error
+	})
 }
 
 // AppendAttempt appends one immutable model request. A terminal report cannot
@@ -524,6 +678,16 @@ func (r *FullReportRepo) Complete(ctx context.Context, reportID uint64, result *
 			return err
 		}
 		if passed != 10 {
+			return ErrFullReportNotReady
+		}
+		var aggregate model.FullReportValidationRun
+		if err := tx.Where("report_id = ?", reportID).Order("round_no DESC").First(&aggregate).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrFullReportNotReady
+			}
+			return err
+		}
+		if aggregate.Status != model.FullReportValidationStatusPassed {
 			return ErrFullReportNotReady
 		}
 		result.ReportID = reportID

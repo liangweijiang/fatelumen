@@ -1,16 +1,15 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"time"
 
+	"fatelumen/backend/internal/bazi/displaydict"
 	"fatelumen/backend/internal/birthchart"
 	"fatelumen/backend/internal/job"
 	"fatelumen/backend/internal/llm"
@@ -148,12 +147,54 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if len(rows) != 10 {
 		return "", repository.ErrFullReportChapterCount
 	}
-	if err := e.runChapters(ctx, payload.ReportID, payload.Locale, rows); err != nil {
+	if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, rows); err != nil {
 		return "", err
 	}
 	rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
 	if err != nil {
 		return "", err
+	}
+	for {
+		validationStarted := time.Now().UTC()
+		if err := e.reports.BeginAssembling(ctx, payload.ReportID, validationStarted); err != nil {
+			return "", fmt.Errorf("begin report assembling: %w", err)
+		}
+		aggregateValidation := validateFullReport(payload.Locale, factsSnapshot, rows, time.Now().UTC())
+		aggregateRaw, marshalErr := json.Marshal(aggregateValidation)
+		if marshalErr != nil {
+			return "", fmt.Errorf("marshal aggregate validation: %w", marshalErr)
+		}
+		validationFinished := time.Now().UTC()
+		validationRun := &model.FullReportValidationRun{
+			ReportID: payload.ReportID, ValidatorVersion: aggregateValidation.ValidatorVersion,
+			Status: validationStatus(aggregateValidation.Passed), Retryable: aggregateValidation.Retryable,
+			AffectedChapters: uint8(len(aggregateValidation.AffectedChapters)), ErrorCode: aggregateValidation.Code,
+			ErrorSummary: aggregateValidation.Summary, StartedAt: validationStarted, FinishedAt: &validationFinished, CreatedAt: validationStarted,
+		}
+		if err := e.reports.SaveAggregateValidation(ctx, validationRun, &model.FullReportValidationPayload{ValidationResult: aggregateRaw, CreatedAt: validationStarted}); err != nil {
+			return "", fmt.Errorf("save aggregate validation: %w", err)
+		}
+		if aggregateValidation.Passed {
+			break
+		}
+		retryRows := aggregateRetryRows(rows, aggregateValidation.AffectedChapters, e.runtime.MaxAttempts)
+		if !aggregateValidation.Retryable || len(retryRows) == 0 {
+			return "", fmt.Errorf("aggregate validation failed: %s", aggregateValidation.Summary)
+		}
+		retryNos := make([]uint8, 0, len(retryRows))
+		for _, row := range retryRows {
+			retryNos = append(retryNos, row.Chapter.ChapterNo)
+		}
+		if err := e.reports.PrepareAggregateRetry(ctx, payload.ReportID, retryNos, time.Now().UTC()); err != nil {
+			return "", fmt.Errorf("prepare aggregate retry: %w", err)
+		}
+		if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, retryRows); err != nil {
+			return "", fmt.Errorf("aggregate retry: %w", err)
+		}
+		rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
+		if err != nil {
+			return "", fmt.Errorf("reload aggregate retry chapters: %w", err)
+		}
 	}
 	content, err := assembleFullReportContent(payload.Locale, rows)
 	if err != nil {
@@ -232,7 +273,7 @@ func (e *fullReportExecutor) freeze(ctx context.Context, reportID uint64, calcul
 	})
 }
 
-func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, locale string, rows []repository.FullReportChapterWithPayload) error {
+func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, rows []repository.FullReportChapterWithPayload) error {
 	sem := make(chan struct{}, e.runtime.ChapterConcurrency)
 	errCh := make(chan error, len(rows))
 	var wg sync.WaitGroup
@@ -248,7 +289,7 @@ func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, l
 				errCh <- ctx.Err()
 				return
 			}
-			if err := e.runChapter(ctx, reportID, locale, row); err != nil {
+			if err := e.runChapter(ctx, reportID, locale, facts, row); err != nil {
 				errCh <- fmt.Errorf("chapter %s: %w", row.Chapter.ChapterKey, err)
 			}
 		}()
@@ -262,12 +303,12 @@ func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, l
 	return errors.Join(errs...)
 }
 
-func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, locale string, row repository.FullReportChapterWithPayload) error {
+func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, row repository.FullReportChapterWithPayload) error {
 	definition, ok := prompts.ChapterByKey(row.Chapter.ChapterKey)
 	if !ok {
 		return fmt.Errorf("unknown chapter")
 	}
-	for n := 1; n <= e.runtime.MaxAttempts; n++ {
+	for n := int(row.Chapter.AttemptCount) + 1; n <= e.runtime.MaxAttempts; n++ {
 		started := time.Now().UTC()
 		attempt := &model.FullReportAttempt{ReportID: reportID, ChapterID: row.Chapter.ID, AttemptNo: uint16(n), RouteNo: 1, Provider: e.runtime.Provider, Model: e.runtime.Model, Status: model.FullReportAttemptStatusRunning, ValidationStatus: model.FullReportValidationStatusPending, PromptHash: row.Chapter.PromptHash, TraceID: fmt.Sprintf("%d-%d-%d", reportID, row.Chapter.ID, n), StartedAt: started, CreatedAt: started}
 		params, _ := json.Marshal(map[string]any{"temperature": 0.5, "max_tokens": definition.MaxTokens})
@@ -279,7 +320,11 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 		raw, callErr := e.provider.GenerateJSON(callCtx, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(0.5))
 		cancel()
 		finished := time.Now().UTC()
-		validation := validateChapterOutput(definition, locale, raw, callErr)
+		var outputSchema map[string]any
+		_ = json.Unmarshal(row.Payload.OutputSchema, &outputSchema)
+		var glossary []displaydict.GlossaryEntry
+		_ = json.Unmarshal(row.Payload.TerminologySnapshot, &glossary)
+		validation := validateChapterOutput(definition, locale, raw, callErr, chapterValidationFrozen{Glossary: glossary, Facts: &facts})
 		validationRaw, _ := json.Marshal(validation)
 		parsedRaw, _ := json.Marshal(validation.Parsed)
 		schemaErrorsRaw, _ := json.Marshal(validation.Errors)
@@ -303,101 +348,18 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 	return fmt.Errorf("validation failed after %d attempts", e.runtime.MaxAttempts)
 }
 
-type chapterOutput struct {
-	Chapter string `json:"章节"`
-	Modules []struct {
-		No      int    `json:"序号"`
-		Name    string `json:"名称"`
-		Content string `json:"正文"`
-	} `json:"模块"`
-}
-
-type chapterValidation struct {
-	Passed      bool          `json:"passed"`
-	SchemaValid bool          `json:"schema_valid"`
-	Code        string        `json:"code,omitempty"`
-	Summary     string        `json:"summary,omitempty"`
-	Errors      []string      `json:"errors"`
-	Parsed      chapterOutput `json:"parsed"`
-}
-
-func validateChapterOutput(def prompts.ChapterDefinition, locale, raw string, callErr error) chapterValidation {
-	result := chapterValidation{Errors: []string{}}
-	if callErr != nil {
-		result.Code, result.Summary = "provider_error", callErr.Error()
-		result.Errors = append(result.Errors, "provider call failed")
-		return result
+func aggregateRetryRows(rows []repository.FullReportChapterWithPayload, affected []uint8, maxAttempts int) []repository.FullReportChapterWithPayload {
+	wanted := make(map[uint8]struct{}, len(affected))
+	for _, chapterNo := range affected {
+		wanted[chapterNo] = struct{}{}
 	}
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" || strings.Contains(trimmed, "```") {
-		result.Code, result.Summary = "invalid_json_envelope", "response is empty or wrapped in markdown"
-		result.Errors = append(result.Errors, result.Summary)
-		return result
-	}
-	decoder := json.NewDecoder(bytes.NewReader([]byte(trimmed)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&result.Parsed); err != nil {
-		result.Code, result.Summary = "invalid_json", err.Error()
-		result.Errors = append(result.Errors, "response is not valid JSON")
-		return result
-	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		result.Code, result.Summary = "invalid_json_envelope", err.Error()
-		result.Errors = append(result.Errors, "response contains content outside the JSON object")
-		return result
-	}
-	result.SchemaValid = true
-	if result.Parsed.Chapter != def.Name {
-		result.Errors = append(result.Errors, "chapter name mismatch")
-	}
-	if len(result.Parsed.Modules) != len(def.Sections) {
-		result.Errors = append(result.Errors, "module count mismatch")
-	} else {
-		seenNames := make(map[string]struct{}, len(result.Parsed.Modules))
-		for i, section := range def.Sections {
-			module := result.Parsed.Modules[i]
-			if module.No != i+1 || module.Name != section.Name {
-				result.Errors = append(result.Errors, fmt.Sprintf("module %d contract mismatch", i+1))
-			}
-			if len([]rune(strings.TrimSpace(module.Content))) < 20 {
-				result.Errors = append(result.Errors, fmt.Sprintf("module %d content is too short", i+1))
-			}
-			if _, exists := seenNames[module.Name]; exists {
-				result.Errors = append(result.Errors, fmt.Sprintf("module %d name is duplicated", i+1))
-			}
-			seenNames[module.Name] = struct{}{}
-			if violatesReportProductBoundary(module.Content) {
-				result.Errors = append(result.Errors, fmt.Sprintf("module %d violates product safety boundary", i+1))
-			}
+	result := make([]repository.FullReportChapterWithPayload, 0, len(wanted))
+	for _, row := range rows {
+		if _, ok := wanted[row.Chapter.ChapterNo]; ok && int(row.Chapter.AttemptCount) < maxAttempts {
+			result = append(result, row)
 		}
 	}
-	if len(result.Errors) > 0 {
-		result.Code, result.Summary = "chapter_validation_failed", strings.Join(result.Errors, "; ")
-		return result
-	}
-	result.Passed = true
 	return result
-}
-
-func ensureJSONEOF(decoder *json.Decoder) error {
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		if err == nil {
-			return errors.New("multiple JSON values")
-		}
-		return err
-	}
-	return nil
-}
-
-func violatesReportProductBoundary(content string) bool {
-	lower := strings.ToLower(content)
-	for _, phrase := range []string{"保证发财", "必定发财", "一定患", "确诊", "寿命为", "死亡年份", "guaranteed profit", "certainly develop cancer", "exact death", "確実に儲", "死亡する年", "반드시 암", "사망 연도"} {
-		if strings.Contains(lower, strings.ToLower(phrase)) {
-			return true
-		}
-	}
-	return false
 }
 
 func assembleFullReportContent(locale string, rows []repository.FullReportChapterWithPayload) (model.ReportContent, error) {

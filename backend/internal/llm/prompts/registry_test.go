@@ -106,6 +106,11 @@ func TestOutputSchemaUsesFixedLightweightSections(t *testing.T) {
 	if sections["minItems"] != len(preview.Chapter.Sections) || sections["maxItems"] != len(preview.Chapter.Sections) {
 		t.Fatal("schema does not lock the fixed section count")
 	}
+	items := sections["items"].(map[string]any)
+	itemProperties := items["properties"].(map[string]any)
+	if _, ok := itemProperties["事实引用"]; ok || strings.Contains(preview.UserPrompt, "事实引用") {
+		t.Fatal("schema and prompt must not require model-declared fact references")
+	}
 }
 
 func TestChinesePromptDoesNotLeakKnownInternalCodes(t *testing.T) {

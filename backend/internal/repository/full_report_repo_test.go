@@ -27,6 +27,8 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		&model.FullReportChapterPayload{},
 		&model.FullReportAttempt{},
 		&model.FullReportAttemptPayload{},
+		&model.FullReportValidationRun{},
+		&model.FullReportValidationPayload{},
 		&model.FullReportResult{},
 	); err != nil {
 		t.Fatal(err)
@@ -185,10 +187,123 @@ func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
+	finished := now.Add(time.Second)
+	run := &model.FullReportValidationRun{ReportID: graph.Report.ID, ValidatorVersion: "report-validator-v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
+	if err := repo.SaveAggregateValidation(context.Background(), run, &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
 	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportTerminal) {
 		t.Fatalf("second completion err = %v, want terminal", err)
+	}
+}
+
+func TestFullReportCompleteRequiresPassedAggregateValidation(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("report_id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportChapterStatusSucceeded, "schema_valid": true, "validation_status": model.FullReportValidationStatusPassed,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	finished := now.Add(time.Second)
+	run := &model.FullReportValidationRun{ReportID: graph.Report.ID, ValidatorVersion: "report-validator-v1", Status: model.FullReportValidationStatusFailed, Retryable: true, AffectedChapters: 1, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
+	payload := &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":false,"affected_chapters":[4]}`), CreatedAt: now}
+	if err := repo.SaveAggregateValidation(context.Background(), run, payload); err != nil {
+		t.Fatal(err)
+	}
+	result := &model.FullReportResult{Locale: "zh", Content: model.ReportContent{Locale: "zh"}, ContentHash: fmt.Sprintf("%064d", 200), RenderVersion: "render-v1", CreatedAt: now}
+	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportNotReady) {
+		t.Fatalf("err = %v, want not ready", err)
+	}
+	var storedPayload model.FullReportValidationPayload
+	if err := db.Where("validation_run_id = ?", run.ID).First(&storedPayload).Error; err != nil {
+		t.Fatal(err)
+	}
+	if string(storedPayload.ValidationResult) == "" {
+		t.Fatal("aggregate validation payload was not stored")
+	}
+}
+
+func TestPrepareAggregateRetryResetsOnlyAffectedChapter(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	selected := uint64(44)
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling, "chapter_succeeded": 10,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("report_id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportChapterStatusSucceeded, "selected_attempt_id": selected,
+		"schema_valid": true, "validation_status": model.FullReportValidationStatusPassed, "attempt_count": 1,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.PrepareAggregateRetry(context.Background(), graph.Report.ID, []uint8{4}, now.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	var report model.FullReport
+	if err := db.First(&report, graph.Report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != model.FullReportStatusGenerating || report.ChapterSucceeded != 9 {
+		t.Fatalf("unexpected report after retry preparation: %+v", report)
+	}
+	var affected, untouched model.FullReportChapter
+	if err := db.Where("report_id = ? AND chapter_no = 4", graph.Report.ID).First(&affected).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Where("report_id = ? AND chapter_no = 3", graph.Report.ID).First(&untouched).Error; err != nil {
+		t.Fatal(err)
+	}
+	if affected.Status != model.FullReportChapterStatusPending || affected.SelectedAttemptID != nil || affected.AttemptCount != 1 {
+		t.Fatalf("affected chapter was not reset correctly: %+v", affected)
+	}
+	if untouched.Status != model.FullReportChapterStatusSucceeded || untouched.SelectedAttemptID == nil {
+		t.Fatalf("unaffected chapter changed: %+v", untouched)
+	}
+}
+
+func TestAdminValidationAndChapterTraceAreReportScoped(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	finished := now.Add(time.Second)
+	run := &model.FullReportValidationRun{ReportID: graph.Report.ID, ValidatorVersion: "report-validator-v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
+	if err := repo.SaveAggregateValidation(context.Background(), run, &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	runs, err := repo.AdminListValidationRuns(context.Background(), graph.Report.ID)
+	if err != nil || len(runs) != 1 || runs[0].ID != run.ID {
+		t.Fatalf("unexpected validation runs: %+v err=%v", runs, err)
+	}
+	trace, err := repo.AdminGetValidationTrace(context.Background(), graph.Report.ID, run.ID)
+	if err != nil || trace.Payload.ValidationRunID != run.ID {
+		t.Fatalf("unexpected validation trace: %+v err=%v", trace, err)
+	}
+	chapters, err := repo.AdminListChapters(context.Background(), graph.Report.ID)
+	if err != nil || len(chapters) != 10 {
+		t.Fatalf("unexpected chapters: %d err=%v", len(chapters), err)
+	}
+	chapterTrace, err := repo.AdminGetChapterTrace(context.Background(), graph.Report.ID, graph.Chapters[0].ID)
+	if err != nil || chapterTrace.Payload.ChapterID != graph.Chapters[0].ID {
+		t.Fatalf("unexpected chapter trace: %+v err=%v", chapterTrace, err)
+	}
+	if err := db.Model(&model.FullReportValidationRun{}).Where("id = ?", run.ID).Count(new(int64)).Error; err != nil {
+		t.Fatal(err)
 	}
 }

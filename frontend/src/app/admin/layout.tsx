@@ -16,6 +16,7 @@ const nav = [
   { href: "/admin/pricing", label: "定价套餐" },
   { href: "/admin/base-data/geo", label: "基础数据" },
   { href: "/admin/report-workspace/calculations", label: "报告工作台" },
+  { href: "/admin/settings/providers", label: "系统设置" },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             const active = pathname === item.href
               || (item.href.startsWith("/admin/base-data") && pathname.startsWith("/admin/base-data"))
               || (item.href.startsWith("/admin/report-workspace") && pathname.startsWith("/admin/report-workspace"))
+              || (item.href.startsWith("/admin/settings") && pathname.startsWith("/admin/settings"))
               || (item.href.startsWith("/admin/content") && pathname.startsWith("/admin/content"));
             return <Link key={item.href} href={item.href} className="text-sm" style={{ color: active ? "var(--gold-deep)" : "var(--ink-soft)" }}>{item.label}</Link>;
           })}</nav>

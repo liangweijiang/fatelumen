@@ -2,11 +2,14 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"fatelumen/backend/internal/llm/prompts"
+	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/repository"
 )
 
 func validPreflightPlans() []frozenChapterPlan {
@@ -50,12 +53,73 @@ func TestValidateChapterOutputStrictContract(t *testing.T) {
 	definition := prompts.ChapterDefinitions()[0]
 	modules := make([]map[string]any, len(definition.Sections))
 	for i, section := range definition.Sections {
-		modules[i] = map[string]any{"序号": i + 1, "名称": section.Name, "正文": strings.Repeat("内容完整且可读。", 5)}
+		modules[i] = map[string]any{"序号": i + 1, "名称": section.Name, "正文": fmt.Sprintf("第%d个模块依据命盘资料进行完整说明，内容清楚且与其他模块不同。", i+1)}
 	}
 	raw, _ := json.Marshal(map[string]any{"章节": definition.Name, "模块": modules})
 	result := validateChapterOutput(definition, "zh", string(raw), nil)
 	if !result.Passed || !result.SchemaValid {
 		t.Fatalf("valid output rejected: %+v", result)
+	}
+}
+
+func TestValidateChapterOutputRejectsWrongLanguageAndSafetyBoundary(t *testing.T) {
+	definition := prompts.ChapterDefinitions()[0]
+	modules := make([]map[string]any, len(definition.Sections))
+	for i, section := range definition.Sections {
+		content := fmt.Sprintf("第%d个模块使用中文解释冻结资料，并给出完整而审慎的说明。", i+1)
+		if i == 0 {
+			content += "保证收益。"
+		}
+		modules[i] = map[string]any{"序号": i + 1, "名称": section.Name, "正文": content}
+	}
+	raw, _ := json.Marshal(map[string]any{"章节": definition.Name, "模块": modules})
+	result := validateChapterOutput(definition, "en", string(raw), nil)
+	if result.Passed {
+		t.Fatal("wrong language and guaranteed return must be rejected")
+	}
+	codes := map[string]bool{}
+	for _, rule := range result.Rules {
+		if !rule.Passed {
+			codes[rule.Code] = true
+		}
+	}
+	if !codes["LANG_TARGET"] || !codes["SAFE_PROFIT"] {
+		t.Fatalf("missing expected validation rules: %+v", result.Rules)
+	}
+}
+
+func TestValidateChapterOutputRejectsProtectedFactConflict(t *testing.T) {
+	definition := prompts.ChapterDefinitions()[0]
+	modules := make([]map[string]any, len(definition.Sections))
+	for i, section := range definition.Sections {
+		content := fmt.Sprintf("第%d个模块根据己巳命盘事实进行说明，内容完整且保持审慎表达。", i+1)
+		if i == 0 {
+			content += "日主是甲，命局为身弱，用神为水，重点年份是2099年。"
+		}
+		modules[i] = map[string]any{"序号": i + 1, "名称": section.Name, "正文": content}
+	}
+	raw, _ := json.Marshal(map[string]any{"章节": definition.Name, "模块": modules})
+	facts := model.InterpretationFacts{
+		Input:             model.ReportInputSnapshot{Year: 1990},
+		Chart:             model.ChartSnapshot{Data: model.ChartData{Pillars: model.Pillars{Year: model.Pillar{Stem: "己", Branch: "巳"}}, DayMaster: model.DayMaster{Stem: "丙"}}},
+		DayMasterStrength: model.DayMasterStrengthFact{Level: "slightly_strong"},
+		UsefulGod:         &model.UsefulGodAnalysis{Primary: "火"},
+		AnnualFortunes:    []model.AnnualFortune{{Year: 2026, GanZhi: "丙午"}},
+	}
+	result := validateChapterOutput(definition, "zh", string(raw), nil, chapterValidationFrozen{Facts: &facts})
+	if result.Passed {
+		t.Fatal("conflicting deterministic facts must be rejected")
+	}
+	codes := map[string]bool{}
+	for _, rule := range result.Rules {
+		if !rule.Passed {
+			codes[rule.Code] = true
+		}
+	}
+	for _, code := range []string{"FACT_DAY_MASTER", "FACT_STRENGTH", "FACT_USEFUL_GOD", "FACT_ANNUAL_YEAR"} {
+		if !codes[code] {
+			t.Fatalf("missing %s in rules: %+v", code, result.Rules)
+		}
 	}
 }
 
@@ -67,5 +131,17 @@ func TestValidateChapterOutputRejectsUnknownFieldAndMarkdown(t *testing.T) {
 	}
 	if result := validateChapterOutput(definition, "zh", "```json\n{}\n```", nil); result.Passed {
 		t.Fatalf("markdown envelope must be rejected: %+v", result)
+	}
+}
+
+func TestAggregateRetryRowsUsesAffectedChaptersAndRemainingBudget(t *testing.T) {
+	rows := []repository.FullReportChapterWithPayload{
+		{Chapter: model.FullReportChapter{ChapterNo: 1, AttemptCount: 1}},
+		{Chapter: model.FullReportChapter{ChapterNo: 4, AttemptCount: 2}},
+		{Chapter: model.FullReportChapter{ChapterNo: 7, AttemptCount: 1}},
+	}
+	retry := aggregateRetryRows(rows, []uint8{1, 4}, 2)
+	if len(retry) != 1 || retry[0].Chapter.ChapterNo != 1 {
+		t.Fatalf("unexpected aggregate retry selection: %+v", retry)
 	}
 }

@@ -183,6 +183,35 @@ type FullReportAttemptPayload struct {
 
 func (FullReportAttemptPayload) TableName() string { return "full_report_attempt_payloads" }
 
+// FullReportValidationRun stores searchable metadata for one report-level
+// validation round. The potentially large rule evidence is split into the
+// one-to-one payload table.
+type FullReportValidationRun struct {
+	ID               uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ReportID         uint64     `gorm:"not null;uniqueIndex:uk_full_report_validation_round,priority:1;index" json:"report_id"`
+	RoundNo          uint16     `gorm:"not null;uniqueIndex:uk_full_report_validation_round,priority:2" json:"round_no"`
+	ValidatorVersion string     `gorm:"type:varchar(64);not null" json:"validator_version"`
+	Status           string     `gorm:"type:varchar(24);not null;index" json:"status"`
+	Retryable        bool       `gorm:"not null;default:false" json:"retryable"`
+	AffectedChapters uint8      `gorm:"not null;default:0" json:"affected_chapters"`
+	ErrorCode        string     `gorm:"type:varchar(64)" json:"error_code,omitempty"`
+	ErrorSummary     string     `gorm:"type:varchar(512)" json:"error_summary,omitempty"`
+	StartedAt        time.Time  `gorm:"not null" json:"started_at"`
+	FinishedAt       *time.Time `json:"finished_at,omitempty"`
+	CreatedAt        time.Time  `gorm:"not null" json:"created_at"`
+}
+
+func (FullReportValidationRun) TableName() string { return "full_report_validation_runs" }
+
+type FullReportValidationPayload struct {
+	ID               uint64    `gorm:"primaryKey;autoIncrement" json:"id"`
+	ValidationRunID  uint64    `gorm:"not null;uniqueIndex" json:"validation_run_id"`
+	ValidationResult JSONRaw   `gorm:"type:json;not null" json:"validation_result"`
+	CreatedAt        time.Time `gorm:"not null" json:"created_at"`
+}
+
+func (FullReportValidationPayload) TableName() string { return "full_report_validation_payloads" }
+
 type FullReportResult struct {
 	ID            uint64        `gorm:"primaryKey;autoIncrement" json:"id"`
 	ReportID      uint64        `gorm:"not null;uniqueIndex" json:"report_id"`

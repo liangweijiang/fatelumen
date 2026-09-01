@@ -94,6 +94,70 @@ func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *AdminReportTraceHandler) Validations(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	rows, err := h.reports.AdminListValidationRuns(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report validations unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_validations", reportID, "")
+	response.OK(c, gin.H{"report_id": reportID, "items": rows})
+}
+
+func (h *AdminReportTraceHandler) Validation(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	validationID, ok := reportTraceID(c, "validationId")
+	if !ok {
+		return
+	}
+	row, err := h.reports.AdminGetValidationTrace(c.Request.Context(), reportID, validationID)
+	if err != nil {
+		h.readError(c, err, "report validation unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_validation", reportID, strconv.FormatUint(validationID, 10))
+	response.OK(c, row)
+}
+
+func (h *AdminReportTraceHandler) Chapters(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	rows, err := h.reports.AdminListChapters(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report chapters unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_chapters", reportID, "")
+	response.OK(c, gin.H{"report_id": reportID, "items": rows})
+}
+
+func (h *AdminReportTraceHandler) Chapter(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	chapterID, ok := reportTraceID(c, "chapterId")
+	if !ok {
+		return
+	}
+	row, err := h.reports.AdminGetChapterTrace(c.Request.Context(), reportID, chapterID)
+	if err != nil {
+		h.readError(c, err, "report chapter unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_chapter", reportID, strconv.FormatUint(chapterID, 10))
+	response.OK(c, row)
+}
+
 type promptPreviewRequest struct {
 	ChapterKey string `json:"chapter_key" binding:"required"`
 	Locale     string `json:"locale" binding:"required"`

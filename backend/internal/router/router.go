@@ -59,6 +59,7 @@ type App struct {
 	AdminBaziBaseHandler    *handler.AdminBaziBaseHandler
 	AdminReportTraceHandler *handler.AdminReportTraceHandler
 	AdminCalculationHandler *handler.AdminCalculationHandler
+	AdminLLMConfigHandler   *handler.AdminLLMConfigHandler
 	ReadingHandler          *handler.ReadingHandler
 	ReportHandler           *handler.ReportHandler
 	OrderHandler            *handler.OrderHandler
@@ -275,6 +276,10 @@ func Setup(app *App) *gin.Engine {
 				admin.POST("/reports/:id/prompt-preview", app.AdminReportTraceHandler.PromptPreview)
 				admin.GET("/reports/:id/llm-calls", app.AdminReportTraceHandler.LLMCalls)
 				admin.GET("/reports/:id/llm-calls/:callId", app.AdminReportTraceHandler.LLMCall)
+				admin.GET("/reports/:id/validations", app.AdminReportTraceHandler.Validations)
+				admin.GET("/reports/:id/validations/:validationId", app.AdminReportTraceHandler.Validation)
+				admin.GET("/reports/:id/chapters", app.AdminReportTraceHandler.Chapters)
+				admin.GET("/reports/:id/chapters/:chapterId", app.AdminReportTraceHandler.Chapter)
 			}
 			if app.AdminCalculationHandler != nil {
 				admin.GET("/calculation-archives", app.AdminCalculationHandler.List)
@@ -288,6 +293,17 @@ func Setup(app *App) *gin.Engine {
 				admin.PUT("/prompt-configs/:chapterKey", app.AdminCalculationHandler.SavePromptConfig)
 				admin.DELETE("/prompt-configs/:chapterKey", app.AdminCalculationHandler.ResetPromptConfig)
 				admin.DELETE("/calculation-archives/:id", app.AdminCalculationHandler.Delete)
+			}
+			if app.AdminLLMConfigHandler != nil {
+				admin.GET("/llm-catalog", app.AdminLLMConfigHandler.Catalog)
+				admin.GET("/llm-providers", app.AdminLLMConfigHandler.ListProviders)
+				admin.POST("/llm-providers", app.AdminLLMConfigHandler.CreateProvider)
+				admin.PUT("/llm-providers/:id", app.AdminLLMConfigHandler.UpdateProvider)
+				admin.DELETE("/llm-providers/:id", app.AdminLLMConfigHandler.DeleteProvider)
+				admin.GET("/llm-models", app.AdminLLMConfigHandler.ListModels)
+				admin.POST("/llm-models", app.AdminLLMConfigHandler.CreateModel)
+				admin.PUT("/llm-models/:id", app.AdminLLMConfigHandler.UpdateModel)
+				admin.DELETE("/llm-models/:id", app.AdminLLMConfigHandler.DeleteModel)
 			}
 			if app.ResourceHandler != nil {
 				admin.GET("/resources/:resource/_schema", app.ResourceHandler.Schema)

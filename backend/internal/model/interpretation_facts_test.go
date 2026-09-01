@@ -19,16 +19,13 @@ func TestInterpretationFactsContractHasNoCredentialFields(t *testing.T) {
 	}
 }
 
-func TestLLMCallContractKeepsAttemptAndVersions(t *testing.T) {
-	call := ReportLLMCallContract{
-		ReportID:           8,
-		BatchNo:            2,
-		AttemptNo:          3,
-		FactsSchemaVersion: FactsSchemaVersion,
-		RuleSetVersion:     "rules-v1",
-		PromptVersion:      "full-v1",
+func TestFullReportTraceKeepsAttemptAndVersions(t *testing.T) {
+	attempt := FullReportAttempt{ReportID: 8, ChapterID: 2, AttemptNo: 3, RouteNo: 1, Provider: "deepseek", Model: "deepseek-chat"}
+	snapshot := FullReportExecutionSnapshot{FactsSchemaVersion: FactsSchemaVersion, RuleSetVersion: "rules-v1", PromptVersion: "full-v1"}
+	if attempt.AttemptNo != 3 || attempt.RouteNo != 1 || attempt.Provider == "" || attempt.Model == "" {
+		t.Fatal("full report attempt must pin attempt number and model route")
 	}
-	if call.AttemptNo != 3 || call.FactsSchemaVersion == "" || call.RuleSetVersion == "" || call.PromptVersion == "" {
-		t.Fatal("LLM call trace must pin attempt and all contract versions")
+	if snapshot.FactsSchemaVersion == "" || snapshot.RuleSetVersion == "" || snapshot.PromptVersion == "" {
+		t.Fatal("full report execution snapshot must pin all contract versions")
 	}
 }

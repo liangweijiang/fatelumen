@@ -1932,6 +1932,8 @@ CHROMIUM_PATH=/usr/bin/chromium
 - **验收**：关闭LLM仍可生成完整事实包；相同输入结果及哈希稳定；每个判断可定位规则和依据；历史快照不受升级影响。
 
 ### Phase 4 — 完整测算(异步 + DeepSeek + PDF)
+> 执行状态、分块验收证据与完成记录统一维护在 `docs/完整报告执行计划与验收台账.md`。开始和完成任何完整报告任务前后必须同步更新该台账，不得仅凭口头进度判断完成状态。
+
 - [ ] `JobQueue` 接口 + goroutine 实现(worker pool);report 状态机经队列驱动(第 8 章)。
 - [ ] Full prompt 按十章注册表分章编排并生成严格 JSON；未来十年流年可拆分调用后合并。
 - [ ] 每次调用和重试均保存实际Prompt、事实输入、原始/解析输出、Schema结果、token、耗时、trace_id和版本。

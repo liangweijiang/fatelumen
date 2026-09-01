@@ -11,6 +11,8 @@
 *.test
 *.out
 vendor/
+/*gocache*/
+/backend/*gocache*/
 
 # Next.js / Node
 /frontend/node_modules/

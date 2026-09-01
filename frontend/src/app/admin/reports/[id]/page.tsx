@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchReportFacts, fetchReportLLMCalls, fetchResourceDetail } from "@/lib/admin-api";
 import { PromptPreviewPanel } from "./PromptPreviewPanel";
+import { ValidationTracePanel } from "./ValidationTracePanel";
 
 function JsonPanel({ title, value }: { title: string; value: unknown }) {
   return (
@@ -40,6 +41,8 @@ export default function AdminReportDetailPage() {
       </section>
 
       <PromptPreviewPanel reportId={id} />
+
+      <ValidationTracePanel reportId={id} />
 
       <section className="space-y-3">
         <h2 className="text-[19px] font-medium" style={{ color: "var(--ink)" }}>DeepSeek 调用记录</h2>

@@ -168,6 +168,83 @@ export async function fetchReportLLMCalls(id: string | number, page = 1, pageSiz
   return unwrap<ReportLLMCallPage>(data);
 }
 
+export interface ReportValidationRule {
+  code: string;
+  name: string;
+  stage?: string;
+  severity: "error" | "warning";
+  passed: boolean;
+  retryable: boolean;
+  affected_chapters?: number[];
+  expected?: string;
+  actual?: string;
+  evidence_refs?: string[];
+  message?: string;
+}
+
+export interface ReportValidationResult {
+  validator_version: string;
+  scope: "chapter" | "report";
+  passed: boolean;
+  retryable: boolean;
+  code?: string;
+  summary?: string;
+  affected_chapters?: number[];
+  rules: ReportValidationRule[];
+  validated_at?: string;
+}
+
+export interface ReportValidationRun {
+  id: number;
+  report_id: number;
+  round_no: number;
+  validator_version: string;
+  status: string;
+  retryable: boolean;
+  affected_chapters: number;
+  error_code?: string;
+  error_summary?: string;
+  started_at: string;
+  finished_at?: string;
+}
+
+export interface ReportChapterTraceItem {
+  id: number;
+  report_id: number;
+  chapter_no: number;
+  chapter_key: string;
+  title: string;
+  status: string;
+  attempt_count: number;
+  selected_attempt_id?: number;
+  schema_valid: boolean;
+  validation_status: string;
+  error_code?: string;
+  error_summary?: string;
+  started_at?: string;
+  completed_at?: string;
+}
+
+export async function fetchReportValidations(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}/validations`);
+  return unwrap<{ report_id: number; items: ReportValidationRun[] }>(data);
+}
+
+export async function fetchReportValidation(id: string | number, validationId: number) {
+  const { data } = await api.get(`/admin/reports/${id}/validations/${validationId}`);
+  return unwrap<{ run: ReportValidationRun; payload: { validation_result: ReportValidationResult } }>(data);
+}
+
+export async function fetchReportChapters(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}/chapters`);
+  return unwrap<{ report_id: number; items: ReportChapterTraceItem[] }>(data);
+}
+
+export async function fetchReportChapter(id: string | number, chapterId: number) {
+  const { data } = await api.get(`/admin/reports/${id}/chapters/${chapterId}`);
+  return unwrap<{ chapter: ReportChapterTraceItem; payload: { validation_result?: ReportValidationResult } }>(data);
+}
+
 export interface PromptPreviewResponse {
   registry_version: string;
   prompt_version: string;
@@ -206,6 +283,22 @@ export async function previewCalculationPrompt(id:string|number, versionId:numbe
 export async function fetchPromptConfigs(){const {data}=await api.get("/admin/prompt-configs");return unwrap<{configured:Record<string,string[]>}>(data)}
 export async function savePromptConfig(chapterKey:string,factKeys:string[]){const {data}=await api.put(`/admin/prompt-configs/${chapterKey}`,{fact_keys:factKeys});return unwrap<{chapter_key:string;fact_keys:string[]}>(data)}
 export async function resetPromptConfig(chapterKey:string){const {data}=await api.delete(`/admin/prompt-configs/${chapterKey}`);return unwrap<{chapter_key:string;fact_keys:string[]}>(data)}
+
+export type LLMModelPreset={id:string;name:string};
+export type LLMProviderPreset={code:string;name:string;base_url:string;models:LLMModelPreset[]};
+export type LLMProviderConfig={id:number;code:string;name:string;base_url:string;api_key_hint:string;enabled:boolean;created_at:string;updated_at:string};
+export type LLMModelConfig={id:number;provider_id:number;provider:LLMProviderConfig;name:string;model_id:string;priority:number;max_retries:number;enabled:boolean;created_at:string;updated_at:string};
+export type LLMConfigPage<T>={items:T[];total:number;page:number;page_size:number};
+
+export async function fetchLLMCatalog(){const {data}=await api.get("/admin/llm-catalog");return unwrap<{providers:LLMProviderPreset[]}>(data)}
+export async function fetchLLMProviders(page=1,pageSize=10,q=""){const {data}=await api.get("/admin/llm-providers",{params:{page,page_size:pageSize,q}});return unwrap<LLMConfigPage<LLMProviderConfig>>(data)}
+export async function createLLMProvider(input:{code:string;name:string;base_url:string;api_key:string;enabled:boolean}){const {data}=await api.post("/admin/llm-providers",input);return unwrap<LLMProviderConfig>(data)}
+export async function updateLLMProvider(id:number,input:{code:string;name:string;base_url:string;api_key?:string;enabled:boolean}){const {data}=await api.put(`/admin/llm-providers/${id}`,input);return unwrap<LLMProviderConfig>(data)}
+export async function deleteLLMProvider(id:number){await api.delete(`/admin/llm-providers/${id}`)}
+export async function fetchLLMModels(page=1,pageSize=10,q="",providerId?:number){const {data}=await api.get("/admin/llm-models",{params:{page,page_size:pageSize,q,provider_id:providerId}});return unwrap<LLMConfigPage<LLMModelConfig>>(data)}
+export async function createLLMModel(input:{provider_id:number;name:string;model_id:string;priority:number;max_retries:number;enabled:boolean}){const {data}=await api.post("/admin/llm-models",input);return unwrap<LLMModelConfig>(data)}
+export async function updateLLMModel(id:number,input:{provider_id:number;name:string;model_id:string;priority:number;max_retries:number;enabled:boolean}){const {data}=await api.put(`/admin/llm-models/${id}`,input);return unwrap<LLMModelConfig>(data)}
+export async function deleteLLMModel(id:number){await api.delete(`/admin/llm-models/${id}`)}
 
 export async function previewReportPrompt(id: string | number, chapterKey: string, locale: string): Promise<PromptPreviewResponse> {
   const { data } = await api.post(`/admin/reports/${id}/prompt-preview`, { chapter_key: chapterKey, locale });
