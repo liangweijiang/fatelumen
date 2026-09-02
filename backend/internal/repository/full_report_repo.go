@@ -317,8 +317,23 @@ func (r *FullReportRepo) CountByUser(userID uint64) (int64, error) {
 }
 
 type FullReportExecutionTrace struct {
-	Snapshot model.FullReportExecutionSnapshot
-	Payload  model.FullReportExecutionPayload
+	Snapshot   model.FullReportExecutionSnapshot `json:"snapshot"`
+	Payload    model.FullReportExecutionPayload  `json:"payload"`
+	ModelStats []FullReportModelStats            `json:"model_stats"`
+}
+
+type FullReportModelStats struct {
+	RouteNo            uint8  `json:"route_no"`
+	Provider           string `json:"provider"`
+	Model              string `json:"model"`
+	AttemptCount       int64  `json:"attempt_count"`
+	SucceededCount     int64  `json:"succeeded_count"`
+	FailedCount        int64  `json:"failed_count"`
+	UsageReportedCount int64  `json:"usage_reported_count"`
+	PromptTokens       *int64 `json:"prompt_tokens"`
+	CompletionTokens   *int64 `json:"completion_tokens"`
+	TotalTokens        *int64 `json:"total_tokens"`
+	DurationMS         int64  `json:"duration_ms"`
 }
 
 func (r *FullReportRepo) AdminGetExecutionTrace(ctx context.Context, reportID uint64) (*FullReportExecutionTrace, error) {
@@ -330,7 +345,26 @@ func (r *FullReportRepo) AdminGetExecutionTrace(ctx context.Context, reportID ui
 	if err := r.db.WithContext(ctx).Where("snapshot_id = ?", snapshot.ID).First(&payload).Error; err != nil {
 		return nil, err
 	}
-	return &FullReportExecutionTrace{Snapshot: snapshot, Payload: payload}, nil
+	stats, err := r.AdminAttemptStats(ctx, reportID)
+	if err != nil {
+		return nil, err
+	}
+	return &FullReportExecutionTrace{Snapshot: snapshot, Payload: payload, ModelStats: stats}, nil
+}
+
+func (r *FullReportRepo) AdminAttemptStats(ctx context.Context, reportID uint64) ([]FullReportModelStats, error) {
+	stats := make([]FullReportModelStats, 0)
+	err := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).
+		Select(`route_no, provider, model,
+			COUNT(*) AS attempt_count,
+			SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS succeeded_count,
+			SUM(CASE WHEN status IN (?, ?) THEN 1 ELSE 0 END) AS failed_count,
+			SUM(CASE WHEN total_tokens IS NOT NULL THEN 1 ELSE 0 END) AS usage_reported_count,
+			SUM(prompt_tokens) AS prompt_tokens, SUM(completion_tokens) AS completion_tokens,
+			SUM(total_tokens) AS total_tokens, SUM(duration_ms) AS duration_ms`,
+			model.FullReportAttemptStatusSucceeded, model.FullReportAttemptStatusFailed, model.FullReportAttemptStatusRejected).
+		Where("report_id = ?", reportID).Group("route_no, provider, model").Order("route_no ASC").Scan(&stats).Error
+	return stats, err
 }
 
 type FullReportAttemptTrace struct {
@@ -591,8 +625,9 @@ type FullReportAttemptOutcome struct {
 	ErrorCode        string
 	ErrorSummary     string
 	OutputHash       string
-	PromptTokens     int
-	CompletionTokens int
+	PromptTokens     *int
+	CompletionTokens *int
+	TotalTokens      *int
 	DurationMS       int64
 	FinishedAt       time.Time
 	RawOutput        string
@@ -613,7 +648,7 @@ func (r *FullReportRepo) FinishAttempt(ctx context.Context, reportID, attemptID 
 		updates := map[string]any{
 			"status": outcome.Status, "schema_valid": outcome.SchemaValid, "validation_status": outcome.ValidationStatus,
 			"error_code": outcome.ErrorCode, "error_summary": outcome.ErrorSummary, "output_hash": outcome.OutputHash,
-			"prompt_tokens": outcome.PromptTokens, "completion_tokens": outcome.CompletionTokens,
+			"prompt_tokens": outcome.PromptTokens, "completion_tokens": outcome.CompletionTokens, "total_tokens": outcome.TotalTokens,
 			"duration_ms": outcome.DurationMS, "finished_at": outcome.FinishedAt,
 		}
 		res := tx.Model(&model.FullReportAttempt{}).Where("id = ? AND report_id = ?", attemptID, reportID).Updates(updates)

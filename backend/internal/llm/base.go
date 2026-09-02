@@ -38,6 +38,11 @@ func (p *openAICompatProvider) Name() string {
 }
 
 func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user string, opts ...Option) (string, error) {
+	result, err := p.GenerateJSONDetailed(ctx, system, user, opts...)
+	return result.Content, err
+}
+
+func (p *openAICompatProvider) GenerateJSONDetailed(ctx context.Context, system, user string, opts ...Option) (GenerationResult, error) {
 	cc := &callConfig{temperature: 0.7, maxTokens: 600}
 	for _, o := range opts {
 		o(cc)
@@ -61,31 +66,36 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 	})
 	if err != nil {
 		logger.FromCtx(ctx).Error("llm call failed", "err", err, "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
-		return "", err
+		return GenerationResult{}, err
 	}
 	logger.FromCtx(ctx).Info("llm call completed", "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
 
 	if len(resp.Choices) == 0 {
 		logger.FromCtx(ctx).Error("llm returned empty choices", "provider", p.name, "model", p.model)
-		return "", errors.New("llm returned empty response")
+		return GenerationResult{}, errors.New("llm returned empty response")
 	}
 	if resp.Choices[0].FinishReason == openai.FinishReasonLength {
 		logger.FromCtx(ctx).Error("llm response truncated by max_tokens",
 			"provider", p.name, "model", p.model,
 			"elapsed_ms", time.Since(start).Milliseconds())
-		return "", errors.New("llm response truncated by max_tokens")
+		return GenerationResult{}, errors.New("llm response truncated by max_tokens")
 	}
 	content := resp.Choices[0].Message.Content
 	if content == "" {
 		logger.FromCtx(ctx).Error("llm returned empty content", "provider", p.name, "model", p.model)
-		return "", errors.New("llm returned empty content")
+		return GenerationResult{}, errors.New("llm returned empty content")
 	}
 
 	if !json.Valid([]byte(content)) {
 		logger.FromCtx(ctx).Error("llm returned invalid JSON",
 			"provider", p.name, "model", p.model,
 			"content_len", len(content))
-		return "", errors.New("llm returned invalid JSON")
+		return GenerationResult{}, errors.New("llm returned invalid JSON")
 	}
-	return content, nil
+	result := GenerationResult{Content: content}
+	if resp.Usage.PromptTokens != 0 || resp.Usage.CompletionTokens != 0 || resp.Usage.TotalTokens != 0 {
+		prompt, completion, total := resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens
+		result.Usage = GenerationUsage{PromptTokens: &prompt, CompletionTokens: &completion, TotalTokens: &total}
+	}
+	return result, nil
 }

@@ -332,17 +332,15 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 			logger.FromCtx(ctx).Warn("switching full report model route", "report_id", reportID, "chapter_id", row.Chapter.ID, "route_no", route.Frozen.RouteNo, "provider", route.Frozen.ProviderCode, "model", route.Frozen.Model)
 		}
 		callCtx, cancel := context.WithTimeout(ctx, time.Duration(route.Frozen.TimeoutSeconds)*time.Second)
-		raw, callErr := route.Provider.GenerateJSON(callCtx, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(float32(route.Frozen.Temperature)))
+		generation, callErr := llm.GenerateJSONDetailed(callCtx, route.Provider, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(float32(route.Frozen.Temperature)))
 		cancel()
+		raw := generation.Content
 		finished := time.Now().UTC()
 		var outputSchema map[string]any
 		_ = json.Unmarshal(row.Payload.OutputSchema, &outputSchema)
 		var glossary []displaydict.GlossaryEntry
 		_ = json.Unmarshal(row.Payload.TerminologySnapshot, &glossary)
 		validation := validateChapterOutput(definition, locale, raw, callErr, chapterValidationFrozen{Glossary: glossary, Facts: &facts})
-		validationRaw, _ := json.Marshal(validation)
-		parsedRaw, _ := json.Marshal(validation.Parsed)
-		schemaErrorsRaw, _ := json.Marshal(validation.Errors)
 		outputHash := ""
 		if raw != "" {
 			outputHash, _ = hashutil.CanonicalJSONSHA256(raw)
@@ -350,10 +348,16 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 		status := model.FullReportAttemptStatusRejected
 		if callErr != nil {
 			status = model.FullReportAttemptStatusFailed
+			callError := llm.ClassifyCallError(callErr)
+			validation.Code = callError.Code
+			validation.Summary = callError.Summary
 		} else if validation.Passed {
 			status = model.FullReportAttemptStatusSucceeded
 		}
-		if err := e.reports.FinishAttempt(ctx, reportID, attempt.ID, repository.FullReportAttemptOutcome{Status: status, SchemaValid: validation.SchemaValid, ValidationStatus: validationStatus(validation.Passed), ErrorCode: validation.Code, ErrorSummary: validation.Summary, OutputHash: outputHash, DurationMS: finished.Sub(started).Milliseconds(), FinishedAt: finished, RawOutput: raw, ParsedOutput: parsedRaw, SchemaErrors: schemaErrorsRaw, ValidationResult: validationRaw}); err != nil {
+		validationRaw, _ := json.Marshal(validation)
+		parsedRaw, _ := json.Marshal(validation.Parsed)
+		schemaErrorsRaw, _ := json.Marshal(validation.Errors)
+		if err := e.reports.FinishAttempt(ctx, reportID, attempt.ID, repository.FullReportAttemptOutcome{Status: status, SchemaValid: validation.SchemaValid, ValidationStatus: validationStatus(validation.Passed), ErrorCode: validation.Code, ErrorSummary: validation.Summary, OutputHash: outputHash, PromptTokens: generation.Usage.PromptTokens, CompletionTokens: generation.Usage.CompletionTokens, TotalTokens: generation.Usage.TotalTokens, DurationMS: finished.Sub(started).Milliseconds(), FinishedAt: finished, RawOutput: raw, ParsedOutput: parsedRaw, SchemaErrors: schemaErrorsRaw, ValidationResult: validationRaw}); err != nil {
 			return err
 		}
 		if validation.Passed {

@@ -158,8 +158,9 @@ type FullReportAttempt struct {
 	ErrorSummary     string     `gorm:"type:varchar(512)" json:"error_summary,omitempty"`
 	PromptHash       string     `gorm:"type:char(64);not null" json:"prompt_hash"`
 	OutputHash       string     `gorm:"type:char(64)" json:"output_hash,omitempty"`
-	PromptTokens     int        `gorm:"not null;default:0" json:"prompt_tokens"`
-	CompletionTokens int        `gorm:"not null;default:0" json:"completion_tokens"`
+	PromptTokens     *int       `json:"prompt_tokens"`
+	CompletionTokens *int       `json:"completion_tokens"`
+	TotalTokens      *int       `json:"total_tokens"`
 	DurationMS       int64      `gorm:"not null;default:0" json:"duration_ms"`
 	TraceID          string     `gorm:"type:varchar(64);not null;index" json:"trace_id"`
 	StartedAt        time.Time  `gorm:"not null;index:idx_full_report_attempt_status_started,priority:2" json:"started_at"`

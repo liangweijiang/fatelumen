@@ -46,7 +46,8 @@ func (h *AdminReportTraceHandler) Facts(c *gin.Context) {
 	}
 	h.auditRead(c, "view_facts", reportID, "")
 	response.OK(c, gin.H{
-		"report_id": reportID,
+		"report_id":   reportID,
+		"model_stats": trace.ModelStats,
 		"snapshot": gin.H{
 			"metadata": trace.Snapshot, "input_snapshot": input, "time_calculation_snapshot": tc,
 			"chart_snapshot": chart, "facts": facts, "preflight_result": trace.Payload.PreflightResult,
@@ -72,8 +73,13 @@ func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
 		h.readError(c, err, "report call traces unavailable", reportID)
 		return
 	}
+	stats, err := h.reports.AdminAttemptStats(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report call statistics unavailable", reportID)
+		return
+	}
 	h.auditRead(c, "view_llm_calls", reportID, "")
-	response.OK(c, gin.H{"report_id": reportID, "items": rows, "total": total, "page": page, "page_size": size})
+	response.OK(c, gin.H{"report_id": reportID, "items": rows, "model_stats": stats, "total": total, "page": page, "page_size": size})
 }
 
 func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
