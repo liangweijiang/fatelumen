@@ -192,16 +192,11 @@ func main() {
 	// Full report service + immutable ten-chapter executor. The legacy report
 	// tables are deliberately not part of this execution path.
 	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
-	providerModel := cfg.DeepSeekModel
-	if cfg.LLMProvider == "openai" {
-		providerModel = cfg.OpenAIModel
-	}
-	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, llmProvider, baseChartEngine, service.FullReportRuntimeConfig{
+	llmConfigRepo := repository.NewLLMConfigRepo(db)
+	fullReportRoutes := service.NewDatabaseFullReportRouteResolver(llmConfigRepo, llm.NewConfigSecretCipher(cfg.AdminJWTSecret), time.Duration(cfg.ReportChapterTimeoutSeconds)*time.Second)
+	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, fullReportRoutes, baseChartEngine, service.FullReportRuntimeConfig{
 		ChapterConcurrency: cfg.ReportChapterConcurrency,
-		MaxAttempts:        cfg.ReportChapterMaxAttempts,
 		ChapterTimeout:     time.Duration(cfg.ReportChapterTimeoutSeconds) * time.Second,
-		Provider:           llmProvider.Name(),
-		Model:              providerModel,
 	})
 
 	// Handler registry + worker

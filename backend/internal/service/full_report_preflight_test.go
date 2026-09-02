@@ -33,7 +33,7 @@ func validPreflightPlans() []frozenChapterPlan {
 }
 
 func TestPreflightFullReportPassesCompleteTenChapterPlan(t *testing.T) {
-	runtime := FullReportRuntimeConfig{ChapterConcurrency: 3, MaxAttempts: 2, ChapterTimeout: time.Minute, Provider: "deepseek", Model: "deepseek-chat"}
+	runtime := FullReportRuntimeConfig{ChapterConcurrency: 3, ChapterTimeout: time.Minute, Routes: []FullReportModelRoute{{RouteNo: 1, ProviderConfigID: 1, ModelConfigID: 1, ProviderCode: "deepseek", BaseURL: "https://api.deepseek.com/v1", Model: "deepseek-chat", MaxRetries: 2, MaxAttempts: 3, TimeoutSeconds: 60}}}
 	result := PreflightFullReport("zh", runtime, validPreflightPlans())
 	if !result.Passed || len(result.Errors) != 0 || len(result.Chapters) != 10 {
 		t.Fatalf("unexpected preflight result: %+v", result)
@@ -143,5 +143,24 @@ func TestAggregateRetryRowsUsesAffectedChaptersAndRemainingBudget(t *testing.T) 
 	retry := aggregateRetryRows(rows, []uint8{1, 4}, 2)
 	if len(retry) != 1 || retry[0].Chapter.ChapterNo != 1 {
 		t.Fatalf("unexpected aggregate retry selection: %+v", retry)
+	}
+}
+
+func TestRouteForConsumedAttemptsSwitchesInFrozenOrder(t *testing.T) {
+	routes := []ResolvedFullReportRoute{
+		{Frozen: FullReportModelRoute{RouteNo: 1, MaxAttempts: 2, Model: "primary"}},
+		{Frozen: FullReportModelRoute{RouteNo: 2, MaxAttempts: 3, Model: "backup"}},
+	}
+	tests := []struct {
+		consumed     int
+		wantModel    string
+		wantAttempt  int
+		wantResolved bool
+	}{{0, "primary", 1, true}, {1, "primary", 2, true}, {2, "backup", 1, true}, {4, "backup", 3, true}, {5, "", 0, false}}
+	for _, tt := range tests {
+		route, attempt, ok := routeForConsumedAttempts(routes, tt.consumed)
+		if ok != tt.wantResolved || route.Frozen.Model != tt.wantModel || attempt != tt.wantAttempt {
+			t.Fatalf("consumed=%d got model=%q attempt=%d ok=%v", tt.consumed, route.Frozen.Model, attempt, ok)
+		}
 	}
 }

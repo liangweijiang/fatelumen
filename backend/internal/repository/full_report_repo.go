@@ -80,11 +80,13 @@ type FullReportCreateGraph struct {
 }
 
 type FullReportFreezeExecution struct {
-	ReportID         uint64
-	Snapshot         *model.FullReportExecutionSnapshot
-	ExecutionPayload *model.FullReportExecutionPayload
-	Chapters         []model.FullReportChapter
-	ChapterPayloads  []model.FullReportChapterPayload
+	ReportID           uint64
+	ProviderChainKey   string
+	ChapterConcurrency uint8
+	Snapshot           *model.FullReportExecutionSnapshot
+	ExecutionPayload   *model.FullReportExecutionPayload
+	Chapters           []model.FullReportChapter
+	ChapterPayloads    []model.FullReportChapterPayload
 }
 
 // FreezeExecution attaches the immutable execution graph to a pending report.
@@ -131,12 +133,14 @@ func (r *FullReportRepo) FreezeExecution(ctx context.Context, in FullReportFreez
 			}
 		}
 		return tx.Model(&model.FullReport{}).Where("id = ?", in.ReportID).Updates(map[string]any{
-			"status":         model.FullReportStatusGenerating,
-			"current_stage":  model.FullReportStatusGenerating,
-			"facts_hash":     in.Snapshot.FactsHash,
-			"execution_hash": in.Snapshot.ExecutionHash,
-			"started_at":     time.Now().UTC(),
-			"updated_at":     time.Now().UTC(),
+			"status":              model.FullReportStatusGenerating,
+			"current_stage":       model.FullReportStatusGenerating,
+			"provider_chain_key":  in.ProviderChainKey,
+			"chapter_concurrency": in.ChapterConcurrency,
+			"facts_hash":          in.Snapshot.FactsHash,
+			"execution_hash":      in.Snapshot.ExecutionHash,
+			"started_at":          time.Now().UTC(),
+			"updated_at":          time.Now().UTC(),
 		}).Error
 	})
 }

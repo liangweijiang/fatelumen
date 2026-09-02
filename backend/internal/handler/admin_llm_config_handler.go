@@ -1,13 +1,7 @@
 package handler
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"errors"
-	"io"
 	"net/url"
 	"strconv"
 	"strings"
@@ -24,13 +18,13 @@ import (
 )
 
 type AdminLLMConfigHandler struct {
-	db     *gorm.DB
-	audit  *repository.AuditRepo
-	secret [32]byte
+	db           *gorm.DB
+	audit        *repository.AuditRepo
+	secretCipher *llm.ConfigSecretCipher
 }
 
 func NewAdminLLMConfigHandler(db *gorm.DB, audit *repository.AuditRepo, encryptionSecret string) *AdminLLMConfigHandler {
-	return &AdminLLMConfigHandler{db: db, audit: audit, secret: sha256.Sum256([]byte(encryptionSecret))}
+	return &AdminLLMConfigHandler{db: db, audit: audit, secretCipher: llm.NewConfigSecretCipher(encryptionSecret)}
 }
 
 type providerInput struct {
@@ -82,7 +76,7 @@ func (h *AdminLLMConfigHandler) CreateProvider(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "供应商名称、有效接口地址和 API Key 为必填项")
 		return
 	}
-	ciphertext, err := h.encrypt(strings.TrimSpace(in.APIKey))
+	ciphertext, err := h.secretCipher.Encrypt(strings.TrimSpace(in.APIKey))
 	if err != nil {
 		logger.FromCtx(c).Error("encrypt llm provider key failed", "err", err)
 		response.Error(c, "保存供应商失败")
@@ -126,7 +120,7 @@ func (h *AdminLLMConfigHandler) UpdateProvider(c *gin.Context) {
 		row.Enabled = *in.Enabled
 	}
 	if strings.TrimSpace(in.APIKey) != "" {
-		ciphertext, err := h.encrypt(strings.TrimSpace(in.APIKey))
+		ciphertext, err := h.secretCipher.Encrypt(strings.TrimSpace(in.APIKey))
 		if err != nil {
 			logger.FromCtx(c).Error("encrypt llm provider key failed", "err", err, "provider_id", id)
 			response.Error(c, "保存供应商失败")
@@ -276,22 +270,6 @@ func (h *AdminLLMConfigHandler) DeleteModel(c *gin.Context) {
 	}
 	h.writeAudit(c, "delete", "llm_model_config", id)
 	response.OK(c, gin.H{"deleted": id})
-}
-
-func (h *AdminLLMConfigHandler) encrypt(plain string) (string, error) {
-	block, err := aes.NewCipher(h.secret[:])
-	if err != nil {
-		return "", err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(gcm.Seal(nonce, nonce, []byte(plain), nil)), nil
 }
 
 func (h *AdminLLMConfigHandler) writeAudit(c *gin.Context, action, resource string, id uint64) {

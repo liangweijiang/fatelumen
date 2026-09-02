@@ -27,6 +27,12 @@ func newOpenAICompat(name, apiKey, baseURL, model string) *openAICompatProvider 
 	}
 }
 
+// NewOpenAICompatibleProvider builds a provider for an administrator-managed
+// OpenAI-compatible endpoint. The credential only lives in this client.
+func NewOpenAICompatibleProvider(name, apiKey, baseURL, model string) LLMProvider {
+	return newOpenAICompat(name, apiKey, baseURL, model)
+}
+
 func (p *openAICompatProvider) Name() string {
 	return p.name
 }
@@ -57,7 +63,7 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 		logger.FromCtx(ctx).Error("llm call failed", "err", err, "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
 		return "", err
 	}
-	logger.FromCtx(ctx).Debug("llm call completed", "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
+	logger.FromCtx(ctx).Info("llm call completed", "provider", p.name, "model", p.model, "elapsed_ms", time.Since(start).Milliseconds())
 
 	if len(resp.Choices) == 0 {
 		logger.FromCtx(ctx).Error("llm returned empty choices", "provider", p.name, "model", p.model)
@@ -76,13 +82,9 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 	}
 
 	if !json.Valid([]byte(content)) {
-		preview := content
-		if len(preview) > 300 {
-			preview = preview[:300]
-		}
 		logger.FromCtx(ctx).Error("llm returned invalid JSON",
 			"provider", p.name, "model", p.model,
-			"content_len", len(content), "content_preview", preview)
+			"content_len", len(content))
 		return "", errors.New("llm returned invalid JSON")
 	}
 	return content, nil

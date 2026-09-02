@@ -20,14 +20,12 @@ import (
 	"fatelumen/backend/internal/repository"
 )
 
-const fullReportRuntimePolicyVersion = "full-report-runtime-v1"
+const fullReportRuntimePolicyVersion = "full-report-runtime-v2"
 
 type FullReportRuntimeConfig struct {
-	ChapterConcurrency int           `json:"chapter_concurrency"`
-	MaxAttempts        int           `json:"max_attempts"`
-	ChapterTimeout     time.Duration `json:"chapter_timeout"`
-	Provider           string        `json:"provider"`
-	Model              string        `json:"model"`
+	ChapterConcurrency int                    `json:"chapter_concurrency"`
+	ChapterTimeout     time.Duration          `json:"chapter_timeout"`
+	Routes             []FullReportModelRoute `json:"routes"`
 }
 
 type fullReportPayload struct {
@@ -46,28 +44,22 @@ type fullReportExecutor struct {
 	profiles profileGetter
 	charts   chartSaver
 	reports  *repository.FullReportRepo
-	provider llm.LLMProvider
+	routes   FullReportRouteResolver
 	engine   birthchart.Engine
 	runtime  FullReportRuntimeConfig
 }
 
-func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, provider llm.LLMProvider, engine birthchart.Engine, runtime FullReportRuntimeConfig) job.JobHandler {
+func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig) job.JobHandler {
 	if engine == nil {
 		engine = birthchart.NewDefaultEngine()
 	}
 	if runtime.ChapterConcurrency < 1 || runtime.ChapterConcurrency > 10 {
 		runtime.ChapterConcurrency = 3
 	}
-	if runtime.MaxAttempts < 1 {
-		runtime.MaxAttempts = 2
-	}
 	if runtime.ChapterTimeout <= 0 {
 		runtime.ChapterTimeout = 60 * time.Second
 	}
-	if runtime.Provider == "" && provider != nil {
-		runtime.Provider = provider.Name()
-	}
-	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, provider: provider, engine: engine, runtime: runtime}
+	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime}
 }
 
 func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result string, err error) {
@@ -107,9 +99,15 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if profile.UserID != payload.UserID {
 		return "", fmt.Errorf("profile does not belong to report owner")
 	}
-	if e.provider == nil {
-		return "", fmt.Errorf("full report provider is not configured")
+	if e.routes == nil {
+		return "", fmt.Errorf("full report route resolver is not configured")
 	}
+	resolvedRoutes, err := e.routes.Resolve(ctx)
+	if err != nil {
+		return "", fmt.Errorf("resolve full report model routes: %w", err)
+	}
+	runtime := e.runtime
+	runtime.Routes = frozenRoutes(resolvedRoutes)
 	input := birthchartInputFromProfile(profile)
 	calculated, err := e.engine.Calculate(ctx, input)
 	if err != nil {
@@ -132,11 +130,11 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if err != nil {
 		return "", fmt.Errorf("preflight report chapters: %w", err)
 	}
-	preflight := PreflightFullReport(payload.Locale, e.runtime, plans)
+	preflight := PreflightFullReport(payload.Locale, runtime, plans)
 	if !preflight.Passed {
 		return "", fmt.Errorf("preflight blocked: %s", strings.Join(preflight.Errors, "; "))
 	}
-	if err := e.freeze(ctx, payload.ReportID, calculated, inputSnapshot, timeSnapshot, chartSnapshot, factsSnapshot, plans, preflight); err != nil {
+	if err := e.freeze(ctx, payload.ReportID, calculated, inputSnapshot, timeSnapshot, chartSnapshot, factsSnapshot, plans, preflight, runtime); err != nil {
 		return "", fmt.Errorf("freeze report execution: %w", err)
 	}
 
@@ -147,7 +145,7 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if len(rows) != 10 {
 		return "", repository.ErrFullReportChapterCount
 	}
-	if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, rows); err != nil {
+	if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, rows, runtime, resolvedRoutes); err != nil {
 		return "", err
 	}
 	rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
@@ -177,7 +175,7 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 		if aggregateValidation.Passed {
 			break
 		}
-		retryRows := aggregateRetryRows(rows, aggregateValidation.AffectedChapters, e.runtime.MaxAttempts)
+		retryRows := aggregateRetryRows(rows, aggregateValidation.AffectedChapters, totalRouteAttempts(runtime.Routes))
 		if !aggregateValidation.Retryable || len(retryRows) == 0 {
 			return "", fmt.Errorf("aggregate validation failed: %s", aggregateValidation.Summary)
 		}
@@ -188,7 +186,7 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 		if err := e.reports.PrepareAggregateRetry(ctx, payload.ReportID, retryNos, time.Now().UTC()); err != nil {
 			return "", fmt.Errorf("prepare aggregate retry: %w", err)
 		}
-		if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, retryRows); err != nil {
+		if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, retryRows, runtime, resolvedRoutes); err != nil {
 			return "", fmt.Errorf("aggregate retry: %w", err)
 		}
 		rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
@@ -241,7 +239,7 @@ func (e *fullReportExecutor) buildPlans(locale string, facts model.Interpretatio
 	return plans, nil
 }
 
-func (e *fullReportExecutor) freeze(ctx context.Context, reportID uint64, calculated *birthchart.Result, input model.ReportInputSnapshot, tc model.TimeCalculationSnapshot, chart model.ChartSnapshot, facts model.InterpretationFacts, plans []frozenChapterPlan, preflight FullReportPreflightResult) error {
+func (e *fullReportExecutor) freeze(ctx context.Context, reportID uint64, calculated *birthchart.Result, input model.ReportInputSnapshot, tc model.TimeCalculationSnapshot, chart model.ChartSnapshot, facts model.InterpretationFacts, plans []frozenChapterPlan, preflight FullReportPreflightResult, runtime FullReportRuntimeConfig) error {
 	planSnapshot := make([]map[string]any, 0, len(plans))
 	chapters := make([]model.FullReportChapter, len(plans))
 	payloads := make([]model.FullReportChapterPayload, len(plans))
@@ -253,10 +251,10 @@ func (e *fullReportExecutor) freeze(ctx context.Context, reportID uint64, calcul
 		chapters[i] = model.FullReportChapter{ChapterNo: uint8(plan.Definition.No), ChapterKey: plan.Definition.Key, Title: plan.Definition.Name, Status: model.FullReportChapterStatusPending, PromptHash: plan.PromptHash, ValidationStatus: model.FullReportValidationStatusPending, CreatedAt: now, UpdatedAt: now}
 		payloads[i] = model.FullReportChapterPayload{SemanticDigest: plan.Preview.SemanticDigest.Text(), LanguageInstruction: plan.Preview.AdditiveInstruction, TerminologySnapshot: model.JSONRaw(glossary), FinalPrompt: plan.Preview.CompleteInstruction, OutputSchema: model.JSONRaw(schema), CreatedAt: now}
 	}
-	runtimeSnapshot, _ := json.Marshal(e.runtime)
+	runtimeSnapshot, _ := json.Marshal(runtime)
 	preflightRaw, _ := json.Marshal(preflight)
 	planRaw, _ := json.Marshal(planSnapshot)
-	executionHash, err := hashutil.CanonicalJSONSHA256(map[string]any{"facts_hash": facts.FactsHash, "plans": planSnapshot, "runtime": e.runtime})
+	executionHash, err := hashutil.CanonicalJSONSHA256(map[string]any{"facts_hash": facts.FactsHash, "plans": planSnapshot, "runtime": runtime})
 	if err != nil {
 		return err
 	}
@@ -266,15 +264,17 @@ func (e *fullReportExecutor) freeze(ctx context.Context, reportID uint64, calcul
 	factsRaw, _ := json.Marshal(facts)
 	versions := facts.Versions
 	return e.reports.FreezeExecution(ctx, repository.FullReportFreezeExecution{
-		ReportID:         reportID,
-		Snapshot:         &model.FullReportExecutionSnapshot{ChartHash: chart.ChartHash, FactsHash: facts.FactsHash, ExecutionHash: executionHash, InputSchemaVersion: input.SchemaVersion, ChartSchemaVersion: chart.ChartSchemaVersion, FactsSchemaVersion: versions.FactsSchemaVersion, RuleSetVersion: versions.RuleSetVersion, PromptVersion: versions.PromptVersion, DictionaryVersion: "bazi-display-dictionary-v2", RuntimePolicyVersion: fullReportRuntimePolicyVersion, LocationDatabaseVersion: tc.LocationDatabaseVersion, TimezoneDatabaseVersion: tc.TimezoneDatabaseVersion, SolarAlgorithmVersion: tc.SolarAlgorithmVersion, LunarGoVersion: chart.LunarGoVersion, FrozenAt: now, CreatedAt: now},
-		ExecutionPayload: &model.FullReportExecutionPayload{InputSnapshot: inputRaw, TimeCalculationSnapshot: timeRaw, ChartSnapshot: chartRaw, FactsSnapshot: factsRaw, PreflightResult: preflightRaw, ChapterPlanSnapshot: planRaw, RuntimeConfigSnapshot: runtimeSnapshot, CreatedAt: now},
-		Chapters:         chapters, ChapterPayloads: payloads,
+		ReportID:           reportID,
+		ProviderChainKey:   executionHash[:16],
+		ChapterConcurrency: uint8(runtime.ChapterConcurrency),
+		Snapshot:           &model.FullReportExecutionSnapshot{ChartHash: chart.ChartHash, FactsHash: facts.FactsHash, ExecutionHash: executionHash, InputSchemaVersion: input.SchemaVersion, ChartSchemaVersion: chart.ChartSchemaVersion, FactsSchemaVersion: versions.FactsSchemaVersion, RuleSetVersion: versions.RuleSetVersion, PromptVersion: versions.PromptVersion, DictionaryVersion: "bazi-display-dictionary-v2", RuntimePolicyVersion: fullReportRuntimePolicyVersion, LocationDatabaseVersion: tc.LocationDatabaseVersion, TimezoneDatabaseVersion: tc.TimezoneDatabaseVersion, SolarAlgorithmVersion: tc.SolarAlgorithmVersion, LunarGoVersion: chart.LunarGoVersion, FrozenAt: now, CreatedAt: now},
+		ExecutionPayload:   &model.FullReportExecutionPayload{InputSnapshot: inputRaw, TimeCalculationSnapshot: timeRaw, ChartSnapshot: chartRaw, FactsSnapshot: factsRaw, PreflightResult: preflightRaw, ChapterPlanSnapshot: planRaw, RuntimeConfigSnapshot: runtimeSnapshot, CreatedAt: now},
+		Chapters:           chapters, ChapterPayloads: payloads,
 	})
 }
 
-func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, rows []repository.FullReportChapterWithPayload) error {
-	sem := make(chan struct{}, e.runtime.ChapterConcurrency)
+func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, rows []repository.FullReportChapterWithPayload, runtime FullReportRuntimeConfig, routes []ResolvedFullReportRoute) error {
+	sem := make(chan struct{}, runtime.ChapterConcurrency)
 	errCh := make(chan error, len(rows))
 	var wg sync.WaitGroup
 	for _, row := range rows {
@@ -289,7 +289,7 @@ func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, l
 				errCh <- ctx.Err()
 				return
 			}
-			if err := e.runChapter(ctx, reportID, locale, facts, row); err != nil {
+			if err := e.runChapter(ctx, reportID, locale, facts, row, routes); err != nil {
 				errCh <- fmt.Errorf("chapter %s: %w", row.Chapter.ChapterKey, err)
 			}
 		}()
@@ -303,21 +303,36 @@ func (e *fullReportExecutor) runChapters(ctx context.Context, reportID uint64, l
 	return errors.Join(errs...)
 }
 
-func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, row repository.FullReportChapterWithPayload) error {
+func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, row repository.FullReportChapterWithPayload, routes []ResolvedFullReportRoute) error {
 	definition, ok := prompts.ChapterByKey(row.Chapter.ChapterKey)
 	if !ok {
 		return fmt.Errorf("unknown chapter")
 	}
-	for n := int(row.Chapter.AttemptCount) + 1; n <= e.runtime.MaxAttempts; n++ {
+	consumed := int(row.Chapter.AttemptCount)
+	for {
+		route, routeAttempt, ok := routeForConsumedAttempts(routes, consumed)
+		if !ok {
+			break
+		}
+		n := consumed + 1
 		started := time.Now().UTC()
-		attempt := &model.FullReportAttempt{ReportID: reportID, ChapterID: row.Chapter.ID, AttemptNo: uint16(n), RouteNo: 1, Provider: e.runtime.Provider, Model: e.runtime.Model, Status: model.FullReportAttemptStatusRunning, ValidationStatus: model.FullReportValidationStatusPending, PromptHash: row.Chapter.PromptHash, TraceID: fmt.Sprintf("%d-%d-%d", reportID, row.Chapter.ID, n), StartedAt: started, CreatedAt: started}
-		params, _ := json.Marshal(map[string]any{"temperature": 0.5, "max_tokens": definition.MaxTokens})
+		traceID := logger.TraceIDFromCtx(ctx)
+		if traceID == "" {
+			traceID = fmt.Sprintf("%d-%d-%d", reportID, row.Chapter.ID, n)
+		}
+		attempt := &model.FullReportAttempt{ReportID: reportID, ChapterID: row.Chapter.ID, AttemptNo: uint16(n), RouteNo: route.Frozen.RouteNo, Provider: route.Frozen.ProviderCode, Model: route.Frozen.Model, Status: model.FullReportAttemptStatusRunning, ValidationStatus: model.FullReportValidationStatusPending, PromptHash: row.Chapter.PromptHash, TraceID: traceID, StartedAt: started, CreatedAt: started}
+		params, _ := json.Marshal(map[string]any{"temperature": route.Frozen.Temperature, "max_tokens": definition.MaxTokens, "timeout_seconds": route.Frozen.TimeoutSeconds, "route_attempt": routeAttempt, "max_route_attempts": route.Frozen.MaxAttempts})
 		attemptPayload := &model.FullReportAttemptPayload{RequestParameters: params, RequestPrompt: row.Payload.FinalPrompt, CreatedAt: started}
 		if err := e.reports.AppendAttempt(ctx, attempt, attemptPayload); err != nil {
 			return err
 		}
-		callCtx, cancel := context.WithTimeout(ctx, e.runtime.ChapterTimeout)
-		raw, callErr := e.provider.GenerateJSON(callCtx, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(0.5))
+		if routeAttempt > 1 {
+			logger.FromCtx(ctx).Warn("retrying full report model route", "report_id", reportID, "chapter_id", row.Chapter.ID, "route_no", route.Frozen.RouteNo, "provider", route.Frozen.ProviderCode, "model", route.Frozen.Model, "route_attempt", routeAttempt, "max_route_attempts", route.Frozen.MaxAttempts)
+		} else if route.Frozen.RouteNo > 1 {
+			logger.FromCtx(ctx).Warn("switching full report model route", "report_id", reportID, "chapter_id", row.Chapter.ID, "route_no", route.Frozen.RouteNo, "provider", route.Frozen.ProviderCode, "model", route.Frozen.Model)
+		}
+		callCtx, cancel := context.WithTimeout(ctx, time.Duration(route.Frozen.TimeoutSeconds)*time.Second)
+		raw, callErr := route.Provider.GenerateJSON(callCtx, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(float32(route.Frozen.Temperature)))
 		cancel()
 		finished := time.Now().UTC()
 		var outputSchema map[string]any
@@ -344,8 +359,10 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 		if validation.Passed {
 			return e.reports.FinishChapter(ctx, reportID, row.Chapter.ID, attempt.ID, raw, parsedRaw, validationRaw, outputHash, finished)
 		}
+		logger.FromCtx(ctx).Warn("full report model attempt rejected", "report_id", reportID, "chapter_id", row.Chapter.ID, "route_no", route.Frozen.RouteNo, "provider", route.Frozen.ProviderCode, "model", route.Frozen.Model, "route_attempt", routeAttempt, "max_route_attempts", route.Frozen.MaxAttempts, "validation_code", validation.Code)
+		consumed++
 	}
-	return fmt.Errorf("validation failed after %d attempts", e.runtime.MaxAttempts)
+	return fmt.Errorf("all frozen model routes exhausted after %d attempts", consumed)
 }
 
 func aggregateRetryRows(rows []repository.FullReportChapterWithPayload, affected []uint8, maxAttempts int) []repository.FullReportChapterWithPayload {

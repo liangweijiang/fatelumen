@@ -34,14 +34,22 @@ func PreflightFullReport(locale string, runtime FullReportRuntimeConfig, plans [
 	if runtime.ChapterConcurrency < 1 || runtime.ChapterConcurrency > 10 {
 		result.Errors = append(result.Errors, "chapter concurrency must be between 1 and 10")
 	}
-	if runtime.MaxAttempts < 1 {
-		result.Errors = append(result.Errors, "chapter max attempts must be positive")
-	}
 	if runtime.ChapterTimeout <= 0 {
 		result.Errors = append(result.Errors, "chapter timeout must be positive")
 	}
-	if strings.TrimSpace(runtime.Provider) == "" || strings.TrimSpace(runtime.Model) == "" {
-		result.Errors = append(result.Errors, "provider and model are required")
+	if len(runtime.Routes) == 0 {
+		result.Errors = append(result.Errors, "at least one enabled model route is required")
+	}
+	for i, route := range runtime.Routes {
+		if route.RouteNo != uint8(i+1) || route.ProviderConfigID == 0 || route.ModelConfigID == 0 || strings.TrimSpace(route.ProviderCode) == "" || strings.TrimSpace(route.BaseURL) == "" || strings.TrimSpace(route.Model) == "" {
+			result.Errors = append(result.Errors, fmt.Sprintf("model route %d is incomplete", i+1))
+		}
+		if route.MaxAttempts < 1 || route.MaxRetries < 0 || route.MaxAttempts != route.MaxRetries+1 {
+			result.Errors = append(result.Errors, fmt.Sprintf("model route %d retry policy is invalid", i+1))
+		}
+		if route.TimeoutSeconds < 1 {
+			result.Errors = append(result.Errors, fmt.Sprintf("model route %d timeout is invalid", i+1))
+		}
 	}
 	if len(plans) != 10 {
 		result.Errors = append(result.Errors, "report must contain exactly ten chapters")
