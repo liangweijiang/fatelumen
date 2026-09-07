@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,6 +24,41 @@ type routingTestProvider struct {
 	raw   string
 	err   error
 	usage llm.GenerationUsage
+}
+
+type trackingFailureProvider struct {
+	delay       time.Duration
+	active      int32
+	maxActive   int32
+	callCount   int32
+	respectDone bool
+}
+
+func (p *trackingFailureProvider) Name() string { return "tracking-failure" }
+func (p *trackingFailureProvider) GenerateJSON(ctx context.Context, system, user string, opts ...llm.Option) (string, error) {
+	result, err := p.GenerateJSONDetailed(ctx, system, user, opts...)
+	return result.Content, err
+}
+func (p *trackingFailureProvider) GenerateJSONDetailed(ctx context.Context, _ string, _ string, _ ...llm.Option) (llm.GenerationResult, error) {
+	atomic.AddInt32(&p.callCount, 1)
+	active := atomic.AddInt32(&p.active, 1)
+	defer atomic.AddInt32(&p.active, -1)
+	for {
+		maximum := atomic.LoadInt32(&p.maxActive)
+		if active <= maximum || atomic.CompareAndSwapInt32(&p.maxActive, maximum, active) {
+			break
+		}
+	}
+	if p.respectDone {
+		<-ctx.Done()
+		return llm.GenerationResult{}, ctx.Err()
+	}
+	select {
+	case <-time.After(p.delay):
+		return llm.GenerationResult{}, errors.New("simulated upstream failure")
+	case <-ctx.Done():
+		return llm.GenerationResult{}, ctx.Err()
+	}
 }
 
 func (p *routingTestProvider) GenerateJSONDetailed(context.Context, string, string, ...llm.Option) (llm.GenerationResult, error) {
@@ -98,4 +134,120 @@ func TestRunChapterExhaustsPrimaryThenUsesFrozenBackupRoute(t *testing.T) {
 
 func testUsage(prompt, completion, total int) llm.GenerationUsage {
 	return llm.GenerationUsage{PromptTokens: &prompt, CompletionTokens: &completion, TotalTokens: &total}
+}
+
+func TestRunChaptersHonorsFrozenConcurrency(t *testing.T) {
+	repo, db, report := setupRoutingExecutorStore(t)
+	definitions := prompts.ChapterDefinitions()[:6]
+	rows := make([]repository.FullReportChapterWithPayload, 0, len(definitions))
+	now := time.Now().UTC()
+	for _, definition := range definitions {
+		chapter := model.FullReportChapter{ReportID: report.ID, ChapterNo: uint8(definition.No), ChapterKey: definition.Key, Title: definition.Name, Status: model.FullReportChapterStatusPending, PromptHash: strings.Repeat("b", 64), ValidationStatus: model.FullReportValidationStatusPending, CreatedAt: now, UpdatedAt: now}
+		if err := db.Create(&chapter).Error; err != nil {
+			t.Fatal(err)
+		}
+		payload := model.FullReportChapterPayload{ChapterID: chapter.ID, SemanticDigest: "digest", LanguageInstruction: "zh", TerminologySnapshot: model.JSONRaw(`[]`), FinalPrompt: "frozen prompt", OutputSchema: model.JSONRaw(`{}`), CreatedAt: now}
+		if err := db.Create(&payload).Error; err != nil {
+			t.Fatal(err)
+		}
+		rows = append(rows, repository.FullReportChapterWithPayload{Chapter: chapter, Payload: payload})
+	}
+	provider := &trackingFailureProvider{delay: 80 * time.Millisecond}
+	routes := []ResolvedFullReportRoute{{Frozen: FullReportModelRoute{RouteNo: 1, ProviderCode: "failure", Model: "failure-v1", MaxAttempts: 1, TimeoutSeconds: 5}, Provider: provider}}
+	executor := &fullReportExecutor{reports: repo}
+	err := executor.runChapters(context.Background(), report.ID, "zh", model.InterpretationFacts{}, rows, FullReportRuntimeConfig{ChapterConcurrency: 2}, routes)
+	if err == nil {
+		t.Fatal("expected exhausted chapter errors")
+	}
+	if got := atomic.LoadInt32(&provider.callCount); got != int32(len(rows)) {
+		t.Fatalf("expected %d calls, got %d", len(rows), got)
+	}
+	if got := atomic.LoadInt32(&provider.maxActive); got != 2 {
+		t.Fatalf("expected frozen concurrency 2, got %d", got)
+	}
+}
+
+func TestRunChapterTimesOutAndPersistsFailure(t *testing.T) {
+	repo, db, report := setupRoutingExecutorStore(t)
+	row := createRoutingChapter(t, db, report.ID, prompts.ChapterDefinitions()[0])
+	provider := &trackingFailureProvider{respectDone: true}
+	routes := []ResolvedFullReportRoute{{Frozen: FullReportModelRoute{RouteNo: 1, ProviderCode: "slow", Model: "slow-v1", MaxAttempts: 1, TimeoutSeconds: 1}, Provider: provider}}
+	executor := &fullReportExecutor{reports: repo}
+	started := time.Now()
+	err := executor.runChapter(context.Background(), report.ID, "zh", model.InterpretationFacts{}, row, routes)
+	if err == nil || !strings.Contains(err.Error(), "all frozen model routes exhausted") {
+		t.Fatalf("expected route exhaustion after timeout, got %v", err)
+	}
+	if elapsed := time.Since(started); elapsed < 900*time.Millisecond || elapsed > 3*time.Second {
+		t.Fatalf("unexpected timeout duration: %v", elapsed)
+	}
+	var attempt model.FullReportAttempt
+	if err := db.First(&attempt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if attempt.Status != model.FullReportAttemptStatusFailed || attempt.ErrorCode != "LLM_TIMEOUT" || attempt.FinishedAt == nil {
+		t.Fatalf("timeout failure was not persisted correctly: %+v", attempt)
+	}
+}
+
+func TestRunChapterExhaustsEveryFrozenRoute(t *testing.T) {
+	repo, db, report := setupRoutingExecutorStore(t)
+	row := createRoutingChapter(t, db, report.ID, prompts.ChapterDefinitions()[0])
+	primary := &trackingFailureProvider{}
+	backup := &trackingFailureProvider{}
+	routes := []ResolvedFullReportRoute{
+		{Frozen: FullReportModelRoute{RouteNo: 1, ProviderCode: "primary", Model: "primary-v1", MaxAttempts: 2, TimeoutSeconds: 5}, Provider: primary},
+		{Frozen: FullReportModelRoute{RouteNo: 2, ProviderCode: "backup", Model: "backup-v1", MaxAttempts: 1, TimeoutSeconds: 5}, Provider: backup},
+	}
+	executor := &fullReportExecutor{reports: repo}
+	err := executor.runChapter(context.Background(), report.ID, "zh", model.InterpretationFacts{}, row, routes)
+	if err == nil || !strings.Contains(err.Error(), "after 3 attempts") {
+		t.Fatalf("expected three-attempt exhaustion, got %v", err)
+	}
+	if atomic.LoadInt32(&primary.callCount) != 2 || atomic.LoadInt32(&backup.callCount) != 1 {
+		t.Fatalf("unexpected route calls: primary=%d backup=%d", primary.callCount, backup.callCount)
+	}
+	var attempts []model.FullReportAttempt
+	if err := db.Order("attempt_no ASC").Find(&attempts).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(attempts) != 3 || attempts[0].RouteNo != 1 || attempts[1].RouteNo != 1 || attempts[2].RouteNo != 2 {
+		t.Fatalf("unexpected persisted attempt chain: %+v", attempts)
+	}
+}
+
+func setupRoutingExecutorStore(t *testing.T) (*repository.FullReportRepo, *gorm.DB, model.FullReport) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open("file:"+t.Name()+"?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&model.FullReport{}, &model.FullReportChapter{}, &model.FullReportChapterPayload{}, &model.FullReportAttempt{}, &model.FullReportAttemptPayload{}); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	report := model.FullReport{PublicID: "01JROUTETEST00000000000000", UserID: 1, Locale: "zh", PayMethod: "credits", Status: model.FullReportStatusGenerating, CurrentStage: model.FullReportStatusGenerating, ChapterTotal: 10, ProviderChainKey: "frozen", ChapterConcurrency: 2, FactsHash: strings.Repeat("a", 64), RetentionPolicy: "30d", ExpiresAt: now.Add(30 * 24 * time.Hour), CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&report).Error; err != nil {
+		t.Fatal(err)
+	}
+	return repository.NewFullReportRepo(db), db, report
+}
+
+func createRoutingChapter(t *testing.T, db *gorm.DB, reportID uint64, definition prompts.ChapterDefinition) repository.FullReportChapterWithPayload {
+	t.Helper()
+	now := time.Now().UTC()
+	chapter := model.FullReportChapter{ReportID: reportID, ChapterNo: uint8(definition.No), ChapterKey: definition.Key, Title: definition.Name, Status: model.FullReportChapterStatusPending, PromptHash: strings.Repeat("b", 64), ValidationStatus: model.FullReportValidationStatusPending, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&chapter).Error; err != nil {
+		t.Fatal(err)
+	}
+	payload := model.FullReportChapterPayload{ChapterID: chapter.ID, SemanticDigest: "digest", LanguageInstruction: "zh", TerminologySnapshot: model.JSONRaw(`[]`), FinalPrompt: "frozen prompt", OutputSchema: model.JSONRaw(`{}`), CreatedAt: now}
+	if err := db.Create(&payload).Error; err != nil {
+		t.Fatal(err)
+	}
+	return repository.FullReportChapterWithPayload{Chapter: chapter, Payload: payload}
 }
