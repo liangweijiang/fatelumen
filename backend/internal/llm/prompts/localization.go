@@ -46,7 +46,7 @@ func phraseCoverage(locale string) PhraseCoverage {
 
 func buildLanguageInstruction(locale LocaleSpec, chapterText string) (string, []displaydict.GlossaryEntry) {
 	if locale.Code == "zh" {
-		return "【语言要求】\n所有正文使用自然、准确的简体中文。命理专业名称使用系统提供的中文标准名称，JSON 字段和模块 key 保持程序约定。", nil
+		return "【语言要求】\n所有正文使用自然、准确的简体中文。命理专业名称使用系统提供的中文标准名称，JSON 字段和模块 key 保持程序约定。", []displaydict.GlossaryEntry{}
 	}
 	glossary := displaydict.GlossaryForText(chapterText, locale.Code)
 	var builder strings.Builder

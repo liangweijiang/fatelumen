@@ -32,7 +32,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.AdminUser{}); err != nil {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 	db.Create(&model.User{
@@ -51,6 +51,7 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		Role:      model.RoleUser,
 		Active:    true,
 	})
+	db.Create(&model.AdminUser{ID: 1, Username: "admin", PasswordHash: "not-used", Status: "active", CurrentTokenID: "admin-e2e-token"})
 	return db
 }
 
@@ -59,6 +60,15 @@ func makeToken(t *testing.T, userID uint64) string {
 	token, err := jwtpkg.Generate(testJWTSecret, 24, userID, "e2e-token-"+strconv.FormatUint(userID, 10))
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
+	}
+	return token
+}
+
+func makeAdminToken(t *testing.T) string {
+	t.Helper()
+	token, err := jwtpkg.GenerateAdmin(testJWTSecret, 24, 1, "admin", 1, "admin-e2e-token")
+	if err != nil {
+		t.Fatalf("failed to generate admin token: %v", err)
 	}
 	return token
 }
@@ -146,6 +156,7 @@ func createTestRouter(t *testing.T, db *gorm.DB, userReportID, userUserID uint64
 	app := &App{
 		DB:               db,
 		Auth:             authMW,
+		AdminAuth:        middleware.NewAdminAuthMiddleware(testJWTSecret, db),
 		AdminHandler:     adminH,
 		ReportHandler:    reportH,
 		RateLimitAuth:    rlNoop,
@@ -177,12 +188,6 @@ var adminRoutes = []adminRoute{
 	{method: "GET", path: "/api/v1/admin/stats"},
 	{method: "GET", path: "/api/v1/admin/users"},
 	{method: "GET", path: "/api/v1/admin/users/2"},
-	{method: "PATCH", path: "/api/v1/admin/users/2/active", body: `{"active": true}`},
-	{method: "GET", path: "/api/v1/admin/orders"},
-	{method: "GET", path: "/api/v1/admin/orders/1"},
-	{method: "GET", path: "/api/v1/admin/reports"},
-	{method: "GET", path: "/api/v1/admin/reports/1"},
-	{method: "POST", path: "/api/v1/admin/reports/1/unlock", body: `{"reason": "test"}`},
 }
 
 // ---------- E2E permission isolation: every admin route × 3 identities ----------
@@ -209,7 +214,7 @@ func TestE2E_AdminRoutes_NoToken_Returns401(t *testing.T) {
 	}
 }
 
-func TestE2E_AdminRoutes_UserToken_Returns403(t *testing.T) {
+func TestE2E_AdminRoutes_UserToken_Returns401(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
 	userToken := makeToken(t, 2) // normal user
@@ -225,8 +230,8 @@ func TestE2E_AdminRoutes_UserToken_Returns403(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			resp := mustParseResp(t, w)
-			if resp.Code != response.CodeForbidden {
-				t.Errorf("expected 403 for %s %s with user token, got code=%d msg=%s",
+			if resp.Code != response.CodeUnauthorized {
+				t.Errorf("expected 401 for %s %s with user token, got code=%d msg=%s",
 					r.method, r.path, resp.Code, resp.Msg)
 			}
 		})
@@ -236,7 +241,7 @@ func TestE2E_AdminRoutes_UserToken_Returns403(t *testing.T) {
 func TestE2E_AdminRoutes_AdminToken_Not401Not403(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
-	adminToken := makeToken(t, 1) // admin user
+	adminToken := makeAdminToken(t)
 
 	for _, r := range adminRoutes {
 		t.Run(r.method+"/"+strings.ReplaceAll(r.path, "/", "_")+"/admin", func(t *testing.T) {
@@ -294,29 +299,13 @@ func TestE2E_NormalUser_OthersReport_NotFound(t *testing.T) {
 	}
 }
 
-func TestE2E_Admin_AnyReport_OK(t *testing.T) {
-	db := setupTestDB(t)
-	router := createTestRouter(t, db, 1, 2) // report(id=1) is owned by user(id=2)
-	adminToken := makeToken(t, 1)
-
-	req := httptest.NewRequest("GET", "/api/v1/admin/reports/1", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	resp := mustParseResp(t, w)
-	if resp.Code != response.CodeOK {
-		t.Errorf("admin should get any report 200, got code=%d msg=%s", resp.Code, resp.Msg)
-	}
-}
-
 // ---------- Verify admin token is NOT leaked to user-side report route ----------
 
-func TestE2E_AdminToken_UserReportRoute_NotFound(t *testing.T) {
+func TestE2E_AdminToken_UserReportRoute_Unauthorized(t *testing.T) {
 	db := setupTestDB(t)
 	// user(id=2) owns report(id=1); admin(id=1) does not
 	router := createTestRouter(t, db, 1, 2)
-	adminToken := makeToken(t, 1)
+	adminToken := makeAdminToken(t)
 
 	req := httptest.NewRequest("GET", "/api/v1/reports/1", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)
@@ -324,31 +313,15 @@ func TestE2E_AdminToken_UserReportRoute_NotFound(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	resp := mustParseResp(t, w)
-	// User-side route uses GetByID(userID, reportID) which checks ownership.
-	// Admin(id=1) is not the owner → should get 404.
-	if resp.Code != response.CodeNotFound {
-		t.Errorf("admin on user report route: expected 404 (ownership check), got code=%d msg=%s",
+	// Administrator tokens use a separate claim shape and cannot authenticate on
+	// customer routes, regardless of the numeric administrator ID.
+	if resp.Code != response.CodeUnauthorized {
+		t.Errorf("admin on user report route: expected 401, got code=%d msg=%s",
 			resp.Code, resp.Msg)
 	}
 }
 
 // ---------- Verify report listing routes are distinct ----------
-
-func TestE2E_Admin_ListReportsRequiresAdmin(t *testing.T) {
-	db := setupTestDB(t)
-	router := createTestRouter(t, db, 1, 2)
-	userToken := makeToken(t, 2)
-
-	req := httptest.NewRequest("GET", "/api/v1/admin/reports", nil)
-	req.Header.Set("Authorization", "Bearer "+userToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	resp := mustParseResp(t, w)
-	if resp.Code != response.CodeForbidden {
-		t.Errorf("user on admin list reports: expected 403, got code=%d", resp.Code)
-	}
-}
 
 func TestE2E_NormalUser_OwnReportList_OK(t *testing.T) {
 	db := setupTestDB(t)
@@ -371,7 +344,7 @@ func TestE2E_NormalUser_OwnReportList_OK(t *testing.T) {
 func TestE2E_AdminPing_Returns200(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
-	adminToken := makeToken(t, 1)
+	adminToken := makeAdminToken(t)
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/ping", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)
@@ -388,31 +361,9 @@ func TestE2E_AdminPing_Returns200(t *testing.T) {
 	}
 }
 
-// ---------- Verify unlock protects against empty body ----------
-
-func TestE2E_AdminUnlockReport_EmptyBody(t *testing.T) {
-	db := setupTestDB(t)
-	router := createTestRouter(t, db, 1, 2)
-	adminToken := makeToken(t, 1)
-
-	req := httptest.NewRequest("POST", "/api/v1/admin/reports/1/unlock", strings.NewReader(`{}`))
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	req.Header.Set("Content-Type", "application/json")
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	resp := mustParseResp(t, w)
-	if resp.Code != response.CodeBadRequest {
-		t.Errorf("unlock empty body: expected 400, got code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Msg != "reason required" {
-		t.Errorf("expected 'reason required', got '%s'", resp.Msg)
-	}
-}
-
 // ---------- Verify that admin user cannot be used on normal user routes -------------
 
-func TestE2E_UserToken_AdminRoute_Forbidden_All(t *testing.T) {
+func TestE2E_UserToken_AdminRoute_Unauthorized_All(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
 	userToken := makeToken(t, 2)
@@ -425,10 +376,6 @@ func TestE2E_UserToken_AdminRoute_Forbidden_All(t *testing.T) {
 	}{
 		{"GET", "/api/v1/admin/stats", ""},
 		{"GET", "/api/v1/admin/users", ""},
-		{"PATCH", "/api/v1/admin/users/2/active", `{"active": true}`},
-		{"GET", "/api/v1/admin/orders", ""},
-		{"GET", "/api/v1/admin/reports", ""},
-		{"POST", "/api/v1/admin/reports/1/unlock", `{"reason": "test"}`},
 	}
 	for _, r := range routesToCheck {
 		t.Run(r.method+"/"+strings.ReplaceAll(r.path, "/", "_"), func(t *testing.T) {
@@ -441,8 +388,8 @@ func TestE2E_UserToken_AdminRoute_Forbidden_All(t *testing.T) {
 			router.ServeHTTP(w, req)
 
 			resp := mustParseResp(t, w)
-			if resp.Code != response.CodeForbidden {
-				t.Errorf("%s %s: expected 403, got %d", r.method, r.path, resp.Code)
+			if resp.Code != response.CodeUnauthorized {
+				t.Errorf("%s %s: expected 401, got %d", r.method, r.path, resp.Code)
 			}
 		})
 	}
@@ -487,8 +434,8 @@ func TestE2E_AdminRoute_InvalidToken_Returns401(t *testing.T) {
 func TestE2E_AdminRoute_UnknownUser_Returns401(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
-	// Token for userID=999 which doesn't exist in DB
-	token, _ := jwtpkg.Generate(testJWTSecret, 24, 999, "e2e-ghost")
+	// Token for adminID=999 which doesn't exist in DB.
+	token, _ := jwtpkg.GenerateAdmin(testJWTSecret, 24, 999, "ghost", 1, "e2e-ghost")
 
 	req := httptest.NewRequest("GET", "/api/v1/admin/ping", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -510,7 +457,7 @@ func TestE2E_AdminTokenExpiry(t *testing.T) {
 	router := createTestRouter(t, db, 1, 2)
 
 	// Generate a valid token (short-lived but still valid)
-	tok, err := jwtpkg.Generate(testJWTSecret, 1, 1, "e2e-time-test")
+	tok, err := jwtpkg.GenerateAdmin(testJWTSecret, 1, 1, "admin", 1, "admin-e2e-token")
 	if err != nil {
 		t.Fatalf("failed to generate token: %v", err)
 	}
@@ -525,12 +472,12 @@ func TestE2E_AdminTokenExpiry(t *testing.T) {
 		t.Error("freshly generated token should not be expired")
 	}
 	// Verify claims parse correctly
-	claims, err := jwtpkg.Parse(testJWTSecret, tok)
+	claims, err := jwtpkg.ParseAdmin(testJWTSecret, tok)
 	if err != nil {
 		t.Fatalf("failed to parse token: %v", err)
 	}
-	if claims.UserID != 1 {
-		t.Errorf("expected userID=1, got %d", claims.UserID)
+	if claims.AdminID != 1 {
+		t.Errorf("expected adminID=1, got %d", claims.AdminID)
 	}
 	// Token should expire in the future
 	if time.Until(claims.ExpiresAt.Time) < 0 {
@@ -543,7 +490,7 @@ func TestE2E_AdminTokenExpiry(t *testing.T) {
 func TestE2E_AllAdminRoutesRegistered(t *testing.T) {
 	db := setupTestDB(t)
 	router := createTestRouter(t, db, 1, 2)
-	adminToken := makeToken(t, 1)
+	adminToken := makeAdminToken(t)
 
 	for _, r := range adminRoutes {
 		t.Run("registered/"+r.method+strings.ReplaceAll(r.path, "/", "_"), func(t *testing.T) {
@@ -600,6 +547,7 @@ func createRateLimitedRouter(t *testing.T, db *gorm.DB) (*gin.Engine, *denyingLi
 	app := &App{
 		DB:               db,
 		Auth:             authMW,
+		AdminAuth:        middleware.NewAdminAuthMiddleware(testJWTSecret, db),
 		AdminHandler:     adminH,
 		ReportHandler:    reportH,
 		RateLimitAuth:    rl,

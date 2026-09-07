@@ -107,6 +107,9 @@ func (r *FullReportRepo) FreezeExecution(ctx context.Context, in FullReportFreez
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
 		}
+		if report.Status != model.FullReportStatusPreflighting {
+			return ErrFullReportImmutableWrite
+		}
 		var count int64
 		if err := tx.Model(&model.FullReportExecutionSnapshot{}).Where("report_id = ?", in.ReportID).Count(&count).Error; err != nil {
 			return err
@@ -132,15 +135,16 @@ func (r *FullReportRepo) FreezeExecution(ctx context.Context, in FullReportFreez
 				return err
 			}
 		}
-		return tx.Model(&model.FullReport{}).Where("id = ?", in.ReportID).Updates(map[string]any{
+		now := time.Now().UTC()
+		return tx.Model(&model.FullReport{}).Where("id = ? AND status = ?", in.ReportID, model.FullReportStatusPreflighting).Updates(map[string]any{
 			"status":              model.FullReportStatusGenerating,
 			"current_stage":       model.FullReportStatusGenerating,
 			"provider_chain_key":  in.ProviderChainKey,
 			"chapter_concurrency": in.ChapterConcurrency,
 			"facts_hash":          in.Snapshot.FactsHash,
 			"execution_hash":      in.Snapshot.ExecutionHash,
-			"started_at":          time.Now().UTC(),
-			"updated_at":          time.Now().UTC(),
+			"generating_at":       now,
+			"updated_at":          now,
 		}).Error
 	})
 }
@@ -288,6 +292,72 @@ func (r *FullReportRepo) AdminList(ctx context.Context, status string, paid *boo
 	return rows, total, err
 }
 
+type AdminFullReportListFilter struct {
+	Status      string
+	Locale      string
+	UserID      uint64
+	CreatedFrom *time.Time
+	CreatedTo   *time.Time
+	Cursor      *FullReportCursor
+}
+
+type AdminFullReportListItem struct {
+	ID               uint64     `json:"id"`
+	PublicID         string     `json:"public_id"`
+	UserID           uint64     `json:"user_id"`
+	ProfileID        *uint64    `json:"profile_id,omitempty"`
+	ProfileName      string     `json:"profile_name"`
+	Locale           string     `json:"locale"`
+	Status           string     `json:"status"`
+	CurrentStage     string     `json:"current_stage"`
+	ChapterTotal     uint8      `json:"chapter_total"`
+	ChapterSucceeded uint8      `json:"chapter_succeeded"`
+	ChapterFailed    uint8      `json:"chapter_failed"`
+	ErrorCode        string     `json:"error_code,omitempty"`
+	ErrorSummary     string     `json:"error_summary,omitempty"`
+	StartedAt        *time.Time `json:"started_at,omitempty"`
+	CompletedAt      *time.Time `json:"completed_at,omitempty"`
+	CreatedAt        time.Time  `json:"created_at"`
+}
+
+func (r *FullReportRepo) AdminListPage(ctx context.Context, filter AdminFullReportListFilter, limit int) ([]AdminFullReportListItem, bool, error) {
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+	q := r.db.WithContext(ctx).Table("full_reports AS r").
+		Select(`r.id, r.public_id, r.user_id, r.profile_id, COALESCE(p.display_name, '') AS profile_name,
+			r.locale, r.status, r.current_stage, r.chapter_total, r.chapter_succeeded, r.chapter_failed,
+			r.error_code, r.error_summary, r.started_at, r.completed_at, r.created_at`).
+		Joins("LEFT JOIN birth_profiles AS p ON p.id = r.profile_id")
+	if filter.Status != "" {
+		q = q.Where("r.status = ?", filter.Status)
+	}
+	if filter.Locale != "" {
+		q = q.Where("r.locale = ?", filter.Locale)
+	}
+	if filter.UserID != 0 {
+		q = q.Where("r.user_id = ?", filter.UserID)
+	}
+	if filter.CreatedFrom != nil {
+		q = q.Where("r.created_at >= ?", *filter.CreatedFrom)
+	}
+	if filter.CreatedTo != nil {
+		q = q.Where("r.created_at < ?", *filter.CreatedTo)
+	}
+	if filter.Cursor != nil {
+		q = q.Where("r.created_at < ? OR (r.created_at = ? AND r.id < ?)", filter.Cursor.CreatedAt, filter.Cursor.CreatedAt, filter.Cursor.ID)
+	}
+	var rows []AdminFullReportListItem
+	if err := q.Order("r.created_at DESC, r.id DESC").Limit(limit + 1).Scan(&rows).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	return rows, hasMore, nil
+}
+
 type FullReportCursor struct {
 	CreatedAt time.Time
 	ID        uint64
@@ -345,11 +415,33 @@ func (r *FullReportRepo) AdminGetExecutionTrace(ctx context.Context, reportID ui
 	if err := r.db.WithContext(ctx).Where("snapshot_id = ?", snapshot.ID).First(&payload).Error; err != nil {
 		return nil, err
 	}
-	stats, err := r.AdminAttemptStats(ctx, reportID)
-	if err != nil {
-		return nil, err
+	return &FullReportExecutionTrace{Snapshot: snapshot, Payload: payload}, nil
+}
+
+// AdminGetExecutionSection projects exactly one frozen JSON field so large
+// execution payloads are never loaded as a whole for section views.
+func (r *FullReportRepo) AdminGetExecutionSection(ctx context.Context, reportID uint64, column string) (model.JSONRaw, error) {
+	allowed := map[string]bool{
+		"input_snapshot": true, "time_calculation_snapshot": true,
+		"chart_snapshot": true, "facts_snapshot": true, "preflight_result": true,
 	}
-	return &FullReportExecutionTrace{Snapshot: snapshot, Payload: payload, ModelStats: stats}, nil
+	if !allowed[column] {
+		return nil, errors.New("unsupported execution payload section")
+	}
+	var projection struct {
+		Value model.JSONRaw `gorm:"column:value"`
+	}
+	result := r.db.WithContext(ctx).Table("full_report_execution_payloads AS p").
+		Select("p."+column+" AS value").
+		Joins("JOIN full_report_execution_snapshots AS s ON s.id = p.snapshot_id").
+		Where("s.report_id = ?", reportID).Scan(&projection)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return projection.Value, nil
 }
 
 func (r *FullReportRepo) AdminAttemptStats(ctx context.Context, reportID uint64) ([]FullReportModelStats, error) {
@@ -373,15 +465,35 @@ type FullReportAttemptTrace struct {
 	Chapter model.FullReportChapter        `json:"chapter"`
 }
 
-func (r *FullReportRepo) AdminListAttempts(ctx context.Context, reportID uint64, limit, offset int) ([]model.FullReportAttempt, int64, error) {
+func (r *FullReportRepo) AdminListAttempts(ctx context.Context, reportID, chapterID uint64, limit, offset int) ([]model.FullReportAttempt, int64, error) {
 	q := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).Where("report_id = ?", reportID)
+	if chapterID != 0 {
+		q = q.Where("chapter_id = ?", chapterID)
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []model.FullReportAttempt
-	err := q.Order("started_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	err := q.Order("attempt_no DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
+}
+
+func (r *FullReportRepo) AdminGetAttemptValidation(ctx context.Context, reportID, attemptID uint64) (model.JSONRaw, error) {
+	var projection struct {
+		Value model.JSONRaw `gorm:"column:value"`
+	}
+	result := r.db.WithContext(ctx).Table("full_report_attempt_payloads AS p").
+		Select("p.validation_result AS value").
+		Joins("JOIN full_report_attempts AS a ON a.id = p.attempt_id").
+		Where("a.id = ? AND a.report_id = ?", attemptID, reportID).Scan(&projection)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected != 1 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return projection.Value, nil
 }
 
 func (r *FullReportRepo) AdminGetAttemptTrace(ctx context.Context, reportID, attemptID uint64) (*FullReportAttemptTrace, error) {
@@ -390,7 +502,7 @@ func (r *FullReportRepo) AdminGetAttemptTrace(ctx context.Context, reportID, att
 		return nil, err
 	}
 	var payload model.FullReportAttemptPayload
-	if err := r.db.WithContext(ctx).Where("attempt_id = ?", attempt.ID).First(&payload).Error; err != nil {
+	if err := r.db.WithContext(ctx).Select("id", "attempt_id", "request_parameters", "request_prompt", "raw_output", "parsed_output", "schema_errors", "created_at").Where("attempt_id = ?", attempt.ID).First(&payload).Error; err != nil {
 		return nil, err
 	}
 	var chapter model.FullReportChapter
@@ -401,8 +513,8 @@ func (r *FullReportRepo) AdminGetAttemptTrace(ctx context.Context, reportID, att
 }
 
 type FullReportChapterWithPayload struct {
-	Chapter model.FullReportChapter
-	Payload model.FullReportChapterPayload
+	Chapter model.FullReportChapter        `json:"chapter"`
+	Payload model.FullReportChapterPayload `json:"payload"`
 }
 
 type FullReportValidationTrace struct {
@@ -458,6 +570,70 @@ func (r *FullReportRepo) AdminGetChapterTrace(ctx context.Context, reportID, cha
 	return &FullReportChapterWithPayload{Chapter: chapter, Payload: payload}, nil
 }
 
+type FullReportChapterArtifact struct {
+	Chapter model.FullReportChapter `json:"chapter"`
+	Type    string                  `json:"type"`
+	Value   any                     `json:"value"`
+}
+
+// AdminGetChapterArtifact selects one large field at a time. Generated
+// artifacts prefer the immutable selected attempt and fall back to legacy
+// chapter payload copies for historical reports.
+func (r *FullReportRepo) AdminGetChapterArtifact(ctx context.Context, reportID, chapterID uint64, artifact string) (*FullReportChapterArtifact, error) {
+	var chapter model.FullReportChapter
+	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
+		return nil, err
+	}
+	switch artifact {
+	case "content", "validation":
+		var projection struct {
+			Value model.JSONRaw `gorm:"column:value"`
+		}
+		attemptColumn := map[string]string{"content": "parsed_output", "raw_output": "raw_output", "validation": "validation_result"}[artifact]
+		if chapter.SelectedAttemptID != nil {
+			if err := r.db.WithContext(ctx).Table("full_report_attempt_payloads").Select(attemptColumn+" AS value").Where("attempt_id = ?", *chapter.SelectedAttemptID).Scan(&projection).Error; err != nil {
+				return nil, err
+			}
+		}
+		if len(projection.Value) == 0 || string(projection.Value) == "null" {
+			legacyColumn := map[string]string{"content": "final_parsed_output", "raw_output": "final_raw_output", "validation": "validation_result"}[artifact]
+			if err := r.db.WithContext(ctx).Table("full_report_chapter_payloads").Select(legacyColumn+" AS value").Where("chapter_id = ?", chapterID).Scan(&projection).Error; err != nil {
+				return nil, err
+			}
+		}
+		return &FullReportChapterArtifact{Chapter: chapter, Type: artifact, Value: projection.Value}, nil
+	case "raw_output":
+		var value string
+		if chapter.SelectedAttemptID != nil {
+			if err := r.db.WithContext(ctx).Table("full_report_attempt_payloads").Select("raw_output").Where("attempt_id = ?", *chapter.SelectedAttemptID).Scan(&value).Error; err != nil {
+				return nil, err
+			}
+		}
+		if value == "" {
+			if err := r.db.WithContext(ctx).Table("full_report_chapter_payloads").Select("final_raw_output").Where("chapter_id = ?", chapterID).Scan(&value).Error; err != nil {
+				return nil, err
+			}
+		}
+		return &FullReportChapterArtifact{Chapter: chapter, Type: artifact, Value: value}, nil
+	case "prompt":
+		var value string
+		if err := r.db.WithContext(ctx).Table("full_report_chapter_payloads").Select("final_prompt").Where("chapter_id = ?", chapterID).Scan(&value).Error; err != nil {
+			return nil, err
+		}
+		return &FullReportChapterArtifact{Chapter: chapter, Type: artifact, Value: value}, nil
+	case "terminology":
+		var projection struct {
+			Value model.JSONRaw `gorm:"column:value"`
+		}
+		if err := r.db.WithContext(ctx).Table("full_report_chapter_payloads").Select("terminology_snapshot AS value").Where("chapter_id = ?", chapterID).Scan(&projection).Error; err != nil {
+			return nil, err
+		}
+		return &FullReportChapterArtifact{Chapter: chapter, Type: artifact, Value: projection.Value}, nil
+	default:
+		return nil, errors.New("unsupported chapter artifact")
+	}
+}
+
 // ListChaptersWithPayload uses two bounded queries, not one query per chapter.
 func (r *FullReportRepo) ListChaptersWithPayload(ctx context.Context, reportID uint64) ([]FullReportChapterWithPayload, error) {
 	var chapters []model.FullReportChapter
@@ -491,7 +667,7 @@ func (r *FullReportRepo) ListChaptersWithPayload(ctx context.Context, reportID u
 func (r *FullReportRepo) BeginAssembling(ctx context.Context, reportID uint64, at time.Time) error {
 	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
 		Where("id = ? AND status = ?", reportID, model.FullReportStatusGenerating).
-		Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling, "updated_at": at})
+		Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling, "assembling_at": at, "updated_at": at})
 	if res.Error != nil {
 		return res.Error
 	}
@@ -514,6 +690,9 @@ func (r *FullReportRepo) SaveAggregateValidation(ctx context.Context, run *model
 		}
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
+		}
+		if report.Status != model.FullReportStatusAssembling {
+			return ErrFullReportImmutableWrite
 		}
 		if run.RoundNo == 0 {
 			var latest uint16
@@ -601,6 +780,9 @@ func (r *FullReportRepo) AppendAttempt(ctx context.Context, attempt *model.FullR
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
 		}
+		if report.Status != model.FullReportStatusGenerating {
+			return ErrFullReportImmutableWrite
+		}
 		var chapter model.FullReportChapter
 		if err := tx.Where("id = ? AND report_id = ?", attempt.ChapterID, attempt.ReportID).First(&chapter).Error; err != nil {
 			return err
@@ -645,6 +827,9 @@ func (r *FullReportRepo) FinishAttempt(ctx context.Context, reportID, attemptID 
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
 		}
+		if report.Status != model.FullReportStatusGenerating {
+			return ErrFullReportImmutableWrite
+		}
 		updates := map[string]any{
 			"status": outcome.Status, "schema_valid": outcome.SchemaValid, "validation_status": outcome.ValidationStatus,
 			"error_code": outcome.ErrorCode, "error_summary": outcome.ErrorSummary, "output_hash": outcome.OutputHash,
@@ -674,6 +859,9 @@ func (r *FullReportRepo) FinishChapter(ctx context.Context, reportID, chapterID,
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
 		}
+		if report.Status != model.FullReportStatusGenerating {
+			return ErrFullReportImmutableWrite
+		}
 		if err := tx.Model(&model.FullReportChapterPayload{}).Where("chapter_id = ?", chapterID).Updates(map[string]any{
 			"final_raw_output": raw, "final_parsed_output": parsed, "validation_result": validation,
 		}).Error; err != nil {
@@ -696,6 +884,21 @@ func (r *FullReportRepo) FinishChapter(ctx context.Context, reportID, chapterID,
 	})
 }
 
+// BeginRendering advances only a successfully assembled report. R1.7 attaches
+// the PDF renderer and storage work to this explicit stage.
+func (r *FullReportRepo) BeginRendering(ctx context.Context, reportID uint64, at time.Time) error {
+	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
+		Where("id = ? AND status = ?", reportID, model.FullReportStatusAssembling).
+		Updates(map[string]any{"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering, "rendering_at": at, "updated_at": at})
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected != 1 {
+		return ErrFullReportImmutableWrite
+	}
+	return nil
+}
+
 // Complete atomically stores the final result and freezes the report. All ten
 // chapters must already be successful and validated.
 func (r *FullReportRepo) Complete(ctx context.Context, reportID uint64, result *model.FullReportResult, completedAt time.Time) error {
@@ -709,6 +912,9 @@ func (r *FullReportRepo) Complete(ctx context.Context, reportID uint64, result *
 		}
 		if model.IsFullReportTerminalStatus(report.Status) {
 			return ErrFullReportTerminal
+		}
+		if report.Status != model.FullReportStatusRendering {
+			return ErrFullReportImmutableWrite
 		}
 		var passed int64
 		if err := tx.Model(&model.FullReportChapter{}).
@@ -743,7 +949,7 @@ func (r *FullReportRepo) Complete(ctx context.Context, reportID uint64, result *
 			"updated_at":        completedAt,
 		}
 		res := tx.Model(&model.FullReport{}).
-			Where("id = ? AND status NOT IN ?", reportID, []string{model.FullReportStatusCompleted, model.FullReportStatusFailed}).
+			Where("id = ? AND status = ?", reportID, model.FullReportStatusRendering).
 			Updates(updates)
 		if res.Error != nil {
 			return res.Error
@@ -763,6 +969,7 @@ func (r *FullReportRepo) Fail(ctx context.Context, reportID uint64, code, summar
 			"current_stage": model.FullReportStatusFailed,
 			"error_code":    code,
 			"error_summary": summary,
+			"failed_at":     failedAt,
 			"completed_at":  failedAt,
 			"updated_at":    failedAt,
 		})

@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"strconv"
+	"strings"
+	"time"
 
 	"fatelumen/backend/internal/llm/prompts"
 	"fatelumen/backend/internal/middleware"
@@ -25,35 +28,143 @@ func NewAdminReportTraceHandler(reports *repository.FullReportRepo, audit *repos
 	return &AdminReportTraceHandler{reports: reports, audit: audit}
 }
 
+func (h *AdminReportTraceHandler) List(c *gin.Context) {
+	pageSize := 20
+	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "20")); err == nil && v > 0 && v <= 100 {
+		pageSize = v
+	}
+	filter := repository.AdminFullReportListFilter{Status: strings.TrimSpace(c.Query("status")), Locale: strings.TrimSpace(c.Query("locale"))}
+	if raw := strings.TrimSpace(c.Query("user_id")); raw != "" {
+		userID, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || userID == 0 {
+			response.Fail(c, response.CodeBadRequest, "invalid user_id")
+			return
+		}
+		filter.UserID = userID
+	}
+	for raw, target := range map[string]**time.Time{"created_from": &filter.CreatedFrom, "created_to": &filter.CreatedTo} {
+		if value := strings.TrimSpace(c.Query(raw)); value != "" {
+			parsed, err := time.Parse(time.RFC3339, value)
+			if err != nil {
+				response.Fail(c, response.CodeBadRequest, "invalid "+raw)
+				return
+			}
+			*target = &parsed
+		}
+	}
+	if raw := strings.TrimSpace(c.Query("cursor")); raw != "" {
+		cursor, err := decodeReportCursor(raw)
+		if err != nil {
+			response.Fail(c, response.CodeBadRequest, "invalid cursor")
+			return
+		}
+		filter.Cursor = cursor
+	}
+	items, hasMore, err := h.reports.AdminListPage(c.Request.Context(), filter, pageSize)
+	if err != nil {
+		logger.FromCtx(c.Request.Context()).Error("admin list full reports failed", "err", err)
+		response.Error(c, "report list unavailable")
+		return
+	}
+	nextCursor := ""
+	if hasMore && len(items) > 0 {
+		last := items[len(items)-1]
+		nextCursor = encodeReportCursor(last.CreatedAt, last.ID)
+	}
+	response.OK(c, gin.H{"items": items, "page_size": pageSize, "has_more": hasMore, "next_cursor": nextCursor})
+}
+
+func (h *AdminReportTraceHandler) Overview(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	report, err := h.reports.AdminGetByID(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report overview unavailable", reportID)
+		return
+	}
+	stats, err := h.reports.AdminAttemptStats(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report call statistics unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_overview", reportID, "")
+	response.OK(c, gin.H{"report": report, "model_stats": stats})
+}
+
+func (h *AdminReportTraceHandler) Result(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	result, err := h.reports.GetResult(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report result unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_result", reportID, "")
+	response.OK(c, result)
+}
+
+func encodeReportCursor(createdAt time.Time, id uint64) string {
+	raw := createdAt.UTC().Format(time.RFC3339Nano) + "|" + strconv.FormatUint(id, 10)
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+func decodeReportCursor(raw string) (*repository.FullReportCursor, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Split(string(decoded), "|")
+	if len(parts) != 2 {
+		return nil, errors.New("invalid cursor")
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return nil, err
+	}
+	id, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil || id == 0 {
+		return nil, errors.New("invalid cursor id")
+	}
+	return &repository.FullReportCursor{CreatedAt: createdAt, ID: id}, nil
+}
+
 func (h *AdminReportTraceHandler) Facts(c *gin.Context) {
 	reportID, ok := reportTraceID(c, "id")
 	if !ok {
 		return
 	}
-	trace, err := h.reports.AdminGetExecutionTrace(c.Request.Context(), reportID)
+	section := strings.TrimSpace(c.Query("section"))
+	columns := map[string]string{"input": "input_snapshot", "time": "time_calculation_snapshot", "chart": "chart_snapshot", "interpretation": "facts_snapshot"}
+	column, exists := columns[section]
+	if !exists {
+		response.Fail(c, response.CodeBadRequest, "invalid facts section")
+		return
+	}
+	raw, err := h.reports.AdminGetExecutionSection(c.Request.Context(), reportID, column)
 	if err != nil {
 		h.readError(c, err, "report facts unavailable", reportID)
 		return
 	}
-	var input model.ReportInputSnapshot
-	var tc model.TimeCalculationSnapshot
-	var chart model.ChartSnapshot
-	var facts model.InterpretationFacts
-	if err := decodeExecutionTrace(trace, &input, &tc, &chart, &facts); err != nil {
-		logger.FromCtx(c.Request.Context()).Error("decode report fact snapshot failed", "err", err, "report_id", reportID)
-		response.Error(c, "report facts unavailable")
+	h.auditRead(c, "view_facts", reportID, "")
+	response.OK(c, gin.H{"report_id": reportID, "section": section, "value": raw})
+}
+
+func (h *AdminReportTraceHandler) Preflight(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
 		return
 	}
-	h.auditRead(c, "view_facts", reportID, "")
-	response.OK(c, gin.H{
-		"report_id":   reportID,
-		"model_stats": trace.ModelStats,
-		"snapshot": gin.H{
-			"metadata": trace.Snapshot, "input_snapshot": input, "time_calculation_snapshot": tc,
-			"chart_snapshot": chart, "facts": facts, "preflight_result": trace.Payload.PreflightResult,
-			"chapter_plan_snapshot": trace.Payload.ChapterPlanSnapshot, "runtime_config_snapshot": trace.Payload.RuntimeConfigSnapshot,
-		},
-	})
+	raw, err := h.reports.AdminGetExecutionSection(c.Request.Context(), reportID, "preflight_result")
+	if err != nil {
+		h.readError(c, err, "report preflight unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_preflight", reportID, "")
+	response.OK(c, gin.H{"report_id": reportID, "result": raw})
 }
 
 func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
@@ -68,18 +179,22 @@ func (h *AdminReportTraceHandler) LLMCalls(c *gin.Context) {
 	if v, err := strconv.Atoi(c.DefaultQuery("page_size", "20")); err == nil && v > 0 && v <= 100 {
 		size = v
 	}
-	rows, total, err := h.reports.AdminListAttempts(c.Request.Context(), reportID, size, (page-1)*size)
+	var chapterID uint64
+	if raw := strings.TrimSpace(c.Query("chapter_id")); raw != "" {
+		var err error
+		chapterID, err = strconv.ParseUint(raw, 10, 64)
+		if err != nil || chapterID == 0 {
+			response.Fail(c, response.CodeBadRequest, "invalid chapter_id")
+			return
+		}
+	}
+	rows, total, err := h.reports.AdminListAttempts(c.Request.Context(), reportID, chapterID, size, (page-1)*size)
 	if err != nil {
 		h.readError(c, err, "report call traces unavailable", reportID)
 		return
 	}
-	stats, err := h.reports.AdminAttemptStats(c.Request.Context(), reportID)
-	if err != nil {
-		h.readError(c, err, "report call statistics unavailable", reportID)
-		return
-	}
 	h.auditRead(c, "view_llm_calls", reportID, "")
-	response.OK(c, gin.H{"report_id": reportID, "items": rows, "model_stats": stats, "total": total, "page": page, "page_size": size})
+	response.OK(c, gin.H{"report_id": reportID, "items": rows, "total": total, "page": page, "page_size": size})
 }
 
 func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
@@ -98,6 +213,24 @@ func (h *AdminReportTraceHandler) LLMCall(c *gin.Context) {
 	}
 	h.auditRead(c, "view_llm_call", reportID, strconv.FormatUint(callID, 10))
 	response.OK(c, row)
+}
+
+func (h *AdminReportTraceHandler) LLMCallValidation(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	callID, ok := reportTraceID(c, "callId")
+	if !ok {
+		return
+	}
+	raw, err := h.reports.AdminGetAttemptValidation(c.Request.Context(), reportID, callID)
+	if err != nil {
+		h.readError(c, err, "report call validation unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_llm_call_validation", reportID, strconv.FormatUint(callID, 10))
+	response.OK(c, gin.H{"report_id": reportID, "call_id": callID, "validation_result": raw})
 }
 
 func (h *AdminReportTraceHandler) Validations(c *gin.Context) {
@@ -164,6 +297,29 @@ func (h *AdminReportTraceHandler) Chapter(c *gin.Context) {
 	response.OK(c, row)
 }
 
+func (h *AdminReportTraceHandler) ChapterArtifact(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	chapterID, ok := reportTraceID(c, "chapterId")
+	if !ok {
+		return
+	}
+	artifact := strings.TrimSpace(c.Query("type"))
+	if artifact != "content" && artifact != "prompt" && artifact != "terminology" && artifact != "raw_output" && artifact != "validation" {
+		response.Fail(c, response.CodeBadRequest, "invalid chapter artifact")
+		return
+	}
+	row, err := h.reports.AdminGetChapterArtifact(c.Request.Context(), reportID, chapterID, artifact)
+	if err != nil {
+		h.readError(c, err, "report chapter artifact unavailable", reportID)
+		return
+	}
+	h.auditRead(c, "view_report_chapter_artifact", reportID, strconv.FormatUint(chapterID, 10)+":"+artifact)
+	response.OK(c, row)
+}
+
 type promptPreviewRequest struct {
 	ChapterKey string `json:"chapter_key" binding:"required"`
 	Locale     string `json:"locale" binding:"required"`
@@ -181,16 +337,13 @@ func (h *AdminReportTraceHandler) PromptPreview(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "chapter_key and locale are required")
 		return
 	}
-	trace, err := h.reports.AdminGetExecutionTrace(c.Request.Context(), reportID)
+	raw, err := h.reports.AdminGetExecutionSection(c.Request.Context(), reportID, "facts_snapshot")
 	if err != nil {
 		h.readError(c, err, "report facts unavailable", reportID)
 		return
 	}
-	var input model.ReportInputSnapshot
-	var tc model.TimeCalculationSnapshot
-	var chart model.ChartSnapshot
 	var facts model.InterpretationFacts
-	if err := decodeExecutionTrace(trace, &input, &tc, &chart, &facts); err != nil {
+	if err := json.Unmarshal(raw, &facts); err != nil {
 		logger.FromCtx(c.Request.Context()).Error("decode prompt preview facts failed", "err", err, "report_id", reportID)
 		response.Error(c, "prompt preview unavailable")
 		return
@@ -216,18 +369,6 @@ func reportTraceID(c *gin.Context, name string) (uint64, bool) {
 		return 0, false
 	}
 	return id, true
-}
-
-func decodeExecutionTrace(trace *repository.FullReportExecutionTrace, input *model.ReportInputSnapshot, tc *model.TimeCalculationSnapshot, chart *model.ChartSnapshot, facts *model.InterpretationFacts) error {
-	for _, item := range []struct {
-		raw model.JSONRaw
-		dst any
-	}{{trace.Payload.InputSnapshot, input}, {trace.Payload.TimeCalculationSnapshot, tc}, {trace.Payload.ChartSnapshot, chart}, {trace.Payload.FactsSnapshot, facts}} {
-		if err := json.Unmarshal(item.raw, item.dst); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (h *AdminReportTraceHandler) readError(c *gin.Context, err error, message string, reportID uint64) {

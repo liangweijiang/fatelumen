@@ -185,7 +185,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("REPORT_UNLOCK_CREDITS", 30)
 	viper.SetDefault("REPORT_CHAPTER_CONCURRENCY", 3)
 	viper.SetDefault("REPORT_CHAPTER_MAX_ATTEMPTS", 2)
-	viper.SetDefault("REPORT_CHAPTER_TIMEOUT_SECONDS", 60)
+	viper.SetDefault("REPORT_CHAPTER_TIMEOUT_SECONDS", 180)
 	viper.SetDefault("REPORT_RETENTION_DAYS", 30)
 	viper.SetDefault("MOCK_WEBHOOK_SECRET", "dev-mock-secret")
 	viper.SetDefault("RATELIMIT_ENABLED", true)

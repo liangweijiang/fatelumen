@@ -38,6 +38,14 @@ func TestPreflightFullReportPassesCompleteTenChapterPlan(t *testing.T) {
 	if !result.Passed || len(result.Errors) != 0 || len(result.Chapters) != 10 {
 		t.Fatalf("unexpected preflight result: %+v", result)
 	}
+	if result.ValidatorVersion != "preflight-v2" || len(result.Groups) != 6 {
+		t.Fatalf("preflight rule groups were not frozen: %+v", result)
+	}
+	for _, group := range result.Groups {
+		if !group.Passed || group.Code == "" || group.Logic == "" {
+			t.Fatalf("unexpected preflight group: %+v", group)
+		}
+	}
 }
 
 func TestPreflightFullReportBlocksMissingRequiredFactAndRuntime(t *testing.T) {
@@ -46,6 +54,9 @@ func TestPreflightFullReportBlocksMissingRequiredFactAndRuntime(t *testing.T) {
 	result := PreflightFullReport("zh", FullReportRuntimeConfig{}, plans)
 	if result.Passed || len(result.Errors) < 2 || result.Chapters[0].Passed {
 		t.Fatalf("preflight should be blocked: %+v", result)
+	}
+	if result.Groups[1].Passed || result.Groups[2].Passed || result.Groups[5].Passed {
+		t.Fatalf("failed preflight groups were not classified: %+v", result.Groups)
 	}
 }
 

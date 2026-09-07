@@ -594,15 +594,23 @@ CREATE TABLE geo_cities (
 **响应（统一信封）：** `{"order_id":99,"provider":"stripe","action":"redirect","checkout_url":"https://checkout.stripe.com/..."}`
 > `action` 取值：`redirect`(跳转托管页,Stripe/Paddle)或 `client_confirm`(返回 `client_token`,前端 SDK 内确认,如 PayPal)。前端按 `action` 分支处理,无需关心具体渠道。
 
-### 5.7 管理端报告追溯接口（B0契约，后续实现）
+### 5.7 管理端报告追溯接口
 
 | 方法 | 路径 | 说明 | 鉴权 |
 |---|---|---|---|
-| GET | `/api/v1/admin/reports/:id/facts` | 查看报告原始输入、时间换算、命盘及事实包快照 | Admin |
-| GET | `/api/v1/admin/reports/:id/llm-calls` | 分页查看该报告全部LLM批次与重试 | Admin |
-| GET | `/api/v1/admin/reports/:id/llm-calls/:callId` | 查看单次Prompt、输入、输出和Schema校验 | Admin |
+| GET | `/api/v1/admin/reports/:id/overview` | 查看报告轻量总览、阶段时间及十章进度 | Admin |
+| GET | `/api/v1/admin/reports/:id/facts?section=input\|time\|chart\|interpretation` | 按区块查看冻结输入、时间换算、命盘或确定性事实；每次只投影一个大字段 | Admin |
+| GET | `/api/v1/admin/reports/:id/execution/preflight` | 查看冻结的调用前预检结果 | Admin |
+| GET | `/api/v1/admin/reports/:id/chapters` | 查看十章轻量状态、顺序、尝试数及最终采用attempt | Admin |
+| GET | `/api/v1/admin/reports/:id/chapters/:chapterId/artifact?type=content\|prompt\|terminology\|raw_output\|validation` | 按类型读取单章正文或冻结大字段；历史报告允许从旧章节payload兼容读取 | Admin |
+| GET | `/api/v1/admin/reports/:id/llm-calls?chapter_id=&page=&page_size=` | 按章节分页查看实际调用和重试元数据，不读取调用大字段 | Admin |
+| GET | `/api/v1/admin/reports/:id/llm-calls/:callId` | 按需查看单次请求参数、Prompt、原始输出及解析输出 | Admin |
+| GET | `/api/v1/admin/reports/:id/llm-calls/:callId/validation` | 独立查看该次调用后的校验摘要及逐条规则 | Admin |
+| GET | `/api/v1/admin/reports/:id/validations` | 查看报告汇总校验轮次 | Admin |
+| GET | `/api/v1/admin/reports/:id/validations/:validationId` | 查看汇总校验规则详情 | Admin |
+| GET | `/api/v1/admin/reports/:id/result` | 查看最终冻结报告及内容哈希 | Admin |
 
-完整契约、隐私边界与持久化草案见 `docs/深度解读基础数据与追溯规范.md`。C端Token必须被拒绝；接口不得返回API Key、认证头、邮箱、电话或支付凭证。
+追溯接口必须以 `report_id` 限定资源归属，轻量列表不得联查Prompt、模型原始输出、冻结事实或正文大字段；大字段按区块、章节和用途独立读取。展示用JSON的中文标签、分组、折叠与格式化可由前端完成，但通过/拒绝、重试、最终采用attempt、哈希和冻结链归属只能由后端判定。完整契约、隐私边界与持久化草案见 `docs/深度解读基础数据与追溯规范.md`。C端Token必须被拒绝；接口不得返回API Key、认证头、邮箱、电话或支付凭证。
 
 ### 5.8 业务错误码表
 

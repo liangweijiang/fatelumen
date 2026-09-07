@@ -57,7 +57,7 @@ func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.
 		runtime.ChapterConcurrency = 3
 	}
 	if runtime.ChapterTimeout <= 0 {
-		runtime.ChapterTimeout = 60 * time.Second
+		runtime.ChapterTimeout = 180 * time.Second
 	}
 	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime}
 }
@@ -69,10 +69,15 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 		return "", fmt.Errorf("parse full report payload: %w", err)
 	}
 	defer func() {
+		if recovered := recover(); recovered != nil {
+			logger.FromCtx(ctx).Error("full report worker panic recovered", "report_id", payload.ReportID, "panic_type", fmt.Sprintf("%T", recovered))
+			err = fmt.Errorf("full report worker panic")
+		}
 		if err == nil {
 			return
 		}
-		if failErr := e.reports.Fail(ctx, payload.ReportID, "generation_failed", truncateError(err), time.Now().UTC()); failErr != nil && !errors.Is(failErr, repository.ErrFullReportTerminal) {
+		failureCtx := context.WithoutCancel(ctx)
+		if failErr := e.reports.Fail(failureCtx, payload.ReportID, "generation_failed", truncateError(err), time.Now().UTC()); failErr != nil && !errors.Is(failErr, repository.ErrFullReportTerminal) {
 			logger.FromCtx(ctx).Error("freeze failed full report failed", "err", failErr, "report_id", payload.ReportID)
 		}
 	}()
@@ -202,6 +207,9 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	contentHash, err := hashutil.CanonicalJSONSHA256(content)
 	if err != nil {
 		return "", err
+	}
+	if err := e.reports.BeginRendering(ctx, payload.ReportID, time.Now().UTC()); err != nil {
+		return "", fmt.Errorf("begin report rendering: %w", err)
 	}
 	completedAt := time.Now().UTC()
 	if err := e.reports.Complete(ctx, payload.ReportID, &model.FullReportResult{Locale: payload.Locale, Content: content, ContentHash: contentHash, RenderVersion: "full-report-html-v1", CreatedAt: completedAt}, completedAt); err != nil {

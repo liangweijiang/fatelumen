@@ -272,14 +272,20 @@ func Setup(app *App) *gin.Engine {
 			}
 			if app.AdminReportTraceHandler != nil {
 				admin.GET("/prompt-registry", app.AdminReportTraceHandler.PromptRegistry)
+				admin.GET("/reports", app.AdminReportTraceHandler.List)
+				admin.GET("/reports/:id", app.AdminReportTraceHandler.Overview)
+				admin.GET("/reports/:id/result", app.AdminReportTraceHandler.Result)
 				admin.GET("/reports/:id/facts", app.AdminReportTraceHandler.Facts)
+				admin.GET("/reports/:id/execution/preflight", app.AdminReportTraceHandler.Preflight)
 				admin.POST("/reports/:id/prompt-preview", app.AdminReportTraceHandler.PromptPreview)
 				admin.GET("/reports/:id/llm-calls", app.AdminReportTraceHandler.LLMCalls)
 				admin.GET("/reports/:id/llm-calls/:callId", app.AdminReportTraceHandler.LLMCall)
+				admin.GET("/reports/:id/llm-calls/:callId/validation", app.AdminReportTraceHandler.LLMCallValidation)
 				admin.GET("/reports/:id/validations", app.AdminReportTraceHandler.Validations)
 				admin.GET("/reports/:id/validations/:validationId", app.AdminReportTraceHandler.Validation)
 				admin.GET("/reports/:id/chapters", app.AdminReportTraceHandler.Chapters)
 				admin.GET("/reports/:id/chapters/:chapterId", app.AdminReportTraceHandler.Chapter)
+				admin.GET("/reports/:id/chapters/:chapterId/artifact", app.AdminReportTraceHandler.ChapterArtifact)
 			}
 			if app.AdminCalculationHandler != nil {
 				admin.GET("/calculation-archives", app.AdminCalculationHandler.List)

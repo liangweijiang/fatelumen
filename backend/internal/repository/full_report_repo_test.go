@@ -20,6 +20,7 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		t.Fatal(err)
 	}
 	if err := db.AutoMigrate(
+		&model.BirthProfile{},
 		&model.FullReport{},
 		&model.FullReportExecutionSnapshot{},
 		&model.FullReportExecutionPayload{},
@@ -34,6 +35,114 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		t.Fatal(err)
 	}
 	return NewFullReportRepo(db), db
+}
+
+func TestAdminListPageFiltersAndUsesStableCursor(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	base := time.Date(2026, time.September, 7, 5, 0, 0, 0, time.UTC)
+	profile := model.BirthProfile{UserID: 7, DisplayName: "测试档案"}
+	if err := db.Create(&profile).Error; err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ {
+		report := model.FullReport{
+			PublicID: fmt.Sprintf("01J000000000000000000000%02d", i), UserID: 7, ProfileID: &profile.ID,
+			Locale: "zh", Status: model.FullReportStatusCompleted, CurrentStage: model.FullReportStatusCompleted,
+			ChapterTotal: 10, ChapterSucceeded: 10, FactsHash: fmt.Sprintf("%064d", i+1),
+			RetentionPolicy: "30d", ExpiresAt: base.Add(30 * 24 * time.Hour), CreatedAt: base.Add(time.Duration(i) * time.Minute), UpdatedAt: base,
+		}
+		if err := db.Create(&report).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	first, hasMore, err := repo.AdminListPage(context.Background(), AdminFullReportListFilter{UserID: 7, Locale: "zh", Status: model.FullReportStatusCompleted}, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 2 || !hasMore || first[0].CreatedAt.Before(first[1].CreatedAt) || first[0].ProfileName != profile.DisplayName {
+		t.Fatalf("unexpected first page: rows=%+v has_more=%v", first, hasMore)
+	}
+	second, hasMore, err := repo.AdminListPage(context.Background(), AdminFullReportListFilter{
+		UserID: 7, Locale: "zh", Status: model.FullReportStatusCompleted,
+		Cursor: &FullReportCursor{CreatedAt: first[1].CreatedAt, ID: first[1].ID},
+	}, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second) != 1 || hasMore || second[0].ID == first[0].ID || second[0].ID == first[1].ID {
+		t.Fatalf("unexpected second page: rows=%+v has_more=%v", second, hasMore)
+	}
+}
+
+func TestAdminListAttemptsFiltersWithinSelectedChapter(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	for index, chapter := range graph.Chapters[:2] {
+		for attemptNo := 1; attemptNo <= index+1; attemptNo++ {
+			attempt := model.FullReportAttempt{
+				ReportID: graph.Report.ID, ChapterID: chapter.ID, AttemptNo: uint16(attemptNo), RouteNo: 1,
+				Provider: "mock", Model: "mock-v1", Status: model.FullReportAttemptStatusSucceeded,
+				ValidationStatus: model.FullReportValidationStatusPassed, PromptHash: fmt.Sprintf("%064d", attemptNo),
+				TraceID: fmt.Sprintf("trace-%d-%d", index, attemptNo), StartedAt: now.Add(time.Duration(attemptNo) * time.Second), CreatedAt: now,
+			}
+			if err := db.Create(&attempt).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	rows, total, err := repo.AdminListAttempts(context.Background(), graph.Report.ID, graph.Chapters[1].ID, 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 2 || len(rows) != 1 || rows[0].ChapterID != graph.Chapters[1].ID {
+		t.Fatalf("unexpected chapter attempts: total=%d rows=%+v", total, rows)
+	}
+}
+
+func TestAdminTraceProjectsExecutionSectionAndSelectedAttemptArtifacts(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	graph.ExecutionPayload.InputSnapshot = model.JSONRaw(`{"name":"input-only"}`)
+	graph.ChapterPayloads[0].FinalParsedOutput = model.JSONRaw(`{"legacy":true}`)
+	graph.ChapterPayloads[0].ValidationResult = model.JSONRaw(`{"summary":"legacy"}`)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := repo.AdminGetExecutionSection(context.Background(), graph.Report.ID, "input_snapshot")
+	if err != nil || string(raw) != `{"name":"input-only"}` {
+		t.Fatalf("unexpected projected section: %s err=%v", raw, err)
+	}
+	if _, err := repo.AdminGetExecutionSection(context.Background(), graph.Report.ID, "unknown"); err == nil {
+		t.Fatal("unsupported execution section should fail")
+	}
+	attempt := model.FullReportAttempt{ReportID: graph.Report.ID, ChapterID: graph.Chapters[0].ID, AttemptNo: 1, RouteNo: 1, Provider: "mock", Model: "mock-v1", Status: model.FullReportAttemptStatusSucceeded, SchemaValid: true, ValidationStatus: model.FullReportValidationStatusPassed, PromptHash: graph.Chapters[0].PromptHash, TraceID: "trace-artifact", StartedAt: now, CreatedAt: now}
+	if err := db.Create(&attempt).Error; err != nil {
+		t.Fatal(err)
+	}
+	payload := model.FullReportAttemptPayload{AttemptID: attempt.ID, RequestParameters: model.JSONRaw(`{}`), RequestPrompt: "prompt", RawOutput: `{"raw":true}`, ParsedOutput: model.JSONRaw(`{"selected":true}`), ValidationResult: model.JSONRaw(`{"passed":true,"rules":[]}`), CreatedAt: now}
+	if err := db.Create(&payload).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("id = ?", graph.Chapters[0].ID).Update("selected_attempt_id", attempt.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	artifact, err := repo.AdminGetChapterArtifact(context.Background(), graph.Report.ID, graph.Chapters[0].ID, "content")
+	if err != nil || string(artifact.Value.(model.JSONRaw)) != `{"selected":true}` {
+		t.Fatalf("selected attempt content not preferred: %+v err=%v", artifact, err)
+	}
+	validation, err := repo.AdminGetAttemptValidation(context.Background(), graph.Report.ID, attempt.ID)
+	if err != nil || string(validation) != `{"passed":true,"rules":[]}` {
+		t.Fatalf("unexpected attempt validation: %s err=%v", validation, err)
+	}
+	if _, err := repo.AdminGetAttemptValidation(context.Background(), graph.Report.ID+1, attempt.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("cross-report attempt should be hidden, got %v", err)
+	}
 }
 
 func fullReportGraph(now time.Time) FullReportCreateGraph {
@@ -119,6 +228,49 @@ func TestFullReportBeginPreflightClaimsExactlyOnce(t *testing.T) {
 	}
 }
 
+func TestFullReportStageTransitionsRecordTimesAndRejectSkipping(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	report := fullReportGraph(now).Report
+	report.Status = model.FullReportStatusGenerating
+	report.CurrentStage = model.FullReportStatusGenerating
+	report.GeneratingAt = &now
+	if err := repo.Create(context.Background(), report); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.BeginRendering(context.Background(), report.ID, now.Add(time.Second)); !errors.Is(err, ErrFullReportImmutableWrite) {
+		t.Fatalf("skipped rendering transition err = %v", err)
+	}
+	assemblingAt := now.Add(2 * time.Second)
+	if err := repo.BeginAssembling(context.Background(), report.ID, assemblingAt); err != nil {
+		t.Fatal(err)
+	}
+	renderingAt := now.Add(3 * time.Second)
+	if err := repo.BeginRendering(context.Background(), report.ID, renderingAt); err != nil {
+		t.Fatal(err)
+	}
+	var stored model.FullReport
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportStatusRendering || stored.AssemblingAt == nil || stored.RenderingAt == nil || !stored.AssemblingAt.Equal(assemblingAt) || !stored.RenderingAt.Equal(renderingAt) {
+		t.Fatalf("unexpected stage metadata: %+v", stored)
+	}
+	failedAt := now.Add(4 * time.Second)
+	if err := repo.Fail(context.Background(), report.ID, "render_failed", "failed", failedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportStatusFailed || stored.FailedAt == nil || !stored.FailedAt.Equal(failedAt) {
+		t.Fatalf("failed stage metadata missing: %+v", stored)
+	}
+	if err := repo.BeginAssembling(context.Background(), report.ID, failedAt.Add(time.Second)); !errors.Is(err, ErrFullReportImmutableWrite) {
+		t.Fatalf("terminal transition err = %v", err)
+	}
+}
+
 func TestFullReportCreateGraphRequiresTenChapters(t *testing.T) {
 	repo, _ := setupFullReportRepo(t)
 	graph := fullReportGraph(time.Now().UTC())
@@ -134,6 +286,9 @@ func TestFullReportTerminalBlocksAttempts(t *testing.T) {
 	now := time.Now().UTC()
 	graph := fullReportGraph(now)
 	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating}).Error; err != nil {
 		t.Fatal(err)
 	}
 	chapterID := graph.Chapters[0].ID
@@ -179,6 +334,9 @@ func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 		Locale: "zh", Content: model.ReportContent{Locale: "zh"}, ContentHash: fmt.Sprintf("%064d", 200),
 		RenderVersion: "render-v1", CreatedAt: now,
 	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering}).Error; err != nil {
+		t.Fatal(err)
+	}
 	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportNotReady) {
 		t.Fatalf("err = %v, want not ready", err)
 	}
@@ -187,16 +345,22 @@ func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling}).Error; err != nil {
+		t.Fatal(err)
+	}
 	finished := now.Add(time.Second)
 	run := &model.FullReportValidationRun{ReportID: graph.Report.ID, ValidatorVersion: "report-validator-v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
 	if err := repo.SaveAggregateValidation(context.Background(), run, &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.BeginRendering(context.Background(), graph.Report.ID, finished); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportTerminal) {
-		t.Fatalf("second completion err = %v, want terminal", err)
+		t.Fatalf("second completion err = %v, want terminal error", err)
 	}
 }
 
@@ -212,10 +376,16 @@ func TestFullReportCompleteRequiresPassedAggregateValidation(t *testing.T) {
 	}).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling}).Error; err != nil {
+		t.Fatal(err)
+	}
 	finished := now.Add(time.Second)
 	run := &model.FullReportValidationRun{ReportID: graph.Report.ID, ValidatorVersion: "report-validator-v1", Status: model.FullReportValidationStatusFailed, Retryable: true, AffectedChapters: 1, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
 	payload := &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":false,"affected_chapters":[4]}`), CreatedAt: now}
 	if err := repo.SaveAggregateValidation(context.Background(), run, payload); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.BeginRendering(context.Background(), graph.Report.ID, finished); err != nil {
 		t.Fatal(err)
 	}
 	result := &model.FullReportResult{Locale: "zh", Content: model.ReportContent{Locale: "zh"}, ContentHash: fmt.Sprintf("%064d", 200), RenderVersion: "render-v1", CreatedAt: now}
@@ -280,6 +450,9 @@ func TestAdminValidationAndChapterTraceAreReportScoped(t *testing.T) {
 	now := time.Now().UTC()
 	graph := fullReportGraph(now)
 	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusAssembling, "current_stage": model.FullReportStatusAssembling}).Error; err != nil {
 		t.Fatal(err)
 	}
 	finished := now.Add(time.Second)

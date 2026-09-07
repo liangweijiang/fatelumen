@@ -41,7 +41,7 @@ type FullReport struct {
 	ChartID            *uint64    `gorm:"index" json:"chart_id,omitempty"`
 	OrderID            *uint64    `gorm:"index" json:"order_id,omitempty"`
 	SourceReportID     *uint64    `gorm:"index" json:"source_report_id,omitempty"`
-	Locale             string     `gorm:"type:varchar(8);not null" json:"locale"`
+	Locale             string     `gorm:"type:varchar(8);not null;index:idx_full_reports_locale_created,priority:1" json:"locale"`
 	PayMethod          string     `gorm:"type:varchar(16);not null" json:"pay_method"`
 	Paid               bool       `gorm:"not null;default:false;index" json:"paid"`
 	Status             string     `gorm:"type:varchar(24);not null;index:idx_full_reports_status_created,priority:1" json:"status"`
@@ -58,9 +58,13 @@ type FullReport struct {
 	ErrorSummary       string     `gorm:"type:varchar(512)" json:"error_summary,omitempty"`
 	RetentionPolicy    string     `gorm:"type:varchar(32);not null" json:"retention_policy"`
 	StartedAt          *time.Time `json:"started_at,omitempty"`
+	GeneratingAt       *time.Time `json:"generating_at,omitempty"`
+	AssemblingAt       *time.Time `json:"assembling_at,omitempty"`
+	RenderingAt        *time.Time `json:"rendering_at,omitempty"`
+	FailedAt           *time.Time `json:"failed_at,omitempty"`
 	CompletedAt        *time.Time `json:"completed_at,omitempty"`
-	ExpiresAt          time.Time  `gorm:"not null;index:idx_full_reports_expiry,priority:1" json:"expires_at"`
-	CreatedAt          time.Time  `gorm:"not null;index:idx_full_reports_user_created,priority:2;index:idx_full_reports_status_created,priority:2;index:idx_full_reports_facts_created,priority:2" json:"created_at"`
+	ExpiresAt          time.Time  `gorm:"not null;index:idx_full_reports_expiry,priority:1;index:idx_full_reports_expiry_status,priority:1" json:"expires_at"`
+	CreatedAt          time.Time  `gorm:"not null;index:idx_full_reports_created;index:idx_full_reports_user_created,priority:2;index:idx_full_reports_status_created,priority:2;index:idx_full_reports_facts_created,priority:2;index:idx_full_reports_locale_created,priority:2" json:"created_at"`
 	UpdatedAt          time.Time  `gorm:"not null" json:"updated_at"`
 }
 

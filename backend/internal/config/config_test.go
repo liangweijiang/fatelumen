@@ -35,6 +35,7 @@ func TestValidate_AllKeysPresent(t *testing.T) {
 		DBPassword:      "pass",
 		DBName:          "db",
 		JWTSecret:       "jwt",
+		AdminJWTSecret:  "admin-jwt",
 		DeepSeekAPIKey:  "sk-key",
 		PaymentProviders: nil, // no payment → Stripe keys not required
 	}

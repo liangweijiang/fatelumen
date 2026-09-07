@@ -1,0 +1,57 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { X } from "lucide-react";
+import { AdminFullReportOverview, fetchReportPreflight, fetchReportValidation, fetchReportValidations, ReportPreflightResult } from "@/lib/admin-api";
+
+const labels: Record<string, string> = { pending: "待处理", preflighting: "预检中", generating: "生成中", assembling: "组装中", rendering: "整理结果", completed: "已完成", failed: "失败" };
+const time = (value?: string) => value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "—";
+
+function Field({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
+  return <div className="border-b py-3" style={{ borderColor: "var(--line-soft)" }}><dt className="text-xs" style={{ color: "var(--ink-faint)" }}>{label}</dt><dd className={`mt-1 break-all text-sm ${mono ? "font-mono text-xs" : ""}`}>{value === undefined || value === null || value === "" ? "—" : String(value)}</dd></div>;
+}
+
+const legacyPreflightGroups = [
+  ["目标语言配置", "目标语言必须为中文、英文、日文或韩文，每章必须具备对应语言附加指令。"],
+  ["报告执行配置", "十章并发数必须为1～10，单章调用超时必须有效。"],
+  ["模型调用链", "至少存在一条有效路由，且供应商、模型、顺序、重试预算和超时配置完整。"],
+  ["十章编排计划", "必须正好包含十章，章节编号、Key和名称有效且不重复，并定义输出模块。"],
+  ["Prompt完整性", "每章必须具备章节指令、完整调用指令、语言附加指令和Prompt哈希。"],
+  ["数据与输出协议", "每章必须具备输出Schema、完整模块和全部必需前置事实；术语表为空只作警告。"],
+] as const;
+
+function PreflightDialog({ result, onClose }: { result: ReportPreflightResult; onClose: () => void }) {
+  useEffect(() => { const close = (event: KeyboardEvent) => event.key === "Escape" && onClose(); window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close); }, [onClose]);
+  const groups = result.groups?.length ? result.groups : legacyPreflightGroups.map(([name, logic], index) => ({ code: `legacy-${index}`, name, logic, passed: result.passed, summary: "历史记录仅保存预检汇总结论" }));
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" role="presentation" onMouseDown={event => event.target === event.currentTarget && onClose()}><section role="dialog" aria-modal="true" aria-labelledby="preflight-title" className="max-h-[88vh] w-full max-w-5xl overflow-hidden border shadow-2xl" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><header className="flex items-start justify-between border-b px-5 py-4" style={{ borderColor: "var(--line)" }}><div><h2 id="preflight-title" className="text-xl">调用前预检逻辑</h2><p className="mt-1 text-xs" style={{ color: "var(--ink-faint)" }}>{result.validator_version ? `冻结版本：${result.validator_version}` : "历史报告未单独保存预检版本；以下展示该预检覆盖范围。"}</p></div><button type="button" onClick={onClose} aria-label="关闭预检逻辑" className="btn-ghost p-2"><X size={18} /></button></header><div className="max-h-[72vh] overflow-y-auto p-5"><div className="grid gap-3 sm:grid-cols-2">{groups.map(group => <article key={group.code} className="border p-4" style={{ borderColor: "var(--line-soft)" }}><div className="flex items-center justify-between gap-3"><h3 className="font-medium">{group.name}</h3><span className={group.passed ? "text-emerald-800" : "text-red-800"}>{group.passed ? "通过" : "未通过"}</span></div><p className="mt-3 text-sm leading-6">{group.logic}</p><p className="mt-2 text-xs" style={{ color: "var(--ink-faint)" }}>{group.summary}</p></article>)}</div>{result.warnings.length > 0 && <div className="mt-4 border border-amber-300 p-4 text-sm text-amber-900"><p className="font-medium">预检警告</p>{result.warnings.map((item, index) => <p key={index} className="mt-1">{item}</p>)}</div>}{result.errors.length > 0 && <div className="mt-4 border border-red-300 p-4 text-sm text-red-800"><p className="font-medium">阻断原因</p>{result.errors.map((item, index) => <p key={index} className="mt-1">{item}</p>)}</div>}</div></section></div>;
+}
+
+export function ReportOverviewPanel({ data, reportId }: { data: AdminFullReportOverview; reportId: string }) {
+  const report = data.report;
+  const [showPreflight, setShowPreflight] = useState(false);
+  const preflight = useQuery({ queryKey: ["admin-report-preflight", reportId], queryFn: () => fetchReportPreflight(reportId), retry: false });
+  const validations = useQuery({ queryKey: ["admin-report-validations", reportId], queryFn: () => fetchReportValidations(reportId), retry: false });
+  const latestValidation = validations.data?.items[0];
+  const aggregate = useQuery({ queryKey: ["admin-report-validation-summary", reportId, latestValidation?.id], queryFn: () => fetchReportValidation(reportId, latestValidation!.id), enabled: !!latestValidation, retry: false });
+  return <div className="space-y-5">
+    <section className="grid border sm:grid-cols-2 xl:grid-cols-4" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}>
+      <div className="p-4"><p className="text-xs" style={{ color: "var(--ink-faint)" }}>当前状态</p><p className="mt-2 text-lg">{labels[report.status] ?? report.status}</p><p className="mt-1 text-xs">阶段：{labels[report.current_stage] ?? report.current_stage}</p></div>
+      <div className="border-t p-4 sm:border-l sm:border-t-0" style={{ borderColor: "var(--line)" }}><p className="text-xs" style={{ color: "var(--ink-faint)" }}>十章进度</p><p className="mt-2 text-lg">{report.chapter_succeeded}/{report.chapter_total}</p><p className="mt-1 text-xs">失败 {report.chapter_failed} 章</p></div>
+      <div className="border-t p-4 xl:border-l xl:border-t-0" style={{ borderColor: "var(--line)" }}><p className="text-xs" style={{ color: "var(--ink-faint)" }}>冻结并发</p><p className="mt-2 text-lg">{report.chapter_concurrency}</p><p className="mt-1 text-xs">模型链：{report.provider_chain_key}</p></div>
+      <div className="border-t p-4 sm:border-l xl:border-t-0" style={{ borderColor: "var(--line)" }}><p className="text-xs" style={{ color: "var(--ink-faint)" }}>语言</p><p className="mt-2 text-lg">{report.locale}</p><p className="mt-1 text-xs">保留：{report.retention_policy}</p></div>
+    </section>
+    {report.error_summary && <div role="alert" className="border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900"><strong>{report.error_code || "执行失败"}</strong><p className="mt-1 whitespace-pre-wrap">{report.error_summary}</p></div>}
+    <section className="grid gap-4 lg:grid-cols-2">
+      <div className="border p-5" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="text-lg">调用前预检</h2>{preflight.isLoading ? <p className="mt-3 text-sm">正在读取…</p> : preflight.isError || !preflight.data ? <p className="mt-3 text-sm text-red-800">预检记录读取失败或历史报告未保存。</p> : <div className="mt-3 text-sm leading-7"><p className={preflight.data.result.passed ? "text-emerald-800" : "text-red-800"}>{preflight.data.result.passed ? `预检通过，${preflight.data.result.chapter_count} 个章节具备完整生成条件。` : `预检未通过，发现 ${preflight.data.result.errors.length} 个错误。`}</p>{!preflight.data.result.passed && preflight.data.result.errors.map((item, index) => <p key={index} className="mt-1 text-red-800">{item}</p>)}<button type="button" onClick={() => setShowPreflight(true)} className="mt-3 text-amber-800 underline underline-offset-4">查看预检逻辑</button></div>}</div>
+      <div className="border p-5" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="text-lg">十章汇总校验</h2>{validations.isLoading || aggregate.isLoading ? <p className="mt-3 text-sm">正在读取…</p> : !latestValidation ? <p className="mt-3 text-sm" style={{ color: "var(--ink-faint)" }}>报告尚未进入十章汇总校验。</p> : <div className="mt-3 text-sm leading-7"><p className={latestValidation.status === "passed" ? "text-emerald-800" : "text-red-800"}>{latestValidation.status === "passed" ? "十章汇总校验通过，最终报告已冻结。" : `汇总校验未通过，涉及 ${latestValidation.affected_chapters} 个章节。`}</p>{latestValidation.error_summary && <p className="mt-1 text-red-800">{latestValidation.error_summary}</p>}{aggregate.data?.payload.validation_result.affected_chapters?.length ? <p>涉及章节：{aggregate.data.payload.validation_result.affected_chapters.map(no => `第 ${no} 章`).join("、")}</p> : null}</div>}</div>
+    </section>
+    <div className="grid gap-5 lg:grid-cols-2">
+      <section className="border px-5 pb-2" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="border-b py-4 text-lg" style={{ borderColor: "var(--line)" }}>报告信息</h2><dl><Field label="报告 ID" value={report.id} /><Field label="公开编号" value={report.public_id} mono /><Field label="用户 / 档案" value={`用户 #${report.user_id} · 档案 #${report.profile_id ?? "—"}`} /><Field label="支付方式" value={`${report.pay_method} · ${report.paid ? "已支付" : "未支付"}`} /><Field label="到期时间" value={time(report.expires_at)} /></dl></section>
+      <section className="border px-5 pb-2" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="border-b py-4 text-lg" style={{ borderColor: "var(--line)" }}>阶段时间</h2><dl><Field label="创建" value={time(report.created_at)} /><Field label="开始" value={time(report.started_at)} /><Field label="生成" value={time(report.generating_at)} /><Field label="组装 / 整理" value={`${time(report.assembling_at)} / ${time(report.rendering_at)}`} /><Field label="完成 / 失败" value={`${time(report.completed_at)} / ${time(report.failed_at)}`} /></dl></section>
+    </div>
+    <section className="border px-5 pb-2" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="border-b py-4 text-lg" style={{ borderColor: "var(--line)" }}>冻结哈希</h2><dl className="grid gap-x-6 md:grid-cols-3"><Field label="事实哈希" value={report.facts_hash} mono /><Field label="执行哈希" value={report.execution_hash} mono /><Field label="内容哈希" value={report.content_hash} mono /></dl></section>
+    <section className="border" style={{ borderColor: "var(--line)", background: "var(--bg-card)" }}><h2 className="border-b px-5 py-4 text-lg" style={{ borderColor: "var(--line)" }}>模型调用汇总</h2>{data.model_stats.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr><th className="px-5 py-3">路由</th><th className="px-5 py-3">供应商 / 模型</th><th className="px-5 py-3">尝试</th><th className="px-5 py-3">成功 / 失败</th><th className="px-5 py-3">Token</th><th className="px-5 py-3">总耗时</th></tr></thead><tbody>{data.model_stats.map(item => <tr key={`${item.route_no}-${item.provider}-${item.model}`} className="border-t" style={{ borderColor: "var(--line-soft)" }}><td className="px-5 py-3">#{item.route_no}</td><td className="px-5 py-3">{item.provider}<p className="mt-1 font-mono text-xs">{item.model}</p></td><td className="px-5 py-3">{item.attempt_count}</td><td className="px-5 py-3">{item.succeeded_count} / {item.failed_count}</td><td className="px-5 py-3">{item.total_tokens ?? "未上报"}</td><td className="px-5 py-3">{(item.duration_ms / 1000).toFixed(1)} 秒</td></tr>)}</tbody></table></div> : <p className="px-5 py-8 text-sm" style={{ color: "var(--ink-faint)" }}>尚无模型调用。</p>}</section>
+    {showPreflight && preflight.data && <PreflightDialog result={preflight.data.result} onClose={() => setShowPreflight(false)} />}
+  </div>;
+}

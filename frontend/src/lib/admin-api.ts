@@ -138,33 +138,85 @@ export async function runResourceAction(
 
 export interface ReportFactsResponse {
   report_id: number;
-  snapshot: {
-    report_id: number;
-    input_snapshot: Record<string, unknown>;
-    time_calculation_snapshot: Record<string, unknown>;
-    chart_snapshot: Record<string, unknown>;
-    facts: Record<string, unknown>;
-    chart_hash: string;
-    facts_hash: string;
-    created_at: string;
-  };
+  section: ReportFactsSection;
+  value: Record<string, unknown>;
 }
+
+export type ReportFactsSection = "input" | "time" | "chart" | "interpretation";
 
 export interface ReportLLMCallPage {
   report_id: number;
-  items: Record<string, unknown>[];
+  items: ReportAttemptItem[];
   total: number;
   page: number;
   page_size: number;
 }
 
-export async function fetchReportFacts(id: string | number): Promise<ReportFactsResponse> {
-  const { data } = await api.get(`/admin/reports/${id}/facts`);
+export interface ReportModelStats {
+  route_no: number; provider: string; model: string; attempt_count: number; succeeded_count: number;
+  failed_count: number; usage_reported_count: number; prompt_tokens?: number; completion_tokens?: number;
+  total_tokens?: number; duration_ms: number;
+}
+
+export interface ReportAttemptItem {
+  id: number; report_id: number; chapter_id: number; attempt_no: number; route_no: number; provider: string;
+  model: string; status: string; schema_valid: boolean; validation_status: string; error_code?: string;
+  error_summary?: string; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number;
+  duration_ms: number; trace_id: string; started_at: string; finished_at?: string;
+}
+
+export interface AdminFullReportItem {
+  id: number; public_id: string; user_id: number; profile_id?: number; profile_name: string; locale: string;
+  status: string; current_stage: string; chapter_total: number; chapter_succeeded: number; chapter_failed: number;
+  error_code?: string; error_summary?: string; started_at?: string; completed_at?: string; created_at: string;
+}
+
+export interface AdminFullReportPage {
+  items: AdminFullReportItem[]; page_size: number; has_more: boolean; next_cursor: string;
+}
+
+export interface AdminFullReportOverview {
+  report: AdminFullReportItem & {
+    chart_id?: number; order_id?: number; source_report_id?: number; pay_method: string; paid: boolean;
+    provider_chain_key: string; chapter_concurrency: number; facts_hash: string; execution_hash?: string;
+    content_hash?: string; retention_policy: string; generating_at?: string; assembling_at?: string;
+    rendering_at?: string; failed_at?: string; expires_at: string; updated_at: string;
+  };
+  model_stats: ReportModelStats[];
+}
+
+export interface AdminFullReportResult {
+  id: number; report_id: number; locale: string; content: import("@/types/api").ReportContent; content_hash: string;
+  render_version: string; pdf_storage_key?: string; pdf_url?: string; pdf_hash?: string; created_at: string;
+}
+
+export async function fetchAdminReports(params: { status?: string; locale?: string; user_id?: number; created_from?: string; created_to?: string; cursor?: string; page_size?: number } = {}) {
+  const { data } = await api.get("/admin/reports", { params });
+  return unwrap<AdminFullReportPage>(data);
+}
+
+export async function fetchAdminReportOverview(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}`);
+  return unwrap<AdminFullReportOverview>(data);
+}
+
+export async function fetchAdminReportResult(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}/result`);
+  return unwrap<AdminFullReportResult>(data);
+}
+
+export async function fetchReportLLMCall(id: string | number, callId: number) {
+  const { data } = await api.get(`/admin/reports/${id}/llm-calls/${callId}`);
+  return unwrap<{ attempt: ReportAttemptItem; payload: Record<string, unknown>; chapter: ReportChapterTraceItem }>(data);
+}
+
+export async function fetchReportFacts(id: string | number, section: ReportFactsSection): Promise<ReportFactsResponse> {
+  const { data } = await api.get(`/admin/reports/${id}/facts`, { params: { section } });
   return unwrap<ReportFactsResponse>(data);
 }
 
-export async function fetchReportLLMCalls(id: string | number, page = 1, pageSize = 20): Promise<ReportLLMCallPage> {
-  const { data } = await api.get(`/admin/reports/${id}/llm-calls`, { params: { page, page_size: pageSize } });
+export async function fetchReportLLMCalls(id: string | number, page = 1, pageSize = 20, chapterId?: number): Promise<ReportLLMCallPage> {
+  const { data } = await api.get(`/admin/reports/${id}/llm-calls`, { params: { page, page_size: pageSize, chapter_id: chapterId } });
   return unwrap<ReportLLMCallPage>(data);
 }
 
@@ -192,6 +244,9 @@ export interface ReportValidationResult {
   affected_chapters?: number[];
   rules: ReportValidationRule[];
   validated_at?: string;
+  schema_valid?: boolean;
+  errors?: string[];
+  parsed?: unknown;
 }
 
 export interface ReportValidationRun {
@@ -217,6 +272,8 @@ export interface ReportChapterTraceItem {
   status: string;
   attempt_count: number;
   selected_attempt_id?: number;
+  prompt_hash?: string;
+  output_hash?: string;
   schema_valid: boolean;
   validation_status: string;
   error_code?: string;
@@ -242,7 +299,31 @@ export async function fetchReportChapters(id: string | number) {
 
 export async function fetchReportChapter(id: string | number, chapterId: number) {
   const { data } = await api.get(`/admin/reports/${id}/chapters/${chapterId}`);
-  return unwrap<{ chapter: ReportChapterTraceItem; payload: { validation_result?: ReportValidationResult } }>(data);
+  return unwrap<{ chapter: ReportChapterTraceItem; payload: {
+    semantic_digest: string; language_instruction: string; terminology_snapshot: unknown; final_prompt: string;
+    output_schema: unknown; final_raw_output?: string; final_parsed_output?: unknown; validation_result?: ReportValidationResult;
+  } }>(data);
+}
+
+export async function fetchReportChapterArtifact(id: string | number, chapterId: number, type: "content" | "prompt" | "terminology" | "raw_output" | "validation") {
+  const { data } = await api.get(`/admin/reports/${id}/chapters/${chapterId}/artifact`, { params: { type } });
+  return unwrap<{ chapter: ReportChapterTraceItem; type: string; value: unknown }>(data);
+}
+
+export async function fetchReportCallValidation(id: string | number, callId: number) {
+  const { data } = await api.get(`/admin/reports/${id}/llm-calls/${callId}/validation`);
+  return unwrap<{ report_id: number; call_id: number; validation_result?: ReportValidationResult }>(data);
+}
+
+export interface ReportPreflightResult {
+  validator_version?: string; passed: boolean; checked_at: string; errors: string[]; warnings: string[]; chapter_count: number;
+  chapters: { chapter_no: number; chapter_key: string; passed: boolean; errors: string[]; warnings: string[] }[];
+  groups?: { code: string; name: string; logic: string; passed: boolean; summary: string }[];
+}
+
+export async function fetchReportPreflight(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}/execution/preflight`);
+  return unwrap<{ report_id: number; result: ReportPreflightResult }>(data);
 }
 
 export interface PromptPreviewResponse {

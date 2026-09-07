@@ -49,7 +49,7 @@ type databaseFullReportRouteResolver struct {
 
 func NewDatabaseFullReportRouteResolver(store fullReportRouteStore, secretCipher *llm.ConfigSecretCipher, defaultTimeout time.Duration) FullReportRouteResolver {
 	if defaultTimeout <= 0 {
-		defaultTimeout = 60 * time.Second
+		defaultTimeout = 180 * time.Second
 	}
 	return &databaseFullReportRouteResolver{store: store, secretCipher: secretCipher, defaultTimeout: defaultTimeout}
 }
