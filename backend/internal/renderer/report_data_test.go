@@ -177,7 +177,7 @@ func TestReportPDFTemplate_Render(t *testing.T) {
 	if !strings.Contains(html, "page-break") {
 		t.Error("rendered HTML missing page breaks")
 	}
-	if !strings.Contains(html, "#f5f0e6") {
+	if !strings.Contains(html, "#f2eadc") {
 		t.Error("rendered HTML missing bg color token")
 	}
 	if !strings.Contains(html, "#9a761e") {
