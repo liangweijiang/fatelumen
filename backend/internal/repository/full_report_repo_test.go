@@ -31,10 +31,53 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		&model.FullReportValidationRun{},
 		&model.FullReportValidationPayload{},
 		&model.FullReportResult{},
+		&model.FullReportRenderJob{},
 	); err != nil {
 		t.Fatal(err)
 	}
 	return NewFullReportRepo(db), db
+}
+
+func TestPrepareAndCompleteRenderingRequiresStoredPDF(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	report := model.FullReport{PublicID: "01JPDFPIPELINE000000000000", UserID: 1, Locale: "zh", Status: model.FullReportStatusAssembling, CurrentStage: model.FullReportStatusAssembling, ChapterTotal: 10, ChapterSucceeded: 10, FactsHash: fmt.Sprintf("%064d", 1), RetentionPolicy: "days:30", ExpiresAt: now.Add(30 * 24 * time.Hour), CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&report).Error; err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 10; i++ {
+		chapter := model.FullReportChapter{ReportID: report.ID, ChapterNo: uint8(i), ChapterKey: fmt.Sprintf("chapter_%d", i), Title: "章节", Status: model.FullReportChapterStatusSucceeded, PromptHash: fmt.Sprintf("%064d", i), SchemaValid: true, ValidationStatus: model.FullReportValidationStatusPassed, CreatedAt: now, UpdatedAt: now}
+		if err := db.Create(&chapter).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	finished := now
+	validation := model.FullReportValidationRun{ReportID: report.ID, RoundNo: 1, ValidatorVersion: "v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, FinishedAt: &finished, CreatedAt: now}
+	if err := db.Create(&validation).Error; err != nil {
+		t.Fatal(err)
+	}
+	result := &model.FullReportResult{Locale: "zh", ContentHash: fmt.Sprintf("%064d", 2)}
+	task, err := repo.PrepareRendering(context.Background(), report.ID, result, "pdf-v2", 3, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Status != model.FullReportRenderJobStatusQueued {
+		t.Fatalf("unexpected task: %+v", task)
+	}
+	stored, _ := repo.GetByInternalID(context.Background(), report.ID)
+	if stored.Status != model.FullReportStatusRendering {
+		t.Fatalf("expected rendering, got %s", stored.Status)
+	}
+	if err := repo.CompleteRendering(context.Background(), report.ID, "", "", "", now); !errors.Is(err, ErrFullReportNotReady) {
+		t.Fatalf("expected missing PDF rejection, got %v", err)
+	}
+	if err := repo.CompleteRendering(context.Background(), report.ID, "reports/a.pdf", "https://example.test/a.pdf", fmt.Sprintf("%064d", 3), now); err != nil {
+		t.Fatal(err)
+	}
+	stored, _ = repo.GetByInternalID(context.Background(), report.ID)
+	if stored.Status != model.FullReportStatusCompleted {
+		t.Fatalf("expected completed, got %s", stored.Status)
+	}
 }
 
 func TestAdminListPageFiltersAndUsesStableCursor(t *testing.T) {
@@ -238,22 +281,15 @@ func TestFullReportStageTransitionsRecordTimesAndRejectSkipping(t *testing.T) {
 	if err := repo.Create(context.Background(), report); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.BeginRendering(context.Background(), report.ID, now.Add(time.Second)); !errors.Is(err, ErrFullReportImmutableWrite) {
-		t.Fatalf("skipped rendering transition err = %v", err)
-	}
 	assemblingAt := now.Add(2 * time.Second)
 	if err := repo.BeginAssembling(context.Background(), report.ID, assemblingAt); err != nil {
-		t.Fatal(err)
-	}
-	renderingAt := now.Add(3 * time.Second)
-	if err := repo.BeginRendering(context.Background(), report.ID, renderingAt); err != nil {
 		t.Fatal(err)
 	}
 	var stored model.FullReport
 	if err := db.First(&stored, report.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if stored.Status != model.FullReportStatusRendering || stored.AssemblingAt == nil || stored.RenderingAt == nil || !stored.AssemblingAt.Equal(assemblingAt) || !stored.RenderingAt.Equal(renderingAt) {
+	if stored.Status != model.FullReportStatusAssembling || stored.AssemblingAt == nil || !stored.AssemblingAt.Equal(assemblingAt) {
 		t.Fatalf("unexpected stage metadata: %+v", stored)
 	}
 	failedAt := now.Add(4 * time.Second)
@@ -337,7 +373,7 @@ func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering}).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportNotReady) {
+	if err := repo.CompleteRendering(context.Background(), graph.Report.ID, "reports/test.pdf", "https://example.test/report.pdf", fmt.Sprintf("%064d", 300), now); !errors.Is(err, ErrFullReportNotReady) {
 		t.Fatalf("err = %v, want not ready", err)
 	}
 	if err := db.Model(&model.FullReportChapter{}).Where("report_id = ?", graph.Report.ID).Updates(map[string]any{
@@ -353,14 +389,14 @@ func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 	if err := repo.SaveAggregateValidation(context.Background(), run, &model.FullReportValidationPayload{ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.BeginRendering(context.Background(), graph.Report.ID, finished); err != nil {
+	if _, err := repo.PrepareRendering(context.Background(), graph.Report.ID, result, "render-v1", 3, finished); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); err != nil {
+	if err := repo.CompleteRendering(context.Background(), graph.Report.ID, "reports/test.pdf", "https://example.test/report.pdf", fmt.Sprintf("%064d", 300), now); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportTerminal) {
-		t.Fatalf("second completion err = %v, want terminal error", err)
+	if err := repo.CompleteRendering(context.Background(), graph.Report.ID, "reports/test.pdf", "https://example.test/report.pdf", fmt.Sprintf("%064d", 300), now); err != nil {
+		t.Fatalf("idempotent second completion failed: %v", err)
 	}
 }
 
@@ -385,11 +421,8 @@ func TestFullReportCompleteRequiresPassedAggregateValidation(t *testing.T) {
 	if err := repo.SaveAggregateValidation(context.Background(), run, payload); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.BeginRendering(context.Background(), graph.Report.ID, finished); err != nil {
-		t.Fatal(err)
-	}
 	result := &model.FullReportResult{Locale: "zh", Content: model.ReportContent{Locale: "zh"}, ContentHash: fmt.Sprintf("%064d", 200), RenderVersion: "render-v1", CreatedAt: now}
-	if err := repo.Complete(context.Background(), graph.Report.ID, result, now); !errors.Is(err, ErrFullReportNotReady) {
+	if _, err := repo.PrepareRendering(context.Background(), graph.Report.ID, result, "render-v1", 3, finished); !errors.Is(err, ErrFullReportNotReady) {
 		t.Fatalf("err = %v, want not ready", err)
 	}
 	var storedPayload model.FullReportValidationPayload

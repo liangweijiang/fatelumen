@@ -183,6 +183,11 @@ export interface AdminFullReportOverview {
     rendering_at?: string; failed_at?: string; expires_at: string; updated_at: string;
   };
   model_stats: ReportModelStats[];
+	render_job?: {
+		id: number; report_id: number; render_version: string; status: "queued" | "running" | "succeeded" | "failed";
+		attempt_count: number; max_attempts: number; error_code?: string; error_summary?: string;
+		started_at?: string; finished_at?: string; created_at: string; updated_at: string;
+	};
 }
 
 export interface AdminFullReportResult {

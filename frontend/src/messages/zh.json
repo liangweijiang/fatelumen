@@ -157,7 +157,7 @@
     "chapterPrefix": "第",
     "chapterSuffix": "章",
     "downloadPdf": "下载 PDF",
-    "generating": "正在生成 PDF…",
+    "pdfUnavailable": "PDF 暂不可用",
     "publishDate": "生成时间",
     "dayMaster": "日主",
     "strength": "强弱",

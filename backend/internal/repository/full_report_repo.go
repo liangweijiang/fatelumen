@@ -192,29 +192,29 @@ func (r *FullReportRepo) GetByID(ctx context.Context, reportID, userID uint64) (
 	return &report, err
 }
 
+func (r *FullReportRepo) GetByInternalID(ctx context.Context, reportID uint64) (*model.FullReport, error) {
+	var row model.FullReport
+	if err := r.db.WithContext(ctx).First(&row, reportID).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *FullReportRepo) GetExecutionPayload(ctx context.Context, reportID uint64) (*model.FullReportExecutionPayload, error) {
+	var row model.FullReportExecutionPayload
+	err := r.db.WithContext(ctx).Table("full_report_execution_payloads AS p").
+		Select("p.*").Joins("JOIN full_report_execution_snapshots AS s ON s.id = p.snapshot_id").
+		Where("s.report_id = ?", reportID).First(&row).Error
+	if err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (r *FullReportRepo) GetResult(ctx context.Context, reportID uint64) (*model.FullReportResult, error) {
 	var result model.FullReportResult
 	err := r.db.WithContext(ctx).Where("report_id = ?", reportID).First(&result).Error
 	return &result, err
-}
-
-func (r *FullReportRepo) UpdatePDF(ctx context.Context, reportID uint64, storageKey, pdfURL, pdfHash string) error {
-	var report model.FullReport
-	if err := r.db.WithContext(ctx).Where("id = ? AND status = ?", reportID, model.FullReportStatusCompleted).First(&report).Error; err != nil {
-		return err
-	}
-	res := r.db.WithContext(ctx).Model(&model.FullReportResult{}).Where("report_id = ?", reportID).Updates(map[string]any{
-		"pdf_storage_key": storageKey,
-		"pdf_url":         pdfURL,
-		"pdf_hash":        pdfHash,
-	})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected != 1 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
 }
 
 func (r *FullReportRepo) UnlockWithCredits(ctx context.Context, userID, reportID uint64, cost int) error {
@@ -884,80 +884,89 @@ func (r *FullReportRepo) FinishChapter(ctx context.Context, reportID, chapterID,
 	})
 }
 
-// BeginRendering advances only a successfully assembled report. R1.7 attaches
-// the PDF renderer and storage work to this explicit stage.
-func (r *FullReportRepo) BeginRendering(ctx context.Context, reportID uint64, at time.Time) error {
-	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
-		Where("id = ? AND status = ?", reportID, model.FullReportStatusAssembling).
-		Updates(map[string]any{"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering, "rendering_at": at, "updated_at": at})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected != 1 {
-		return ErrFullReportImmutableWrite
-	}
-	return nil
-}
-
-// Complete atomically stores the final result and freezes the report. All ten
-// chapters must already be successful and validated.
-func (r *FullReportRepo) Complete(ctx context.Context, reportID uint64, result *model.FullReportResult, completedAt time.Time) error {
+// PrepareRendering atomically stores the assembled immutable content, advances
+// the report to rendering and creates the durable PDF task.
+func (r *FullReportRepo) PrepareRendering(ctx context.Context, reportID uint64, result *model.FullReportResult, renderVersion string, maxAttempts uint16, at time.Time) (*model.FullReportRenderJob, error) {
 	if result == nil {
-		return errors.New("full report result is nil")
+		return nil, errors.New("full report result is nil")
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	if maxAttempts == 0 {
+		maxAttempts = 3
+	}
+	var task model.FullReportRenderJob
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var report model.FullReport
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
 			return err
 		}
-		if model.IsFullReportTerminalStatus(report.Status) {
-			return ErrFullReportTerminal
-		}
-		if report.Status != model.FullReportStatusRendering {
+		if report.Status != model.FullReportStatusAssembling {
 			return ErrFullReportImmutableWrite
 		}
 		var passed int64
-		if err := tx.Model(&model.FullReportChapter{}).
-			Where("report_id = ? AND status = ? AND schema_valid = ? AND validation_status = ?", reportID, model.FullReportChapterStatusSucceeded, true, model.FullReportValidationStatusPassed).
-			Count(&passed).Error; err != nil {
+		if err := tx.Model(&model.FullReportChapter{}).Where("report_id = ? AND status = ? AND schema_valid = ? AND validation_status = ?", reportID, model.FullReportChapterStatusSucceeded, true, model.FullReportValidationStatusPassed).Count(&passed).Error; err != nil {
 			return err
 		}
 		if passed != 10 {
 			return ErrFullReportNotReady
 		}
 		var aggregate model.FullReportValidationRun
-		if err := tx.Where("report_id = ?", reportID).Order("round_no DESC").First(&aggregate).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrFullReportNotReady
-			}
-			return err
-		}
-		if aggregate.Status != model.FullReportValidationStatusPassed {
+		if err := tx.Where("report_id = ?", reportID).Order("round_no DESC").First(&aggregate).Error; err != nil || aggregate.Status != model.FullReportValidationStatusPassed {
 			return ErrFullReportNotReady
 		}
 		result.ReportID = reportID
+		result.RenderVersion = renderVersion
+		result.CreatedAt = at
 		if err := tx.Create(result).Error; err != nil {
 			return err
 		}
-		updates := map[string]any{
-			"status":            model.FullReportStatusCompleted,
-			"current_stage":     model.FullReportStatusCompleted,
-			"chapter_succeeded": 10,
-			"chapter_failed":    0,
-			"content_hash":      result.ContentHash,
-			"completed_at":      completedAt,
-			"updated_at":        completedAt,
+		task = model.FullReportRenderJob{ReportID: reportID, RenderVersion: renderVersion, Status: model.FullReportRenderJobStatusQueued, MaxAttempts: maxAttempts, CreatedAt: at, UpdatedAt: at}
+		if err := tx.Create(&task).Error; err != nil {
+			return err
 		}
-		res := tx.Model(&model.FullReport{}).
-			Where("id = ? AND status = ?", reportID, model.FullReportStatusRendering).
-			Updates(updates)
+		res := tx.Model(&model.FullReport{}).Where("id = ? AND status = ?", reportID, model.FullReportStatusAssembling).Updates(map[string]any{
+			"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering,
+			"rendering_at": at, "content_hash": result.ContentHash, "updated_at": at,
+		})
 		if res.Error != nil {
 			return res.Error
 		}
 		if res.RowsAffected != 1 {
-			return ErrFullReportTerminal
+			return ErrFullReportImmutableWrite
 		}
 		return nil
+	})
+	return &task, err
+}
+
+// CompleteRendering freezes the report only after the PDF bytes have been
+// uploaded and their raw SHA-256 has been persisted.
+func (r *FullReportRepo) CompleteRendering(ctx context.Context, reportID uint64, storageKey, url, pdfHash string, completedAt time.Time) error {
+	if storageKey == "" || url == "" || len(pdfHash) != 64 {
+		return ErrFullReportNotReady
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
+			return err
+		}
+		if report.Status == model.FullReportStatusCompleted {
+			return nil
+		}
+		if report.Status != model.FullReportStatusRendering {
+			return ErrFullReportImmutableWrite
+		}
+		res := tx.Model(&model.FullReportResult{}).Where("report_id = ?", reportID).Updates(map[string]any{"pdf_storage_key": storageKey, "pdf_url": url, "pdf_hash": pdfHash})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected != 1 {
+			return ErrFullReportNotReady
+		}
+		res = tx.Model(&model.FullReport{}).Where("id = ? AND status = ?", reportID, model.FullReportStatusRendering).Updates(map[string]any{
+			"status": model.FullReportStatusCompleted, "current_stage": model.FullReportStatusCompleted,
+			"chapter_succeeded": 10, "chapter_failed": 0, "completed_at": completedAt, "updated_at": completedAt,
+		})
+		return res.Error
 	})
 }
 

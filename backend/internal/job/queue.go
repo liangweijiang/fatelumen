@@ -15,7 +15,9 @@ type Queue interface {
 
 	// Dequeue 取一个 pending 任务并原子置为 processing。
 	// 无 pending 任务时返回 nil, nil。
-	Dequeue(ctx context.Context) (*Job, error)
+	// Dequeue optionally limits consumption to one or more independent lanes.
+	// With no lanes it preserves the legacy all-jobs behavior.
+	Dequeue(ctx context.Context, lanes ...string) (*Job, error)
 
 	// UpdateStatus 更新状态并写入 result。内部校验状态流转合法性。
 	UpdateStatus(ctx context.Context, id string, status Status, result string) error

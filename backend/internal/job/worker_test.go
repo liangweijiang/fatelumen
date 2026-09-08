@@ -14,13 +14,13 @@ import (
 // ---------- test helpers ----------
 
 type controllableHandler struct {
-	mu         sync.Mutex
-	failUntil  int // fail this many times before succeeding
-	panicOn    int // panic on this attempt number (0-indexed)
-	attempts   int
-	blockCh    chan struct{} // block handler until closed
-	traceIDCh  chan string   // capture trace_id received
-	resultVal  string
+	mu        sync.Mutex
+	failUntil int // fail this many times before succeeding
+	panicOn   int // panic on this attempt number (0-indexed)
+	attempts  int
+	blockCh   chan struct{} // block handler until closed
+	traceIDCh chan string   // capture trace_id received
+	resultVal string
 }
 
 func (h *controllableHandler) Handle(ctx context.Context, job *Job) (string, error) {

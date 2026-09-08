@@ -147,7 +147,7 @@
     "chapterPrefix": "第",
     "chapterSuffix": "章",
     "downloadPdf": "PDF ダウンロード",
-    "generating": "PDF 生成中…",
+    "pdfUnavailable": "PDF は利用できません",
     "publishDate": "作成日時",
     "dayMaster": "日主",
     "strength": "強弱",

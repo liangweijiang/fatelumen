@@ -10,11 +10,8 @@ import (
 
 	"fatelumen/backend/internal/job"
 	"fatelumen/backend/internal/model"
-	"fatelumen/backend/internal/pkg/hash"
 	"fatelumen/backend/internal/pkg/logger"
-	"fatelumen/backend/internal/renderer"
 	"fatelumen/backend/internal/repository"
-	"fatelumen/backend/internal/storage"
 
 	"gorm.io/gorm"
 )
@@ -27,23 +24,20 @@ const emptyFullReportFactsHash = "0000000000000000000000000000000000000000000000
 type FullReportService struct {
 	reports       *repository.FullReportRepo
 	profiles      *repository.ProfileRepo
-	charts        *repository.ChartRepo
-	renderer      renderer.Renderer
-	storage       storage.Storage
 	queue         job.Queue
 	unlockCost    int
 	concurrency   int
 	retentionDays int
 }
 
-func NewFullReportService(reports *repository.FullReportRepo, profiles *repository.ProfileRepo, charts *repository.ChartRepo, imageRenderer renderer.Renderer, fileStorage storage.Storage, queue job.Queue, unlockCost, concurrency, retentionDays int) *FullReportService {
+func NewFullReportService(reports *repository.FullReportRepo, profiles *repository.ProfileRepo, queue job.Queue, unlockCost, concurrency, retentionDays int) *FullReportService {
 	if concurrency < 1 || concurrency > 10 {
 		concurrency = 3
 	}
 	if retentionDays < 1 {
 		retentionDays = 30
 	}
-	return &FullReportService{reports: reports, profiles: profiles, charts: charts, renderer: imageRenderer, storage: fileStorage, queue: queue, unlockCost: unlockCost, concurrency: concurrency, retentionDays: retentionDays}
+	return &FullReportService{reports: reports, profiles: profiles, queue: queue, unlockCost: unlockCost, concurrency: concurrency, retentionDays: retentionDays}
 }
 
 func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error) {
@@ -72,7 +66,7 @@ func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID 
 	if err != nil {
 		return nil, err
 	}
-	reportJob := &job.Job{Type: "full_report_v2", Payload: payload, MaxAttempts: 1}
+	reportJob := &job.Job{Type: "full_report_v2", Lane: job.LaneReportGeneration, Payload: payload, MaxAttempts: 1}
 	if err := s.queue.Enqueue(ctx, reportJob); err != nil {
 		logger.FromCtx(ctx).Error("full report enqueue failed", "err", err, "report_id", report.ID)
 		_ = s.reports.Fail(ctx, report.ID, "enqueue_failed", "report job could not be queued", time.Now().UTC())
@@ -121,63 +115,6 @@ func (s *FullReportService) UnlockWithCredits(ctx context.Context, userID, repor
 		logger.FromCtx(ctx).Error("full report unlock failed", "err", err, "user_id", userID, "report_id", reportID)
 	}
 	return err
-}
-
-func (s *FullReportService) ExportReportPDF(ctx context.Context, userID, reportID uint64) (string, error) {
-	report, result, chart, err := s.renderInputs(ctx, userID, reportID)
-	if err != nil {
-		return "", err
-	}
-	if result.PDFURL != "" {
-		return result.PDFURL, nil
-	}
-	pdfData := renderer.BuildReportPDFData(&chart.ChartData, result.Content, report.CompletedAt.Format("2006-01-02"))
-	pdfBytes, err := renderer.RenderReportPDF(ctx, s.renderer, pdfData)
-	if err != nil {
-		return "", fmt.Errorf("render pdf: %w", err)
-	}
-	key := storage.ReportKey(userID, reportID)
-	url, err := s.storage.Put(ctx, key, pdfBytes, "application/pdf")
-	if err != nil {
-		logger.FromCtx(ctx).Error("full report pdf upload failed", "err", err, "report_id", reportID, "key", key)
-		return "", err
-	}
-	pdfHash, err := hash.CanonicalJSONSHA256(pdfBytes)
-	if err != nil {
-		return "", err
-	}
-	if err := s.reports.UpdatePDF(ctx, reportID, key, url, pdfHash); err != nil {
-		return "", err
-	}
-	return url, nil
-}
-
-func (s *FullReportService) RenderReportHTML(ctx context.Context, userID, reportID uint64) (string, error) {
-	report, result, chart, err := s.renderInputs(ctx, userID, reportID)
-	if err != nil {
-		return "", err
-	}
-	pdfData := renderer.BuildReportPDFData(&chart.ChartData, result.Content, report.CompletedAt.Format("2006-01-02"))
-	return renderer.RenderReportHTML(ctx, pdfData)
-}
-
-func (s *FullReportService) renderInputs(ctx context.Context, userID, reportID uint64) (*model.FullReport, *model.FullReportResult, *model.Chart, error) {
-	report, err := s.reports.GetByID(ctx, reportID, userID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	if report.Status != model.FullReportStatusCompleted || report.ChartID == nil {
-		return nil, nil, nil, repository.ErrFullReportNotReady
-	}
-	result, err := s.reports.GetResult(ctx, reportID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	chart, err := s.charts.FindByID(*report.ChartID)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return report, result, chart, nil
 }
 
 func fullReportDTO(report *model.FullReport, result *model.FullReportResult) *model.Report {

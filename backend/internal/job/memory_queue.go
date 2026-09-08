@@ -12,9 +12,9 @@ import (
 // MemoryQueue 进程内内存队列实现（sync.Mutex + map + slice）。
 // 用于本地开发与单测。
 type MemoryQueue struct {
-	mu       sync.Mutex
-	jobs     map[string]*Job
-	order    []string // job IDs in insertion order for FIFO dequeue
+	mu    sync.Mutex
+	jobs  map[string]*Job
+	order []string // job IDs in insertion order for FIFO dequeue
 }
 
 func NewMemoryQueue() *MemoryQueue {
@@ -31,6 +31,9 @@ func (q *MemoryQueue) Enqueue(ctx context.Context, job *Job) error {
 	job.TraceID = logger.TraceIDFromCtx(ctx)
 	if job.Status == "" {
 		job.Status = StatusPending
+	}
+	if job.Lane == "" {
+		job.Lane = LaneDefault
 	}
 	if job.MaxAttempts <= 0 {
 		job.MaxAttempts = 3
@@ -51,7 +54,7 @@ func (q *MemoryQueue) Enqueue(ctx context.Context, job *Job) error {
 	return nil
 }
 
-func (q *MemoryQueue) Dequeue(ctx context.Context) (*Job, error) {
+func (q *MemoryQueue) Dequeue(ctx context.Context, lanes ...string) (*Job, error) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -60,7 +63,7 @@ func (q *MemoryQueue) Dequeue(ctx context.Context) (*Job, error) {
 		if !ok {
 			continue
 		}
-		if job.Status == StatusPending {
+		if job.Status == StatusPending && laneAllowed(job.Lane, lanes) {
 			job.Status = StatusProcessing
 			job.UpdatedAt = time.Now()
 			// 从顺序中移除
@@ -70,6 +73,18 @@ func (q *MemoryQueue) Dequeue(ctx context.Context) (*Job, error) {
 		}
 	}
 	return nil, nil
+}
+
+func laneAllowed(lane string, lanes []string) bool {
+	if len(lanes) == 0 {
+		return true
+	}
+	for _, allowed := range lanes {
+		if lane == allowed {
+			return true
+		}
+	}
+	return false
 }
 
 func (q *MemoryQueue) UpdateStatus(ctx context.Context, id string, status Status, result string) error {

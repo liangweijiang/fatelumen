@@ -14,6 +14,13 @@ const (
 )
 
 const (
+	FullReportRenderJobStatusQueued    = "queued"
+	FullReportRenderJobStatusRunning   = "running"
+	FullReportRenderJobStatusSucceeded = "succeeded"
+	FullReportRenderJobStatusFailed    = "failed"
+)
+
+const (
 	FullReportChapterStatusPending    = "pending"
 	FullReportChapterStatusRunning    = "running"
 	FullReportChapterStatusSucceeded  = "succeeded"
@@ -231,3 +238,23 @@ type FullReportResult struct {
 }
 
 func (FullReportResult) TableName() string { return "full_report_results" }
+
+// FullReportRenderJob records the durable PDF lifecycle independently from
+// the generic delivery queue. One report/render-version pair can only have
+// one task, so repeated or recovered queue delivery remains idempotent.
+type FullReportRenderJob struct {
+	ID            uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ReportID      uint64     `gorm:"not null;uniqueIndex:uk_full_report_render_version,priority:1;index" json:"report_id"`
+	RenderVersion string     `gorm:"type:varchar(64);not null;uniqueIndex:uk_full_report_render_version,priority:2" json:"render_version"`
+	Status        string     `gorm:"type:varchar(24);not null;index:idx_full_report_render_status_updated,priority:1" json:"status"`
+	AttemptCount  uint16     `gorm:"not null;default:0" json:"attempt_count"`
+	MaxAttempts   uint16     `gorm:"not null;default:3" json:"max_attempts"`
+	ErrorCode     string     `gorm:"type:varchar(64)" json:"error_code,omitempty"`
+	ErrorSummary  string     `gorm:"type:varchar(512)" json:"error_summary,omitempty"`
+	StartedAt     *time.Time `json:"started_at,omitempty"`
+	FinishedAt    *time.Time `json:"finished_at,omitempty"`
+	CreatedAt     time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt     time.Time  `gorm:"not null;index:idx_full_report_render_status_updated,priority:2" json:"updated_at"`
+}
+
+func (FullReportRenderJob) TableName() string { return "full_report_render_jobs" }

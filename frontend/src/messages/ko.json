@@ -147,7 +147,7 @@
     "chapterPrefix": "제",
     "chapterSuffix": "장",
     "downloadPdf": "PDF 다운로드",
-    "generating": "PDF 생성 중…",
+    "pdfUnavailable": "PDF를 사용할 수 없습니다",
     "publishDate": "생성 일시",
     "dayMaster": "일주",
     "strength": "강약",

@@ -19,7 +19,7 @@ func init() {
 	}
 }
 
-// RenderReportHTML 将 ReportPDFData 填入模板，仅渲染出 HTML 字符串（供在线报告页直接使用）。
+// RenderReportHTML 将 ReportPDFData 填入内部模板，供自动 PDF 渲染流程使用。
 func RenderReportHTML(ctx context.Context, data *ReportPDFData) (string, error) {
 	var buf bytes.Buffer
 	if err := reportTmpl.Execute(&buf, data); err != nil {

@@ -18,6 +18,12 @@ const (
 	StatusFailed     Status = "failed"
 )
 
+const (
+	LaneDefault          = "default"
+	LaneReportGeneration = "report-generation"
+	LanePDFRender        = "pdf-render"
+)
+
 // CanTransit 校验状态流转合法性。
 func CanTransit(from, to Status) bool {
 	switch from {
@@ -36,13 +42,14 @@ func CanTransit(from, to Status) bool {
 type Job struct {
 	ID          string          `gorm:"primaryKey;type:varchar(64)" json:"id"`
 	Type        string          `gorm:"type:varchar(32);not null;index" json:"type"`
-	Status      Status          `gorm:"type:varchar(16);not null;index" json:"status"`
+	Lane        string          `gorm:"type:varchar(32);not null;default:default;index:idx_jobs_lane_status_created,priority:1" json:"lane"`
+	Status      Status          `gorm:"type:varchar(16);not null;index;index:idx_jobs_lane_status_created,priority:2" json:"status"`
 	Payload     json.RawMessage `gorm:"type:json" json:"payload"`
 	TraceID     string          `gorm:"type:varchar(32)" json:"trace_id"`
 	Result      string          `gorm:"type:varchar(1024)" json:"result"`
 	Attempts    int             `gorm:"not null;default:0" json:"attempts"`
 	MaxAttempts int             `gorm:"not null;default:3" json:"max_attempts"`
-	CreatedAt   time.Time       `gorm:"not null" json:"created_at"`
+	CreatedAt   time.Time       `gorm:"not null;index:idx_jobs_lane_status_created,priority:3" json:"created_at"`
 	UpdatedAt   time.Time       `gorm:"not null" json:"updated_at"`
 }
 

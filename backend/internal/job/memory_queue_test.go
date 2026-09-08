@@ -226,3 +226,25 @@ func TestMemoryQueue_Get(t *testing.T) {
 		t.Fatalf("Payload mismatch: %s", string(got.Payload))
 	}
 }
+
+func TestMemoryQueue_DequeueIsolatesLanes(t *testing.T) {
+	q := NewMemoryQueue()
+	ctx := context.Background()
+	reportJob := &Job{Type: "full_report_v2", Lane: LaneReportGeneration}
+	pdfJob := &Job{Type: "full_report_pdf_render", Lane: LanePDFRender}
+	if err := q.Enqueue(ctx, reportJob); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.Enqueue(ctx, pdfJob); err != nil {
+		t.Fatal(err)
+	}
+
+	gotPDF, err := q.Dequeue(ctx, LanePDFRender)
+	if err != nil || gotPDF == nil || gotPDF.ID != pdfJob.ID {
+		t.Fatalf("PDF lane dequeued %+v, err=%v", gotPDF, err)
+	}
+	gotReport, err := q.Dequeue(ctx, LaneDefault, LaneReportGeneration)
+	if err != nil || gotReport == nil || gotReport.ID != reportJob.ID {
+		t.Fatalf("report lane dequeued %+v, err=%v", gotReport, err)
+	}
+}

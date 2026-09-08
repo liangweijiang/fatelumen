@@ -147,7 +147,7 @@
     "chapterPrefix": "Chapter ",
     "chapterSuffix": "",
     "downloadPdf": "Download PDF",
-    "generating": "Generating PDF…",
+    "pdfUnavailable": "PDF unavailable",
     "publishDate": "Generated",
     "dayMaster": "Day Master",
     "strength": "Strength",

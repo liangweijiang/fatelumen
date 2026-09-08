@@ -191,22 +191,28 @@ func main() {
 
 	// Full report service + immutable ten-chapter executor. The legacy report
 	// tables are deliberately not part of this execution path.
-	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, chartRepo, imgRenderer, fileStorage, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
+	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
+	fullReportRenderJobRepo := repository.NewFullReportRenderJobRepo(db)
+	pdfPipeline := service.NewFullReportPDFPipeline(fullReportRepo, jobQueue, imgRenderer, fileStorage)
 	llmConfigRepo := repository.NewLLMConfigRepo(db)
 	fullReportRoutes := service.NewDatabaseFullReportRouteResolver(llmConfigRepo, llm.NewConfigSecretCipher(cfg.AdminJWTSecret), time.Duration(cfg.ReportChapterTimeoutSeconds)*time.Second)
 	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, fullReportRoutes, baseChartEngine, service.FullReportRuntimeConfig{
 		ChapterConcurrency: cfg.ReportChapterConcurrency,
 		ChapterTimeout:     time.Duration(cfg.ReportChapterTimeoutSeconds) * time.Second,
-	})
+	}, pdfPipeline)
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
 	handlerReg.Register("full_report_v2", fullReportExecutor)
-	worker := job.NewWorker(jobQueue, handlerReg, 0, 0, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute)
+	handlerReg.Register(service.FullReportPDFJobType, service.NewFullReportPDFJobHandler(fullReportRenderJobRepo, pdfPipeline, 1, fullReportRepo))
+	reportWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 3, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, job.LaneDefault, job.LaneReportGeneration)
+	pdfWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 1, 0, job.LanePDFRender)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	worker.Start(ctx)
-	log.Info("job worker started", "workers", 3)
+	service.StartFullReportPDFRecovery(ctx, fullReportRenderJobRepo, fullReportRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Minute)
+	reportWorker.Start(ctx)
+	pdfWorker.Start(ctx)
+	log.Info("job workers started", "report_workers", 3, "pdf_workers", 1)
 
 	reportHTTPHandler := handler.NewReportHandler(reportSvc)
 
@@ -283,7 +289,7 @@ func main() {
 		return
 	}
 	adminBaziBaseHandler := handler.NewAdminBaziBaseHandler(baziBaseCatalog, annualCalendarRepo)
-	adminReportTraceHandler := handler.NewAdminReportTraceHandler(fullReportRepo, auditRepo)
+	adminReportTraceHandler := handler.NewAdminReportTraceHandler(fullReportRepo, auditRepo, fullReportRenderJobRepo)
 	adminCalculationHandler := handler.NewAdminCalculationHandler(db, baseChartEngine, auditRepo)
 	adminLLMConfigHandler := handler.NewAdminLLMConfigHandler(db, auditRepo, cfg.AdminJWTSecret)
 	locationHandler := handler.NewLocationHandler(locationResolver)
@@ -379,7 +385,8 @@ func main() {
 	log.Info("shutting down job worker", "timeout", shutdownJobTimeout)
 	jobDone := make(chan struct{})
 	go func() {
-		worker.Stop()
+		reportWorker.Stop()
+		pdfWorker.Stop()
 		close(jobDone)
 	}()
 	select {
@@ -409,6 +416,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.FullReportAttempt{},
 		&model.FullReportAttemptPayload{},
 		&model.FullReportResult{},
+		&model.FullReportRenderJob{},
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
 		&model.PromptChapterConfig{},

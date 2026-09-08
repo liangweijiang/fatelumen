@@ -2,6 +2,7 @@ package renderer
 
 import (
 	"fmt"
+	"strings"
 
 	"fatelumen/backend/internal/model"
 )
@@ -22,6 +23,24 @@ type fortuneItem struct {
 	Note string
 }
 
+// ReportChapterSection is one readable module within a frozen chapter body.
+// The executor stores modules as "title\ncontent" blocks separated by blank
+// lines; keeping that boundary here avoids flattening the PDF into one wall of
+// text without changing the immutable report payload.
+type ReportChapterSection struct {
+	Title      string
+	Paragraphs []string
+}
+
+type ReportChapterPDFData struct {
+	No       int
+	Key      string
+	Title    string
+	Sections []ReportChapterSection
+	Cycles   []model.CycleNote
+	Years    []model.YearNote
+}
+
 // ---------- 四柱 ----------
 
 // ---------- 报告 PDF 模板数据 ----------
@@ -30,6 +49,7 @@ type fortuneItem struct {
 // 严格遵守 P2：所有文案/标题不出现 "AI"。
 type ReportPDFData struct {
 	Brand             string
+	ProfileName       string
 	Locale            string
 	ReportTitle       string
 	DayMasterLabel    string
@@ -44,7 +64,15 @@ type ReportPDFData struct {
 	FortuneItems      []fortuneItem
 	HasTenYearChapter bool
 	Suggestions       []string
+	Chapters          []ReportChapterPDFData
 	SectionLabels     map[string]string
+}
+
+var strengthLabels = map[string]map[string]string{
+	"zh": {"extremely_strong": "极强", "strong": "身强", "slightly_strong": "身偏强", "balanced": "中和", "slightly_weak": "身偏弱", "weak": "身弱", "extremely_weak": "极弱"},
+	"en": {"extremely_strong": "Extremely strong", "strong": "Strong", "slightly_strong": "Slightly strong", "balanced": "Balanced", "slightly_weak": "Slightly weak", "weak": "Weak", "extremely_weak": "Extremely weak"},
+	"ja": {"extremely_strong": "極旺", "strong": "身旺", "slightly_strong": "やや身旺", "balanced": "中和", "slightly_weak": "やや身弱", "weak": "身弱", "extremely_weak": "極弱"},
+	"ko": {"extremely_strong": "극신강", "strong": "신강", "slightly_strong": "약간 신강", "balanced": "중화", "slightly_weak": "약간 신약", "weak": "신약", "extremely_weak": "극신약"},
 }
 
 var reportSectionLabels = map[string]map[string]string{
@@ -65,6 +93,9 @@ var reportSectionLabels = map[string]map[string]string{
 		"page":                   "Page",
 		"year":                   "Year",
 		"analysis":               "Analysis",
+		"contents":               "Contents",
+		"chart_overview":         "Four Pillars Overview",
+		"private_report":         "Personal Bazi Reading",
 		"chapter_chart_detail":   "Refined Chart Reading",
 		"chapter_destiny_depth":  "In-Depth Destiny Reading",
 		"chapter_ten_gods_full":  "Full Ten-Gods Panorama",
@@ -96,6 +127,9 @@ var reportSectionLabels = map[string]map[string]string{
 		"page":                   "页",
 		"year":                   "流年",
 		"analysis":               "解读",
+		"contents":               "目录",
+		"chart_overview":         "四柱命盘概览",
+		"private_report":         "专属八字命理解读",
 		"chapter_chart_detail":   "精细排盘",
 		"chapter_destiny_depth":  "命格深度解读",
 		"chapter_ten_gods_full":  "十神全象分析",
@@ -127,6 +161,9 @@ var reportSectionLabels = map[string]map[string]string{
 		"page":                   "ページ",
 		"year":                   "流年",
 		"analysis":               "解説",
+		"contents":               "目次",
+		"chart_overview":         "四柱命式概要",
+		"private_report":         "四柱推命 個人鑑定",
 		"chapter_chart_detail":   "詳細命式",
 		"chapter_destiny_depth":  "命式の深層解読",
 		"chapter_ten_gods_full":  "十神総象分析",
@@ -158,6 +195,9 @@ var reportSectionLabels = map[string]map[string]string{
 		"page":                   "페이지",
 		"year":                   "유년",
 		"analysis":               "해석",
+		"contents":               "목차",
+		"chart_overview":         "사주 명식 개요",
+		"private_report":         "개인 사주 심층 해석",
 		"chapter_chart_detail":   "정밀 명식",
 		"chapter_destiny_depth":  "명격 심층 해석",
 		"chapter_ten_gods_full":  "십신 전상 분석",
@@ -238,11 +278,16 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 	}
 
 	hasTenYearChapter := false
+	chapters := make([]ReportChapterPDFData, 0, len(content.Chapters))
 	for _, chapter := range content.Chapters {
 		if chapter.Key == "ten_year_years" {
 			hasTenYearChapter = true
-			break
 		}
+		chapters = append(chapters, ReportChapterPDFData{
+			No: chapter.No, Key: chapter.Key, Title: chapter.Title,
+			Sections: splitChapterSections(chapter.Body),
+			Cycles:   chapter.Cycles, Years: chapter.Years,
+		})
 	}
 
 	dayMasterLabel := chart.DayMaster.Stem + " · " + chart.DayMaster.Element + " " + chart.DayMaster.YinYang
@@ -252,7 +297,7 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 		Locale:            locale,
 		ReportTitle:       labels["report_title"],
 		DayMasterLabel:    dayMasterLabel,
-		StrengthLevel:     chart.Strength.Level,
+		StrengthLevel:     localizedStrength(chart.Strength.Level, locale),
 		ElementBalance:    summarizeElements(chart.FiveElementsCount),
 		GenDate:           genDate,
 		SolarDate:         chart.Meta.SolarDate,
@@ -263,8 +308,45 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 		FortuneItems:      fortuneItems,
 		HasTenYearChapter: hasTenYearChapter,
 		Suggestions:       content.Suggestions,
+		Chapters:          chapters,
 		SectionLabels:     labels,
 	}
+}
+
+func localizedStrength(level, locale string) string {
+	if labels := strengthLabels[locale]; labels != nil {
+		if value := labels[level]; value != "" {
+			return value
+		}
+	}
+	return level
+}
+
+func splitChapterSections(body string) []ReportChapterSection {
+	normalized := strings.ReplaceAll(body, "\r\n", "\n")
+	blocks := strings.Split(strings.TrimSpace(normalized), "\n\n")
+	sections := make([]ReportChapterSection, 0, len(blocks))
+	for _, block := range blocks {
+		lines := strings.Split(strings.TrimSpace(block), "\n")
+		clean := lines[:0]
+		for _, line := range lines {
+			if value := strings.TrimSpace(line); value != "" {
+				clean = append(clean, value)
+			}
+		}
+		if len(clean) == 0 {
+			continue
+		}
+		section := ReportChapterSection{}
+		if len(clean) > 1 && len([]rune(clean[0])) <= 32 {
+			section.Title = clean[0]
+			section.Paragraphs = clean[1:]
+		} else {
+			section.Paragraphs = clean
+		}
+		sections = append(sections, section)
+	}
+	return sections
 }
 
 func summarizeElements(counts map[string]int) string {

@@ -31,6 +31,9 @@ func (q *DBQueue) Enqueue(ctx context.Context, job *Job) error {
 	if job.Status == "" {
 		job.Status = StatusPending
 	}
+	if job.Lane == "" {
+		job.Lane = LaneDefault
+	}
 	if job.MaxAttempts <= 0 {
 		job.MaxAttempts = 3
 	}
@@ -51,13 +54,17 @@ func (q *DBQueue) Enqueue(ctx context.Context, job *Job) error {
 	return nil
 }
 
-func (q *DBQueue) Dequeue(ctx context.Context) (*Job, error) {
+func (q *DBQueue) Dequeue(ctx context.Context, lanes ...string) (*Job, error) {
 	var job Job
 	err := q.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		err := tx.Clauses(clause.Locking{
+		query := tx.Clauses(clause.Locking{
 			Strength: "UPDATE",
 			Options:  "SKIP LOCKED",
-		}).Where("status = ?", StatusPending).
+		}).Where("status = ?", StatusPending)
+		if len(lanes) > 0 {
+			query = query.Where("lane IN ?", lanes)
+		}
+		err := query.
 			Order("created_at ASC").
 			First(&job).Error
 		if err != nil {

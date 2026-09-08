@@ -133,8 +133,7 @@ func (r *ChromedpRenderer) renderPDF(ctx context.Context, html string) ([]byte, 
 			var err error
 			buf, _, err = page.PrintToPDF().
 				WithPrintBackground(true).
-				WithPaperWidth(8.5).
-				WithPaperHeight(11).
+				WithPreferCSSPageSize(true).
 				Do(ctx)
 			return err
 		}),

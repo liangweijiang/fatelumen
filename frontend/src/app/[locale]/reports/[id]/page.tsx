@@ -3,10 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { toast } from "sonner";
 import { getReport, getChart, getMe } from "@/lib/api/endpoints";
 import type { Report, Chart } from "@/types/api";
-import api from "@/lib/api/client";
 import CheckoutBlock from "@/components/report/CheckoutBlock";
 
 export default function ReportPage() {
@@ -20,7 +18,6 @@ export default function ReportPage() {
   const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [pdfLoading, setPdfLoading] = useState(false);
 
   const poll = useCallback(async () => {
     if (!idValid) {
@@ -80,25 +77,6 @@ export default function ReportPage() {
       clearTimeout(timer);
     };
   }, [poll]);
-
-  async function handleDownloadPdf() {
-    if (!report) return;
-    setPdfLoading(true);
-    try {
-      const { data } = await api.post(`/reports/${report.id}/pdf`);
-      const pdfUrl = (data as Record<string, unknown>)?.data
-        ? ((data as Record<string, unknown>).data as Record<string, string>)?.pdf_url
-        : (data as Record<string, string>)?.pdf_url;
-      if (pdfUrl) {
-        window.open(pdfUrl, "_blank");
-      }
-      toast.success(t("downloadPdf"));
-    } catch {
-      toast.error(t("failed"));
-    } finally {
-      setPdfLoading(false);
-    }
-  }
 
   // Loading state
   if (loading && !error) {
@@ -472,20 +450,24 @@ export default function ReportPage() {
               boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
             }}
           >
-            <button
-              type="button"
-              onClick={handleDownloadPdf}
-              disabled={pdfLoading}
-              className="w-full rounded-full py-3 text-[15px] font-semibold tracking-[.3px] transition-all"
-              style={{
-                fontFamily: "var(--serif-d)",
-                background: pdfLoading ? "var(--ink-faint)" : "var(--gold-deep)",
-                color: "var(--bg-card)",
-                cursor: pdfLoading ? "not-allowed" : "pointer",
-              }}
-            >
-              {pdfLoading ? t("generating") : t("downloadPdf")}
-            </button>
+            {report.pdf_url ? (
+              <a
+                href={report.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full rounded-full py-3 text-center text-[15px] font-semibold tracking-[.3px] transition-all"
+                style={{ fontFamily: "var(--serif-d)", background: "var(--gold-deep)", color: "var(--bg-card)" }}
+              >
+                {t("downloadPdf")}
+              </a>
+            ) : (
+              <span
+                className="w-full rounded-full py-3 text-center text-[15px] font-semibold tracking-[.3px]"
+                style={{ fontFamily: "var(--serif-d)", background: "var(--ink-faint)", color: "var(--bg-card)" }}
+              >
+                {t("pdfUnavailable")}
+              </span>
+            )}
           </div>
         </div>
         )}

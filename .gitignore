@@ -30,6 +30,7 @@ vendor/
 .idea/
 .idea/
 /backend/storage_data/
+/output/
 
 # 本地 Chromium 运行时二进制(绝不入库)
 /chrome-linux64/
@@ -38,3 +39,6 @@ backend/init/private/
 
 # 本地开发、接口验收与运维脚本（含本机配置和运行结果，绝不入库）
 /.local-tools/
+/backend/.local-tools/
+/.tmp/
+/.cache/

@@ -21,8 +21,15 @@ type Worker struct {
 	interval       time.Duration
 	numWorkers     int
 	staleThreshold time.Duration
+	lanes          []string
 	wg             sync.WaitGroup
 	cancel         context.CancelFunc
+}
+
+func NewLaneWorker(q Queue, registry *HandlerRegistry, interval time.Duration, workers int, staleThreshold time.Duration, lanes ...string) *Worker {
+	w := NewWorker(q, registry, interval, workers, staleThreshold)
+	w.lanes = append([]string(nil), lanes...)
+	return w
 }
 
 // NewWorker 创建 Worker。interval 为 0 时用默认 1s，workers 为 0 时用默认 3。
@@ -82,7 +89,7 @@ func (w *Worker) loop(ctx context.Context, idx int) {
 		default:
 		}
 
-		job, err := w.q.Dequeue(ctx)
+		job, err := w.q.Dequeue(ctx, w.lanes...)
 		if err != nil {
 			logger.FromCtx(ctx).Error("worker dequeue failed", "worker_idx", idx, "err", err)
 			continue

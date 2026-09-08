@@ -2,7 +2,6 @@ package renderer
 
 import (
 	"bytes"
-	"fmt"
 	"strings"
 	"testing"
 
@@ -28,7 +27,7 @@ func sampleReportChart(t *testing.T) *model.ChartData {
 }
 
 func sampleReportContent() model.ReportContent {
-	return model.ReportContent{
+	content := model.ReportContent{
 		Locale:       "en",
 		SummaryLine:  "A bright Wood rising at dawn, destined to illuminate.",
 		Summary:      "Your chart reveals a dynamic balance of Wood and Fire elements, creating a personality that is both ambitious and charismatic. The day master sits on a strong foundation, supported by favorable elements in the month and year pillars.",
@@ -49,6 +48,22 @@ func sampleReportContent() model.ReportContent {
 			"Incorporate Water-element activities for elemental harmony.",
 		},
 	}
+	chapterBodies := []struct{ key, title, body string }{
+		{"destiny_depth", "In-Depth Destiny Reading", "Core Pattern\nThe chart shows a clear and balanced structure.\n\nPractical Focus\nUse steady action to turn potential into results."},
+		{"ten_gods_full", "Full Ten-Gods Panorama", "Relationships\nThe ten-god pattern emphasizes cooperation and discernment."},
+		{"luck_cycle", "Lifelong Luck-Cycle Trend", "Major Cycles\nEach phase has a distinct rhythm and focus."},
+		{"ten_year_years", "Next Ten Years, Year by Year", "Ten-Year View\nThe coming decade rewards patient preparation."},
+		{"career_depth", "Career Deep Dive", "Career Direction\nStructured work creates durable progress."},
+		{"wealth_depth", "Wealth Deep Dive", "Wealth Pattern\nBuild reserves before expanding commitments."},
+		{"love_depth", "Relationship Deep Dive", "Partnership\nClear communication supports lasting trust."},
+		{"health_depth", "Health Deep Dive", "Wellness\nKeep a sustainable daily rhythm."},
+		{"element_tuning", "Five-Element Climate Balance", "Balance\nUse rest and movement to restore balance."},
+		{"life_plan", "Lifelong Guidance & Planning", "Long-Term Plan\nReview priorities at each major transition."},
+	}
+	for i, item := range chapterBodies {
+		content.Chapters = append(content.Chapters, model.Chapter{No: i + 1, Key: item.key, Title: item.title, Body: item.body})
+	}
+	return content
 }
 
 func TestBuildReportPDFData_Fields(t *testing.T) {
@@ -94,14 +109,6 @@ func TestBuildReportPDFData_Fields(t *testing.T) {
 func TestReportPDFTemplate_HidesLegacyYearlyFortuneWhenTenYearChapterExists(t *testing.T) {
 	chart := sampleReportChart(t)
 	content := sampleReportContent()
-	content.Chapters = []model.Chapter{
-		{
-			No:    4,
-			Key:   "ten_year_years",
-			Title: "Next Ten Years, Year by Year",
-			Body:  "A detailed ten-year chapter.",
-		},
-	}
 	data := BuildReportPDFData(chart, content, "2026-06-11")
 
 	if !data.HasTenYearChapter {
@@ -114,8 +121,8 @@ func TestReportPDFTemplate_HidesLegacyYearlyFortuneWhenTenYearChapterExists(t *t
 	}
 	html := buf.String()
 
-	if strings.Contains(html, "Yearly Fortune") {
-		t.Error("legacy yearly fortune section should be hidden when ten-year chapter exists")
+	if strings.Contains(html, content.YearlyFortune[0].Note) {
+		t.Error("legacy yearly fortune content should not be rendered in the ten-chapter report")
 	}
 	if !strings.Contains(html, "Next Ten Years, Year by Year") {
 		t.Error("ten-year chapter should still be rendered")
@@ -124,12 +131,17 @@ func TestReportPDFTemplate_HidesLegacyYearlyFortuneWhenTenYearChapterExists(t *t
 
 func TestBuildReportPDFData_Locales(t *testing.T) {
 	chart := sampleReportChart(t)
+	chart.Strength.Level = "balanced"
+	wantStrength := map[string]string{"en": "Balanced", "zh": "中和", "ja": "中和", "ko": "중화"}
 	for _, loc := range []string{"en", "zh", "ja", "ko"} {
 		content := sampleReportContent()
 		content.Locale = loc
 		data := BuildReportPDFData(chart, content, "2026-06-11")
 		if data.Locale != loc {
 			t.Errorf("expected locale %s, got %s", loc, data.Locale)
+		}
+		if data.StrengthLevel != wantStrength[loc] {
+			t.Errorf("locale %s: expected strength %s, got %s", loc, wantStrength[loc], data.StrengthLevel)
 		}
 	}
 }
@@ -148,9 +160,8 @@ func TestReportPDFTemplate_Render(t *testing.T) {
 	// 关键内容检查（html/template 会转义 &）
 	for _, kw := range []string{
 		"FateLumen", "Bazi Deep Reading Report",
-		"Destiny Overview", "Personality", "Career", "Wealth",
-		"Love", "Marriage", "Health", "Wellness", "Yearly Fortune",
-		"Guidance", "Suggestions", "Day Master",
+		"Four Pillars Overview", "Contents", "Day Master",
+		"In-Depth Destiny Reading", "Lifelong Guidance", "Core Pattern",
 	} {
 		if !strings.Contains(html, kw) {
 			t.Errorf("rendered HTML missing: %s", kw)
@@ -166,10 +177,10 @@ func TestReportPDFTemplate_Render(t *testing.T) {
 	if !strings.Contains(html, "page-break") {
 		t.Error("rendered HTML missing page breaks")
 	}
-	if !strings.Contains(html, "oklch(86% 0.039 80)") {
+	if !strings.Contains(html, "#f5f0e6") {
 		t.Error("rendered HTML missing bg color token")
 	}
-	if !strings.Contains(html, "oklch(56% 0.120 80)") {
+	if !strings.Contains(html, "#9a761e") {
 		t.Error("rendered HTML missing gold token")
 	}
 
@@ -180,20 +191,12 @@ func TestReportPDFTemplate_Render(t *testing.T) {
 		}
 	}
 
-	// 流年（检查年份即可）
-	for _, yf := range content.YearlyFortune {
-		if !strings.Contains(html, fmt.Sprint(yf.Year)) {
-			t.Errorf("rendered HTML missing fortune year %d", yf.Year)
-		}
-	}
-
-	// 建议
-	if !strings.Contains(html, "suggestion-list") {
-		t.Error("rendered HTML missing suggestion list")
+	if strings.Contains(html, "suggestion-list") {
+		t.Error("legacy suggestion section should not be rendered")
 	}
 
 	// @page 尺寸
-	if !strings.Contains(html, "size: A4") {
+	if !strings.Contains(html, "size:A4") {
 		t.Error("rendered HTML missing A4 page size")
 	}
 }
@@ -229,21 +232,24 @@ func TestReportPDFTemplate_ChapterContent(t *testing.T) {
 	}
 	html := buf.String()
 
-	// 各章节内容应出现在 HTML 中
+	// 十章正文应出现在 HTML 中，旧摘要字段不再重复渲染。
 	for _, text := range []string{
-		content.Summary,
-		content.Personality,
-		content.Career,
-		content.Relationship,
-		content.Health,
+		content.Chapters[0].Body,
+		content.Chapters[9].Body,
 	} {
-		// 检查前 30 个字符（HTML 可能有转义）
-		end := 30
-		if len(text) < end {
-			end = len(text)
+		firstLine := strings.Split(text, "\n")[0]
+		if !strings.Contains(html, firstLine) {
+			t.Errorf("rendered HTML missing content section: %s", firstLine)
 		}
-		if !strings.Contains(html, text[:end]) {
-			t.Errorf("rendered HTML missing content section: %s...", text[:end])
-		}
+	}
+	if strings.Contains(html, content.Personality) {
+		t.Error("legacy personality section should not be duplicated")
+	}
+}
+
+func TestSplitChapterSections(t *testing.T) {
+	sections := splitChapterSections("模块一\n第一段\n第二段\n\n模块二\n第三段")
+	if len(sections) != 2 || sections[0].Title != "模块一" || len(sections[0].Paragraphs) != 2 {
+		t.Fatalf("unexpected sections: %#v", sections)
 	}
 }

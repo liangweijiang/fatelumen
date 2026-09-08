@@ -20,12 +20,17 @@ import (
 )
 
 type AdminReportTraceHandler struct {
-	reports *repository.FullReportRepo
-	audit   *repository.AuditRepo
+	reports    *repository.FullReportRepo
+	renderJobs *repository.FullReportRenderJobRepo
+	audit      *repository.AuditRepo
 }
 
-func NewAdminReportTraceHandler(reports *repository.FullReportRepo, audit *repository.AuditRepo) *AdminReportTraceHandler {
-	return &AdminReportTraceHandler{reports: reports, audit: audit}
+func NewAdminReportTraceHandler(reports *repository.FullReportRepo, audit *repository.AuditRepo, renderJobs ...*repository.FullReportRenderJobRepo) *AdminReportTraceHandler {
+	var jobs *repository.FullReportRenderJobRepo
+	if len(renderJobs) > 0 {
+		jobs = renderJobs[0]
+	}
+	return &AdminReportTraceHandler{reports: reports, renderJobs: jobs, audit: audit}
 }
 
 func (h *AdminReportTraceHandler) List(c *gin.Context) {
@@ -89,8 +94,16 @@ func (h *AdminReportTraceHandler) Overview(c *gin.Context) {
 		h.readError(c, err, "report call statistics unavailable", reportID)
 		return
 	}
+	var renderJob *model.FullReportRenderJob
+	if h.renderJobs != nil {
+		renderJob, err = h.renderJobs.GetByReportID(c.Request.Context(), reportID)
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			h.readError(c, err, "report render status unavailable", reportID)
+			return
+		}
+	}
 	h.auditRead(c, "view_report_overview", reportID, "")
-	response.OK(c, gin.H{"report": report, "model_stats": stats})
+	response.OK(c, gin.H{"report": report, "model_stats": stats, "render_job": renderJob})
 }
 
 func (h *AdminReportTraceHandler) Result(c *gin.Context) {

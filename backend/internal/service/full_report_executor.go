@@ -47,9 +47,10 @@ type fullReportExecutor struct {
 	routes   FullReportRouteResolver
 	engine   birthchart.Engine
 	runtime  FullReportRuntimeConfig
+	pdf      FullReportPDFScheduler
 }
 
-func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig) job.JobHandler {
+func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig, pdf ...FullReportPDFScheduler) job.JobHandler {
 	if engine == nil {
 		engine = birthchart.NewDefaultEngine()
 	}
@@ -59,7 +60,11 @@ func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.
 	if runtime.ChapterTimeout <= 0 {
 		runtime.ChapterTimeout = 180 * time.Second
 	}
-	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime}
+	var scheduler FullReportPDFScheduler
+	if len(pdf) > 0 {
+		scheduler = pdf[0]
+	}
+	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime, pdf: scheduler}
 }
 
 func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result string, err error) {
@@ -208,12 +213,11 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if err != nil {
 		return "", err
 	}
-	if err := e.reports.BeginRendering(ctx, payload.ReportID, time.Now().UTC()); err != nil {
-		return "", fmt.Errorf("begin report rendering: %w", err)
+	if e.pdf == nil {
+		return "", errors.New("full report PDF pipeline is not configured")
 	}
-	completedAt := time.Now().UTC()
-	if err := e.reports.Complete(ctx, payload.ReportID, &model.FullReportResult{Locale: payload.Locale, Content: content, ContentHash: contentHash, RenderVersion: "full-report-html-v1", CreatedAt: completedAt}, completedAt); err != nil {
-		return "", fmt.Errorf("complete full report: %w", err)
+	if err := e.pdf.PrepareAndEnqueue(ctx, payload.ReportID, &model.FullReportResult{Locale: payload.Locale, Content: content, ContentHash: contentHash}); err != nil {
+		return "", fmt.Errorf("prepare report PDF: %w", err)
 	}
 	return report.PublicID, nil
 }
