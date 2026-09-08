@@ -359,6 +359,85 @@ func TestFullReportTerminalBlocksAttempts(t *testing.T) {
 	}
 }
 
+func TestFullReportFailConvergesUnfinishedChaptersAndCounts(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("id IN ?", []uint64{graph.Chapters[0].ID, graph.Chapters[1].ID}).Updates(map[string]any{
+		"status": model.FullReportChapterStatusSucceeded, "schema_valid": true,
+		"validation_status": model.FullReportValidationStatusPassed, "completed_at": now,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	failedAt := now.Add(time.Minute)
+	if err := repo.Fail(context.Background(), graph.Report.ID, "generation_failed", "model routes exhausted", failedAt); err != nil {
+		t.Fatal(err)
+	}
+
+	var report model.FullReport
+	if err := db.First(&report, graph.Report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != model.FullReportStatusFailed || report.ChapterSucceeded != 2 || report.ChapterFailed != 8 {
+		t.Fatalf("unexpected terminal counts: status=%s succeeded=%d failed=%d", report.Status, report.ChapterSucceeded, report.ChapterFailed)
+	}
+	var succeeded, failed []model.FullReportChapter
+	if err := db.Where("report_id = ? AND status = ?", graph.Report.ID, model.FullReportChapterStatusSucceeded).Find(&succeeded).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Where("report_id = ? AND status = ?", graph.Report.ID, model.FullReportChapterStatusFailed).Find(&failed).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(succeeded) != 2 || len(failed) != 8 {
+		t.Fatalf("unexpected chapter states: succeeded=%d failed=%d", len(succeeded), len(failed))
+	}
+	for _, chapter := range failed {
+		if chapter.ValidationStatus != model.FullReportValidationStatusFailed || chapter.ErrorCode != "generation_failed" || chapter.CompletedAt == nil || !chapter.CompletedAt.Equal(failedAt) {
+			t.Fatalf("failed chapter did not converge: %+v", chapter)
+		}
+	}
+}
+
+func TestFullReportRenderFailureKeepsSuccessfulChapterCounts(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("report_id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportChapterStatusSucceeded, "schema_valid": true,
+		"validation_status": model.FullReportValidationStatusPassed, "completed_at": now,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusRendering, "current_stage": model.FullReportStatusRendering,
+		"chapter_succeeded": 10,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Fail(context.Background(), graph.Report.ID, "render_failed", "pdf failed", now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	var report model.FullReport
+	if err := db.First(&report, graph.Report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if report.ChapterSucceeded != 10 || report.ChapterFailed != 0 {
+		t.Fatalf("render failure changed chapter outcome: succeeded=%d failed=%d", report.ChapterSucceeded, report.ChapterFailed)
+	}
+}
+
 func TestFullReportCompleteRequiresTenValidatedChapters(t *testing.T) {
 	repo, db := setupFullReportRepo(t)
 	now := time.Now().UTC()

@@ -971,22 +971,51 @@ func (r *FullReportRepo) CompleteRendering(ctx context.Context, reportID uint64,
 }
 
 func (r *FullReportRepo) Fail(ctx context.Context, reportID uint64, code, summary string, failedAt time.Time) error {
-	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
-		Where("id = ? AND status NOT IN ?", reportID, []string{model.FullReportStatusCompleted, model.FullReportStatusFailed}).
-		Updates(map[string]any{
-			"status":        model.FullReportStatusFailed,
-			"current_stage": model.FullReportStatusFailed,
-			"error_code":    code,
-			"error_summary": summary,
-			"failed_at":     failedAt,
-			"completed_at":  failedAt,
-			"updated_at":    failedAt,
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
+			return err
+		}
+		if model.IsFullReportTerminalStatus(report.Status) {
+			return ErrFullReportTerminal
+		}
+
+		// A failed report is terminal. Converge every unfinished chapter in the
+		// same transaction so list/detail views never expose pending work under
+		// a terminal report. Existing successes and chapter-specific failures
+		// remain immutable.
+		if err := tx.Model(&model.FullReportChapter{}).
+			Where("report_id = ? AND status NOT IN ?", reportID, []string{model.FullReportChapterStatusSucceeded, model.FullReportChapterStatusFailed}).
+			Updates(map[string]any{
+				"status":            model.FullReportChapterStatusFailed,
+				"validation_status": model.FullReportValidationStatusFailed,
+				"error_code":        code,
+				"error_summary":     summary,
+				"completed_at":      failedAt,
+				"updated_at":        failedAt,
+			}).Error; err != nil {
+			return err
+		}
+
+		var succeeded, failed int64
+		if err := tx.Model(&model.FullReportChapter{}).Where("report_id = ? AND status = ?", reportID, model.FullReportChapterStatusSucceeded).Count(&succeeded).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.FullReportChapter{}).Where("report_id = ? AND status = ?", reportID, model.FullReportChapterStatusFailed).Count(&failed).Error; err != nil {
+			return err
+		}
+
+		res := tx.Model(&model.FullReport{}).Where("id = ?", reportID).Updates(map[string]any{
+			"status":            model.FullReportStatusFailed,
+			"current_stage":     model.FullReportStatusFailed,
+			"chapter_succeeded": succeeded,
+			"chapter_failed":    failed,
+			"error_code":        code,
+			"error_summary":     summary,
+			"failed_at":         failedAt,
+			"completed_at":      failedAt,
+			"updated_at":        failedAt,
 		})
-	if res.Error != nil {
 		return res.Error
-	}
-	if res.RowsAffected != 1 {
-		return ErrFullReportTerminal
-	}
-	return nil
+	})
 }
