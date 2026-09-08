@@ -19,7 +19,7 @@ type reportSvc interface {
 	CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	GetReport(ctx context.Context, userID, reportID uint64) (*model.Report, error)
 	UnlockWithCredits(ctx context.Context, userID, reportID uint64) error
-	ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
+	ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error)
 }
 
 // ReportHandler 深度报告 HTTP 处理器。
@@ -163,12 +163,24 @@ func (h *ReportHandler) List(c *gin.Context) {
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	var cursor *repository.FullReportCursor
+	if raw := c.Query("cursor"); raw != "" {
+		var err error
+		cursor, err = decodeReportCursor(raw)
+		if err != nil {
+			response.Fail(c, response.CodeBadRequest, "invalid cursor")
+			return
+		}
+	}
 
-	reports, err := h.svc.ListReports(c.Request.Context(), userID, limit, offset)
+	reports, hasMore, err := h.svc.ListReports(c.Request.Context(), userID, limit, cursor)
 	if err != nil {
 		response.Error(c, err.Error())
 		return
+	}
+	if hasMore && len(reports) > 0 {
+		last := reports[len(reports)-1]
+		c.Header("X-Next-Cursor", encodeReportCursor(last.CreatedAt, last.ID))
 	}
 	response.OK(c, reports)
 }

@@ -91,22 +91,23 @@ func (s *FullReportService) GetReport(ctx context.Context, userID, reportID uint
 	return fullReportDTO(report, result), nil
 }
 
-func (s *FullReportService) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
+func (s *FullReportService) ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
 	if limit < 1 || limit > 100 {
 		limit = 20
 	}
-	if offset < 0 {
-		offset = 0
-	}
-	rows, err := s.reports.ListByUserOffset(ctx, userID, limit, offset)
+	rows, err := s.reports.ListByUser(ctx, userID, limit+1, cursor)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
 	}
 	out := make([]model.Report, len(rows))
 	for i := range rows {
 		out[i] = *fullReportDTO(&rows[i], nil)
 	}
-	return out, nil
+	return out, hasMore, nil
 }
 
 func (s *FullReportService) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {

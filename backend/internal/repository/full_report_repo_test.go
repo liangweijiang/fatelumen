@@ -186,6 +186,81 @@ func TestAdminTraceProjectsExecutionSectionAndSelectedAttemptArtifacts(t *testin
 	if _, err := repo.AdminGetAttemptValidation(context.Background(), graph.Report.ID+1, attempt.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatalf("cross-report attempt should be hidden, got %v", err)
 	}
+	stats, err := repo.AdminAttemptStats(context.Background(), graph.Report.ID)
+	if err != nil || len(stats) != 1 || stats[0].AttemptCount != 1 || stats[0].SucceededCount != 1 {
+		t.Fatalf("unexpected attempt stats: %+v err=%v", stats, err)
+	}
+}
+
+func TestAdminTraceEndpointsHideDeletingReport(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(ctx, graph); err != nil {
+		t.Fatal(err)
+	}
+	attempt := model.FullReportAttempt{
+		ReportID: graph.Report.ID, ChapterID: graph.Chapters[0].ID, AttemptNo: 1, RouteNo: 1,
+		Provider: "mock", Model: "mock-v1", Status: model.FullReportAttemptStatusSucceeded,
+		ValidationStatus: model.FullReportValidationStatusPassed, PromptHash: graph.Chapters[0].PromptHash,
+		TraceID: "trace-deleting", StartedAt: now, CreatedAt: now,
+	}
+	if err := db.Create(&attempt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportAttemptPayload{AttemptID: attempt.ID, RequestParameters: model.JSONRaw(`{}`), RequestPrompt: "prompt", ParsedOutput: model.JSONRaw(`{}`), ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	validation := model.FullReportValidationRun{ReportID: graph.Report.ID, RoundNo: 1, ValidatorVersion: "v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, CreatedAt: now}
+	if err := db.Create(&validation).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportValidationPayload{ValidationRunID: validation.ID, ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportResult{ReportID: graph.Report.ID, Locale: "zh", Content: model.ReportContent{}, ContentHash: fmt.Sprintf("%064d", 88), RenderVersion: "pdf-v2", CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{"status": model.FullReportStatusDeleting, "current_stage": model.FullReportStatusDeleting}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	checks := []struct {
+		name string
+		call func() error
+	}{
+		{"result", func() error { _, err := repo.AdminGetResult(ctx, graph.Report.ID); return err }},
+		{"execution", func() error { _, err := repo.AdminGetExecutionTrace(ctx, graph.Report.ID); return err }},
+		{"facts", func() error {
+			_, err := repo.AdminGetExecutionSection(ctx, graph.Report.ID, "facts_snapshot")
+			return err
+		}},
+		{"attempt list", func() error {
+			_, _, err := repo.AdminListAttempts(ctx, graph.Report.ID, graph.Chapters[0].ID, 20, 0)
+			return err
+		}},
+		{"attempt", func() error { _, err := repo.AdminGetAttemptTrace(ctx, graph.Report.ID, attempt.ID); return err }},
+		{"attempt validation", func() error { _, err := repo.AdminGetAttemptValidation(ctx, graph.Report.ID, attempt.ID); return err }},
+		{"validation list", func() error { _, err := repo.AdminListValidationRuns(ctx, graph.Report.ID); return err }},
+		{"validation", func() error { _, err := repo.AdminGetValidationTrace(ctx, graph.Report.ID, validation.ID); return err }},
+		{"chapter list", func() error { _, err := repo.AdminListChapters(ctx, graph.Report.ID); return err }},
+		{"chapter", func() error {
+			_, err := repo.AdminGetChapterTrace(ctx, graph.Report.ID, graph.Chapters[0].ID)
+			return err
+		}},
+		{"chapter artifact", func() error {
+			_, err := repo.AdminGetChapterArtifact(ctx, graph.Report.ID, graph.Chapters[0].ID, "prompt")
+			return err
+		}},
+	}
+	for _, check := range checks {
+		t.Run(check.name, func(t *testing.T) {
+			if err := check.call(); !errors.Is(err, gorm.ErrRecordNotFound) {
+				t.Fatalf("deleting report remained readable: %v", err)
+			}
+		})
+	}
 }
 
 func fullReportGraph(now time.Time) FullReportCreateGraph {
@@ -233,9 +308,15 @@ func fullReportGraph(now time.Time) FullReportCreateGraph {
 }
 
 func TestFullReportCreateGraphAndBatchLoadPayloads(t *testing.T) {
-	repo, _ := setupFullReportRepo(t)
+	repo, db := setupFullReportRepo(t)
 	graph := fullReportGraph(time.Now().UTC())
 	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	queryCount := 0
+	if err := db.Callback().Query().Before("gorm:query").Register("test:count_chapter_payload_queries", func(*gorm.DB) {
+		queryCount++
+	}); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := repo.ListChaptersWithPayload(context.Background(), graph.Report.ID)
@@ -244,6 +325,9 @@ func TestFullReportCreateGraphAndBatchLoadPayloads(t *testing.T) {
 	}
 	if len(rows) != 10 {
 		t.Fatalf("chapters = %d, want 10", len(rows))
+	}
+	if queryCount != 2 {
+		t.Fatalf("chapter payload loader executed %d queries, want exactly 2", queryCount)
 	}
 	for i, row := range rows {
 		if int(row.Chapter.ChapterNo) != i+1 || row.Payload.ChapterID != row.Chapter.ID {

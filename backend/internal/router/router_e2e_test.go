@@ -17,6 +17,7 @@ import (
 	"fatelumen/backend/internal/model"
 	jwtpkg "fatelumen/backend/internal/pkg/jwt"
 	"fatelumen/backend/internal/pkg/response"
+	"fatelumen/backend/internal/repository"
 	"fatelumen/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -131,8 +132,8 @@ func (f *fakeUserReportSvc) GetReport(ctx context.Context, userID, reportID uint
 	}
 	return nil, gorm.ErrRecordNotFound
 }
-func (f *fakeUserReportSvc) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
-	return []model.Report{}, nil
+func (f *fakeUserReportSvc) ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
+	return []model.Report{}, false, nil
 }
 func (f *fakeUserReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
 	return nil

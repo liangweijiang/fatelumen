@@ -111,7 +111,7 @@ func (h *AdminReportTraceHandler) Result(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.reports.GetResult(c.Request.Context(), reportID)
+	result, err := h.reports.AdminGetResult(c.Request.Context(), reportID)
 	if err != nil {
 		h.readError(c, err, "report result unavailable", reportID)
 		return

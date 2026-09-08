@@ -310,6 +310,14 @@ func (r *FullReportRepo) AdminGetByID(ctx context.Context, reportID uint64) (*mo
 	return &report, err
 }
 
+func (r *FullReportRepo) AdminGetResult(ctx context.Context, reportID uint64) (*model.FullReportResult, error) {
+	var result model.FullReportResult
+	err := r.db.WithContext(ctx).Model(&model.FullReportResult{}).Select("full_report_results.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_results.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_results.report_id = ?", reportID).First(&result).Error
+	return &result, err
+}
+
 func (r *FullReportRepo) AdminList(ctx context.Context, status string, paid *bool, userID uint64, limit, offset int) ([]model.FullReport, int64, error) {
 	q := r.db.WithContext(ctx).Model(&model.FullReport{})
 	if status != "" {
@@ -446,7 +454,10 @@ type FullReportModelStats struct {
 
 func (r *FullReportRepo) AdminGetExecutionTrace(ctx context.Context, reportID uint64) (*FullReportExecutionTrace, error) {
 	var snapshot model.FullReportExecutionSnapshot
-	if err := r.db.WithContext(ctx).Where("report_id = ?", reportID).First(&snapshot).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.FullReportExecutionSnapshot{}).
+		Select("full_report_execution_snapshots.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_execution_snapshots.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_execution_snapshots.report_id = ?", reportID).First(&snapshot).Error; err != nil {
 		return nil, err
 	}
 	var payload model.FullReportExecutionPayload
@@ -472,6 +483,7 @@ func (r *FullReportRepo) AdminGetExecutionSection(ctx context.Context, reportID 
 	result := r.db.WithContext(ctx).Table("full_report_execution_payloads AS p").
 		Select("p."+column+" AS value").
 		Joins("JOIN full_report_execution_snapshots AS s ON s.id = p.snapshot_id").
+		Joins("JOIN full_reports AS r ON r.id = s.report_id AND r.status <> ?", model.FullReportStatusDeleting).
 		Where("s.report_id = ?", reportID).Scan(&projection)
 	if result.Error != nil {
 		return nil, result.Error
@@ -485,15 +497,18 @@ func (r *FullReportRepo) AdminGetExecutionSection(ctx context.Context, reportID 
 func (r *FullReportRepo) AdminAttemptStats(ctx context.Context, reportID uint64) ([]FullReportModelStats, error) {
 	stats := make([]FullReportModelStats, 0)
 	err := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).
-		Select(`route_no, provider, model,
+		Select(`full_report_attempts.route_no AS route_no, full_report_attempts.provider AS provider, full_report_attempts.model AS model,
 			COUNT(*) AS attempt_count,
-			SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) AS succeeded_count,
-			SUM(CASE WHEN status IN (?, ?) THEN 1 ELSE 0 END) AS failed_count,
-			SUM(CASE WHEN total_tokens IS NOT NULL THEN 1 ELSE 0 END) AS usage_reported_count,
-			SUM(prompt_tokens) AS prompt_tokens, SUM(completion_tokens) AS completion_tokens,
-			SUM(total_tokens) AS total_tokens, SUM(duration_ms) AS duration_ms`,
+			SUM(CASE WHEN full_report_attempts.status = ? THEN 1 ELSE 0 END) AS succeeded_count,
+			SUM(CASE WHEN full_report_attempts.status IN (?, ?) THEN 1 ELSE 0 END) AS failed_count,
+			SUM(CASE WHEN full_report_attempts.total_tokens IS NOT NULL THEN 1 ELSE 0 END) AS usage_reported_count,
+			SUM(full_report_attempts.prompt_tokens) AS prompt_tokens, SUM(full_report_attempts.completion_tokens) AS completion_tokens,
+			SUM(full_report_attempts.total_tokens) AS total_tokens, SUM(full_report_attempts.duration_ms) AS duration_ms`,
 			model.FullReportAttemptStatusSucceeded, model.FullReportAttemptStatusFailed, model.FullReportAttemptStatusRejected).
-		Where("report_id = ?", reportID).Group("route_no, provider, model").Order("route_no ASC").Scan(&stats).Error
+		Joins("JOIN full_reports AS r ON r.id = full_report_attempts.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_attempts.report_id = ?", reportID).
+		Group("full_report_attempts.route_no, full_report_attempts.provider, full_report_attempts.model").
+		Order("full_report_attempts.route_no ASC").Scan(&stats).Error
 	return stats, err
 }
 
@@ -504,16 +519,21 @@ type FullReportAttemptTrace struct {
 }
 
 func (r *FullReportRepo) AdminListAttempts(ctx context.Context, reportID, chapterID uint64, limit, offset int) ([]model.FullReportAttempt, int64, error) {
-	q := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).Where("report_id = ?", reportID)
+	if _, err := r.AdminGetByID(ctx, reportID); err != nil {
+		return nil, 0, err
+	}
+	q := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).
+		Joins("JOIN full_reports AS r ON r.id = full_report_attempts.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_attempts.report_id = ?", reportID)
 	if chapterID != 0 {
-		q = q.Where("chapter_id = ?", chapterID)
+		q = q.Where("full_report_attempts.chapter_id = ?", chapterID)
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []model.FullReportAttempt
-	err := q.Order("attempt_no DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error
+	err := q.Select("full_report_attempts.*").Order("full_report_attempts.attempt_no DESC, full_report_attempts.id DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, total, err
 }
 
@@ -524,6 +544,7 @@ func (r *FullReportRepo) AdminGetAttemptValidation(ctx context.Context, reportID
 	result := r.db.WithContext(ctx).Table("full_report_attempt_payloads AS p").
 		Select("p.validation_result AS value").
 		Joins("JOIN full_report_attempts AS a ON a.id = p.attempt_id").
+		Joins("JOIN full_reports AS r ON r.id = a.report_id AND r.status <> ?", model.FullReportStatusDeleting).
 		Where("a.id = ? AND a.report_id = ?", attemptID, reportID).Scan(&projection)
 	if result.Error != nil {
 		return nil, result.Error
@@ -536,7 +557,9 @@ func (r *FullReportRepo) AdminGetAttemptValidation(ctx context.Context, reportID
 
 func (r *FullReportRepo) AdminGetAttemptTrace(ctx context.Context, reportID, attemptID uint64) (*FullReportAttemptTrace, error) {
 	var attempt model.FullReportAttempt
-	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", attemptID, reportID).First(&attempt).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.FullReportAttempt{}).Select("full_report_attempts.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_attempts.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_attempts.id = ? AND full_report_attempts.report_id = ?", attemptID, reportID).First(&attempt).Error; err != nil {
 		return nil, err
 	}
 	var payload model.FullReportAttemptPayload
@@ -561,20 +584,25 @@ type FullReportValidationTrace struct {
 }
 
 func (r *FullReportRepo) AdminListValidationRuns(ctx context.Context, reportID uint64) ([]model.FullReportValidationRun, error) {
-	var report model.FullReport
-	if err := r.db.WithContext(ctx).Select("id").First(&report, reportID).Error; err != nil {
+	var rows []model.FullReportValidationRun
+	if err := r.db.WithContext(ctx).Model(&model.FullReportValidationRun{}).Select("full_report_validation_runs.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_validation_runs.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_validation_runs.report_id = ?", reportID).Order("full_report_validation_runs.round_no DESC").Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	var rows []model.FullReportValidationRun
-	if err := r.db.WithContext(ctx).Where("report_id = ?", reportID).Order("round_no DESC").Find(&rows).Error; err != nil {
-		return nil, err
+	if len(rows) == 0 {
+		if _, err := r.AdminGetByID(ctx, reportID); err != nil {
+			return nil, err
+		}
 	}
 	return rows, nil
 }
 
 func (r *FullReportRepo) AdminGetValidationTrace(ctx context.Context, reportID, validationID uint64) (*FullReportValidationTrace, error) {
 	var run model.FullReportValidationRun
-	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", validationID, reportID).First(&run).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.FullReportValidationRun{}).Select("full_report_validation_runs.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_validation_runs.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_validation_runs.id = ? AND full_report_validation_runs.report_id = ?", validationID, reportID).First(&run).Error; err != nil {
 		return nil, err
 	}
 	var payload model.FullReportValidationPayload
@@ -585,20 +613,25 @@ func (r *FullReportRepo) AdminGetValidationTrace(ctx context.Context, reportID, 
 }
 
 func (r *FullReportRepo) AdminListChapters(ctx context.Context, reportID uint64) ([]model.FullReportChapter, error) {
-	var report model.FullReport
-	if err := r.db.WithContext(ctx).Select("id").First(&report, reportID).Error; err != nil {
+	var chapters []model.FullReportChapter
+	if err := r.db.WithContext(ctx).Model(&model.FullReportChapter{}).Select("full_report_chapters.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_chapters.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_chapters.report_id = ?", reportID).Order("full_report_chapters.chapter_no ASC").Find(&chapters).Error; err != nil {
 		return nil, err
 	}
-	var chapters []model.FullReportChapter
-	if err := r.db.WithContext(ctx).Where("report_id = ?", reportID).Order("chapter_no ASC").Find(&chapters).Error; err != nil {
-		return nil, err
+	if len(chapters) == 0 {
+		if _, err := r.AdminGetByID(ctx, reportID); err != nil {
+			return nil, err
+		}
 	}
 	return chapters, nil
 }
 
 func (r *FullReportRepo) AdminGetChapterTrace(ctx context.Context, reportID, chapterID uint64) (*FullReportChapterWithPayload, error) {
 	var chapter model.FullReportChapter
-	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.FullReportChapter{}).Select("full_report_chapters.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_chapters.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_chapters.id = ? AND full_report_chapters.report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
 		return nil, err
 	}
 	var payload model.FullReportChapterPayload
@@ -619,7 +652,9 @@ type FullReportChapterArtifact struct {
 // chapter payload copies for historical reports.
 func (r *FullReportRepo) AdminGetChapterArtifact(ctx context.Context, reportID, chapterID uint64, artifact string) (*FullReportChapterArtifact, error) {
 	var chapter model.FullReportChapter
-	if err := r.db.WithContext(ctx).Where("id = ? AND report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.FullReportChapter{}).Select("full_report_chapters.*").
+		Joins("JOIN full_reports AS r ON r.id = full_report_chapters.report_id AND r.status <> ?", model.FullReportStatusDeleting).
+		Where("full_report_chapters.id = ? AND full_report_chapters.report_id = ?", chapterID, reportID).First(&chapter).Error; err != nil {
 		return nil, err
 	}
 	switch artifact {

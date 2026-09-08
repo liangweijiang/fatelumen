@@ -11,6 +11,7 @@ import (
 
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/response"
+	"fatelumen/backend/internal/repository"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -19,7 +20,7 @@ import (
 type fakeReportSvc struct {
 	createFn func(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	getFn    func(ctx context.Context, userID, reportID uint64) (*model.Report, error)
-	listFn   func(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error)
+	listFn   func(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error)
 	unlockFn func(ctx context.Context, userID, reportID uint64) error
 }
 
@@ -31,8 +32,8 @@ func (f *fakeReportSvc) GetReport(ctx context.Context, userID, reportID uint64) 
 	return f.getFn(ctx, userID, reportID)
 }
 
-func (f *fakeReportSvc) ListReports(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
-	return f.listFn(ctx, userID, limit, offset)
+func (f *fakeReportSvc) ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
+	return f.listFn(ctx, userID, limit, cursor)
 }
 
 func (f *fakeReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
@@ -262,11 +263,11 @@ func TestGetReport_InvalidID(t *testing.T) {
 
 func TestListReports_Success(t *testing.T) {
 	svc := &fakeReportSvc{
-		listFn: func(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
+		listFn: func(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
 			return []model.Report{
 				{ID: 1, UserID: userID, Status: "done", PDFURL: "https://cdn.example.com/1.pdf"},
 				{ID: 2, UserID: userID, Status: "pending"},
-			}, nil
+			}, true, nil
 		},
 	}
 	h := testHandler(svc)
@@ -292,12 +293,15 @@ func TestListReports_Success(t *testing.T) {
 	if len(arr) != 2 {
 		t.Fatalf("expected 2 items, got %d", len(arr))
 	}
+	if w.Header().Get("X-Next-Cursor") == "" {
+		t.Fatal("expected next cursor response header")
+	}
 }
 
 func TestListReports_EmptyList(t *testing.T) {
 	svc := &fakeReportSvc{
-		listFn: func(ctx context.Context, userID uint64, limit, offset int) ([]model.Report, error) {
-			return []model.Report{}, nil
+		listFn: func(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
+			return []model.Report{}, false, nil
 		},
 	}
 	h := testHandler(svc)

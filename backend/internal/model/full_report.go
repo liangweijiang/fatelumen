@@ -174,7 +174,7 @@ type FullReportAttempt struct {
 	ID               uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
 	ReportID         uint64     `gorm:"not null;index:idx_full_report_attempt_report_chapter,priority:1" json:"report_id"`
 	ChapterID        uint64     `gorm:"not null;uniqueIndex:uk_full_report_attempt,priority:1;index:idx_full_report_attempt_report_chapter,priority:2" json:"chapter_id"`
-	AttemptNo        uint16     `gorm:"not null;uniqueIndex:uk_full_report_attempt,priority:2" json:"attempt_no"`
+	AttemptNo        uint16     `gorm:"not null;uniqueIndex:uk_full_report_attempt,priority:2;index:idx_full_report_attempt_report_chapter,priority:3,sort:desc" json:"attempt_no"`
 	RouteNo          uint8      `gorm:"not null" json:"route_no"`
 	Provider         string     `gorm:"type:varchar(64);not null" json:"provider"`
 	Model            string     `gorm:"type:varchar(128);not null" json:"model"`
