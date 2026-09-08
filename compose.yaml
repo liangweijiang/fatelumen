@@ -53,8 +53,8 @@ services:
       DB_PASSWORD: fatelumen123
       DB_NAME: fatelumen
       REDIS_ADDR: redis:6379
-      NO_PROXY: localhost,127.0.0.1,::1,mysql,redis,host.docker.internal
-      no_proxy: localhost,127.0.0.1,::1,mysql,redis,host.docker.internal
+      NO_PROXY: localhost,127.0.0.1,::1,mysql,redis,host.docker.internal,83.171.203.145
+      no_proxy: localhost,127.0.0.1,::1,mysql,redis,host.docker.internal,83.171.203.145
       PAYMENT_PROVIDERS: ""
       DEEPSEEK_API_KEY: local-development-placeholder
       NOTIFIER: noop
