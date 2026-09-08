@@ -22,6 +22,7 @@ const (
 	LaneDefault          = "default"
 	LaneReportGeneration = "report-generation"
 	LanePDFRender        = "pdf-render"
+	LaneReportCleanup    = "report-cleanup"
 )
 
 // CanTransit 校验状态流转合法性。

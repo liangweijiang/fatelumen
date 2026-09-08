@@ -193,7 +193,13 @@ func main() {
 	// tables are deliberately not part of this execution path.
 	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
 	fullReportRenderJobRepo := repository.NewFullReportRenderJobRepo(db)
+	fullReportCleanupJobRepo := repository.NewFullReportCleanupJobRepo(db)
 	pdfPipeline := service.NewFullReportPDFPipeline(fullReportRepo, jobQueue, imgRenderer, fileStorage)
+	fileDeleter, ok := fileStorage.(storage.Deleter)
+	if !ok {
+		log.Fatal("storage does not support report cleanup")
+	}
+	cleanupRunner := service.NewFullReportCleanupRunner(fullReportCleanupJobRepo, fileDeleter)
 	llmConfigRepo := repository.NewLLMConfigRepo(db)
 	fullReportRoutes := service.NewDatabaseFullReportRouteResolver(llmConfigRepo, llm.NewConfigSecretCipher(cfg.AdminJWTSecret), time.Duration(cfg.ReportChapterTimeoutSeconds)*time.Second)
 	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, fullReportRoutes, baseChartEngine, service.FullReportRuntimeConfig{
@@ -205,8 +211,10 @@ func main() {
 	handlerReg := job.NewHandlerRegistry()
 	handlerReg.Register(service.FullReportJobType, fullReportExecutor)
 	handlerReg.Register(service.FullReportPDFJobType, service.NewFullReportPDFJobHandler(fullReportRenderJobRepo, pdfPipeline, 1, fullReportRepo))
+	handlerReg.Register(service.FullReportCleanupJobType, service.NewFullReportCleanupJobHandler(fullReportCleanupJobRepo, cleanupRunner))
 	reportWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 3, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, job.LaneDefault, job.LaneReportGeneration)
 	pdfWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 1, 0, job.LanePDFRender)
+	cleanupWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 1, 0, job.LaneReportCleanup)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if cfg.JobQueue != "db" {
@@ -218,9 +226,11 @@ func main() {
 		}
 	}
 	service.StartFullReportPDFRecovery(ctx, fullReportRenderJobRepo, fullReportRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Minute)
+	service.StartFullReportCleanup(ctx, fullReportCleanupJobRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Hour)
 	reportWorker.Start(ctx)
 	pdfWorker.Start(ctx)
-	log.Info("job workers started", "report_workers", 3, "pdf_workers", 1)
+	cleanupWorker.Start(ctx)
+	log.Info("job workers started", "report_workers", 3, "pdf_workers", 1, "cleanup_workers", 1)
 
 	reportHTTPHandler := handler.NewReportHandler(reportSvc)
 
@@ -395,6 +405,7 @@ func main() {
 	go func() {
 		reportWorker.Stop()
 		pdfWorker.Stop()
+		cleanupWorker.Stop()
 		close(jobDone)
 	}()
 	select {

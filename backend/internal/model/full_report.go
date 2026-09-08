@@ -21,11 +21,19 @@ const (
 )
 
 const (
-	FullReportCleanupJobStatusQueued    = "queued"
-	FullReportCleanupJobStatusRunning   = "running"
-	FullReportCleanupJobStatusSucceeded = "succeeded"
-	FullReportCleanupJobStatusFailed    = "failed"
-	FullReportCleanupStageQueued        = "queued"
+	FullReportCleanupJobStatusQueued      = "queued"
+	FullReportCleanupJobStatusRunning     = "running"
+	FullReportCleanupJobStatusSucceeded   = "succeeded"
+	FullReportCleanupJobStatusFailed      = "failed"
+	FullReportCleanupStageQueued          = "queued"
+	FullReportCleanupStageObjectDeleted   = "object_deleted"
+	FullReportCleanupStageAttemptsGone    = "attempts_deleted"
+	FullReportCleanupStageValidationsGone = "validations_deleted"
+	FullReportCleanupStageChaptersGone    = "chapters_deleted"
+	FullReportCleanupStageExecutionGone   = "execution_deleted"
+	FullReportCleanupStageResultGone      = "result_deleted"
+	FullReportCleanupStageRenderJobsGone  = "render_jobs_deleted"
+	FullReportCleanupStageReportGone      = "report_deleted"
 )
 
 const (

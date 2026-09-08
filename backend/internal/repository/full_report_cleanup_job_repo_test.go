@@ -102,3 +102,133 @@ func TestCleanupJobClaimIsExclusive(t *testing.T) {
 		t.Fatalf("second claim err = %v", err)
 	}
 }
+
+func TestCleanupJobDeletesEveryReportLayerAndKeepsAuditTask(t *testing.T) {
+	reports, db := setupFullReportRepo(t)
+	if err := db.AutoMigrate(&model.FullReportCleanupJob{}); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	graph := fullReportGraph(now)
+	graph.Report.Status = model.FullReportStatusCompleted
+	graph.Report.CurrentStage = model.FullReportStatusCompleted
+	graph.Report.ExpiresAt = now.Add(-time.Hour)
+	if err := reports.CreateGraph(ctx, graph); err != nil {
+		t.Fatal(err)
+	}
+
+	attempt := model.FullReportAttempt{
+		ReportID: graph.Report.ID, ChapterID: graph.Chapters[0].ID, AttemptNo: 1, RouteNo: 1,
+		Provider: "test", Model: "test", Status: model.FullReportAttemptStatusSucceeded,
+		ValidationStatus: model.FullReportValidationStatusPassed, PromptHash: graph.Chapters[0].PromptHash,
+		TraceID: "cleanup-test", StartedAt: now, CreatedAt: now,
+	}
+	if err := db.Create(&attempt).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportAttemptPayload{AttemptID: attempt.ID, RequestParameters: model.JSONRaw(`{}`), RequestPrompt: "prompt", CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReportChapter{}).Where("id = ?", graph.Chapters[0].ID).Update("selected_attempt_id", attempt.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	validation := model.FullReportValidationRun{ReportID: graph.Report.ID, RoundNo: 1, ValidatorVersion: "v1", Status: model.FullReportValidationStatusPassed, StartedAt: now, CreatedAt: now}
+	if err := db.Create(&validation).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportValidationPayload{ValidationRunID: validation.ID, ValidationResult: model.JSONRaw(`{"passed":true}`), CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportResult{ReportID: graph.Report.ID, Locale: "zh", Content: model.ReportContent{}, ContentHash: fmt.Sprintf("%064d", 99), RenderVersion: "pdf-v2", PDFStorageKey: "reports/test.pdf", CreatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.FullReportRenderJob{ReportID: graph.Report.ID, RenderVersion: "pdf-v2", Status: model.FullReportRenderJobStatusSucceeded, MaxAttempts: 3, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	cleanup := NewFullReportCleanupJobRepo(db)
+	tasks, err := cleanup.ScheduleExpired(ctx, now, 10, 3, now)
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("schedule failed: tasks=%+v err=%v", tasks, err)
+	}
+	task, err := cleanup.Claim(ctx, tasks[0].ID, now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanup.AdvanceObjectDeleted(ctx, task.ID, now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	steps := [][2]string{
+		{model.FullReportCleanupStageObjectDeleted, model.FullReportCleanupStageAttemptsGone},
+		{model.FullReportCleanupStageAttemptsGone, model.FullReportCleanupStageValidationsGone},
+		{model.FullReportCleanupStageValidationsGone, model.FullReportCleanupStageChaptersGone},
+		{model.FullReportCleanupStageChaptersGone, model.FullReportCleanupStageExecutionGone},
+		{model.FullReportCleanupStageExecutionGone, model.FullReportCleanupStageResultGone},
+		{model.FullReportCleanupStageResultGone, model.FullReportCleanupStageRenderJobsGone},
+		{model.FullReportCleanupStageRenderJobsGone, model.FullReportCleanupStageReportGone},
+	}
+	for i, step := range steps {
+		if err := cleanup.DeleteDatabaseStage(ctx, task.ID, step[0], step[1], now.Add(time.Duration(i+3)*time.Second)); err != nil {
+			t.Fatalf("stage %s failed: %v", step[1], err)
+		}
+	}
+	if err := cleanup.Succeed(ctx, task.ID, now.Add(20*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, table := range []any{
+		&model.FullReport{}, &model.FullReportExecutionSnapshot{}, &model.FullReportExecutionPayload{},
+		&model.FullReportChapter{}, &model.FullReportChapterPayload{}, &model.FullReportAttempt{},
+		&model.FullReportAttemptPayload{}, &model.FullReportValidationRun{}, &model.FullReportValidationPayload{},
+		&model.FullReportResult{}, &model.FullReportRenderJob{},
+	} {
+		var count int64
+		if err := db.Model(table).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		if count != 0 {
+			t.Fatalf("%T rows remain: %d", table, count)
+		}
+	}
+	stored, err := cleanup.Get(ctx, task.ID)
+	if err != nil || stored.Status != model.FullReportCleanupJobStatusSucceeded || stored.Stage != model.FullReportCleanupStageReportGone {
+		t.Fatalf("cleanup audit task not retained: %+v err=%v", stored, err)
+	}
+}
+
+func TestCleanupJobFailureAndStaleRecoveryPreserveStage(t *testing.T) {
+	repo, db := setupFullReportCleanupRepo(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	report := cleanupTestReport(1, model.FullReportStatusCompleted, now.Add(-time.Hour), now)
+	if err := db.Create(report).Error; err != nil {
+		t.Fatal(err)
+	}
+	tasks, err := repo.ScheduleExpired(context.Background(), now, 10, 3, now)
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("schedule failed: tasks=%+v err=%v", tasks, err)
+	}
+	claimed, err := repo.Claim(context.Background(), tasks[0].ID, now.Add(time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.AdvanceObjectDeleted(context.Background(), claimed.ID, now.Add(2*time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	terminal, err := repo.RecordFailure(context.Background(), claimed.ID, "delete_failed", "temporary", now.Add(3*time.Second))
+	if err != nil || terminal {
+		t.Fatalf("first failure should requeue: terminal=%v err=%v", terminal, err)
+	}
+	reclaimed, err := repo.Claim(context.Background(), claimed.ID, now.Add(4*time.Second))
+	if err != nil || reclaimed.Stage != model.FullReportCleanupStageObjectDeleted || reclaimed.AttemptCount != 2 {
+		t.Fatalf("stage was not preserved: %+v err=%v", reclaimed, err)
+	}
+	requeued, failed, err := repo.RecoverStale(context.Background(), now.Add(5*time.Second), now.Add(6*time.Second))
+	if err != nil || requeued != 1 || failed != 0 {
+		t.Fatalf("unexpected recovery: requeued=%d failed=%d err=%v", requeued, failed, err)
+	}
+	stored, err := repo.Get(context.Background(), claimed.ID)
+	if err != nil || stored.Status != model.FullReportCleanupJobStatusQueued || stored.Stage != model.FullReportCleanupStageObjectDeleted {
+		t.Fatalf("unexpected recovered task: %+v err=%v", stored, err)
+	}
+}

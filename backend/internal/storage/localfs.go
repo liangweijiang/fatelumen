@@ -44,3 +44,23 @@ func (s *LocalFSStorage) Put(ctx context.Context, key string, data []byte, conte
 	logger.FromCtx(ctx).Info("local storage put completed", "key", key, "url", url, "bytes", len(data))
 	return url, nil
 }
+
+func (s *LocalFSStorage) Delete(ctx context.Context, key string) error {
+	cleanKey := filepath.Clean(filepath.FromSlash(key))
+	if cleanKey == "." || filepath.IsAbs(cleanKey) || cleanKey == ".." || strings.HasPrefix(cleanKey, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("invalid local storage key")
+	}
+	base, err := filepath.Abs(s.baseDir)
+	if err != nil {
+		return fmt.Errorf("resolve local storage dir: %w", err)
+	}
+	target, err := filepath.Abs(filepath.Join(base, cleanKey))
+	if err != nil || (target != base && !strings.HasPrefix(target, base+string(filepath.Separator))) {
+		return fmt.Errorf("local storage key escapes base directory")
+	}
+	if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+		logger.FromCtx(ctx).Error("local storage delete failed", "err", err, "key", key)
+		return fmt.Errorf("local storage delete: %w", err)
+	}
+	return nil
+}

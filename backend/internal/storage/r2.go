@@ -19,6 +19,15 @@ type R2Storage struct {
 	publicBase string
 }
 
+func (r *R2Storage) Delete(ctx context.Context, key string) error {
+	_, err := r.client.DeleteObject(ctx, &s3.DeleteObjectInput{Bucket: &r.bucket, Key: &key})
+	if err != nil {
+		logger.FromCtx(ctx).Error("r2 delete failed", "err", err, "key", key)
+		return fmt.Errorf("r2 delete: %w", err)
+	}
+	return nil
+}
+
 func NewR2Storage(accountID, accessKeyID, secretAccessKey, bucket, publicBase string) (*R2Storage, error) {
 	endpoint := fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountID)
 

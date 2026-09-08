@@ -7,3 +7,9 @@ type Storage interface {
 	// Put 上传字节流，返回可公开访问 URL。
 	Put(ctx context.Context, key string, data []byte, contentType string) (url string, err error)
 }
+
+// Deleter is kept separate from Storage so read/write consumers do not gain
+// deletion authority. Retention cleanup receives this narrower capability.
+type Deleter interface {
+	Delete(ctx context.Context, key string) error
+}
