@@ -21,6 +21,14 @@ const (
 )
 
 const (
+	FullReportCleanupJobStatusQueued    = "queued"
+	FullReportCleanupJobStatusRunning   = "running"
+	FullReportCleanupJobStatusSucceeded = "succeeded"
+	FullReportCleanupJobStatusFailed    = "failed"
+	FullReportCleanupStageQueued        = "queued"
+)
+
+const (
 	FullReportChapterStatusPending    = "pending"
 	FullReportChapterStatusRunning    = "running"
 	FullReportChapterStatusSucceeded  = "succeeded"
@@ -258,3 +266,23 @@ type FullReportRenderJob struct {
 }
 
 func (FullReportRenderJob) TableName() string { return "full_report_render_jobs" }
+
+// FullReportCleanupJob is the durable, anonymous lifecycle record for one
+// report cleanup. It intentionally has no foreign-key constraint because the
+// report row is deleted last while this audit/recovery record remains.
+type FullReportCleanupJob struct {
+	ID           uint64     `gorm:"primaryKey;autoIncrement" json:"id"`
+	ReportID     uint64     `gorm:"not null;uniqueIndex" json:"report_id"`
+	Status       string     `gorm:"type:varchar(24);not null;index:idx_full_report_cleanup_status_updated,priority:1" json:"status"`
+	Stage        string     `gorm:"type:varchar(48);not null" json:"stage"`
+	AttemptCount uint16     `gorm:"not null;default:0" json:"attempt_count"`
+	MaxAttempts  uint16     `gorm:"not null;default:3" json:"max_attempts"`
+	ErrorCode    string     `gorm:"type:varchar(64)" json:"error_code,omitempty"`
+	ErrorSummary string     `gorm:"type:varchar(512)" json:"error_summary,omitempty"`
+	StartedAt    *time.Time `json:"started_at,omitempty"`
+	FinishedAt   *time.Time `json:"finished_at,omitempty"`
+	CreatedAt    time.Time  `gorm:"not null" json:"created_at"`
+	UpdatedAt    time.Time  `gorm:"not null;index:idx_full_report_cleanup_status_updated,priority:2" json:"updated_at"`
+}
+
+func (FullReportCleanupJob) TableName() string { return "full_report_cleanup_jobs" }

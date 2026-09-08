@@ -188,7 +188,7 @@ func (r *FullReportRepo) CreateGraph(ctx context.Context, graph FullReportCreate
 
 func (r *FullReportRepo) GetByID(ctx context.Context, reportID, userID uint64) (*model.FullReport, error) {
 	var report model.FullReport
-	err := r.db.WithContext(ctx).Where("id = ? AND user_id = ?", reportID, userID).First(&report).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND user_id = ? AND status <> ?", reportID, userID, model.FullReportStatusDeleting).First(&report).Error
 	return &report, err
 }
 
@@ -306,7 +306,7 @@ func (r *FullReportRepo) AdminMarkPaid(ctx context.Context, reportID uint64, pay
 
 func (r *FullReportRepo) AdminGetByID(ctx context.Context, reportID uint64) (*model.FullReport, error) {
 	var report model.FullReport
-	err := r.db.WithContext(ctx).First(&report, reportID).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND status <> ?", reportID, model.FullReportStatusDeleting).First(&report).Error
 	return &report, err
 }
 
@@ -402,7 +402,7 @@ type FullReportCursor struct {
 }
 
 func (r *FullReportRepo) ListByUser(ctx context.Context, userID uint64, limit int, cursor *FullReportCursor) ([]model.FullReport, error) {
-	q := r.db.WithContext(ctx).Where("user_id = ?", userID)
+	q := r.db.WithContext(ctx).Where("user_id = ? AND status <> ?", userID, model.FullReportStatusDeleting)
 	if cursor != nil {
 		q = q.Where("created_at < ? OR (created_at = ? AND id < ?)", cursor.CreatedAt, cursor.CreatedAt, cursor.ID)
 	}
@@ -413,7 +413,7 @@ func (r *FullReportRepo) ListByUser(ctx context.Context, userID uint64, limit in
 
 func (r *FullReportRepo) ListByUserOffset(ctx context.Context, userID uint64, limit, offset int) ([]model.FullReport, error) {
 	var rows []model.FullReport
-	err := r.db.WithContext(ctx).Where("user_id = ?", userID).
+	err := r.db.WithContext(ctx).Where("user_id = ? AND status <> ?", userID, model.FullReportStatusDeleting).
 		Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&rows).Error
 	return rows, err
 }

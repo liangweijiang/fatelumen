@@ -425,6 +425,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.FullReportAttemptPayload{},
 		&model.FullReportResult{},
 		&model.FullReportRenderJob{},
+		&model.FullReportCleanupJob{},
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
 		&model.PromptChapterConfig{},
