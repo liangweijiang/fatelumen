@@ -105,7 +105,7 @@ func TestCleanupJobClaimIsExclusive(t *testing.T) {
 
 func TestCleanupJobDeletesEveryReportLayerAndKeepsAuditTask(t *testing.T) {
 	reports, db := setupFullReportRepo(t)
-	if err := db.AutoMigrate(&model.FullReportCleanupJob{}); err != nil {
+	if err := db.AutoMigrate(&model.FullReportCleanupJob{}, &model.Order{}, &model.PaymentEvent{}, &model.CreditLedger{}); err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
@@ -144,6 +144,20 @@ func TestCleanupJobDeletesEveryReportLayerAndKeepsAuditTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := db.Create(&model.FullReportRenderJob{ReportID: graph.Report.ID, RenderVersion: "pdf-v2", Status: model.FullReportRenderJobStatusSucceeded, MaxAttempts: 3, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	order := model.Order{
+		UserID: graph.Report.UserID, ReportID: graph.Report.ID, Type: "report", SKU: "full-report",
+		AmountCents: 1999, Currency: "usd", Provider: "test", Status: model.OrderStatusPaid,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	if err := db.Create(&order).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.PaymentEvent{Provider: "test", EventID: "cleanup-payment-event", EventType: "paid", OrderID: &order.ID, ProcessedAt: now}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Create(&model.CreditLedger{UserID: graph.Report.UserID, Delta: -1, BalanceAfter: 9, Reason: "full_report", RefID: &graph.Report.ID, CreatedAt: now}).Error; err != nil {
 		t.Fatal(err)
 	}
 
@@ -194,6 +208,23 @@ func TestCleanupJobDeletesEveryReportLayerAndKeepsAuditTask(t *testing.T) {
 	stored, err := cleanup.Get(ctx, task.ID)
 	if err != nil || stored.Status != model.FullReportCleanupJobStatusSucceeded || stored.Stage != model.FullReportCleanupStageReportGone {
 		t.Fatalf("cleanup audit task not retained: %+v err=%v", stored, err)
+	}
+	if stored.FinishedAt == nil {
+		t.Fatal("cleanup audit task is missing deletion time")
+	}
+	var keptOrder model.Order
+	if err := db.First(&keptOrder, order.ID).Error; err != nil || keptOrder.ReportID != graph.Report.ID || keptOrder.Status != model.OrderStatusPaid {
+		t.Fatalf("financial order was changed: %+v err=%v", keptOrder, err)
+	}
+	var paymentCount, ledgerCount int64
+	if err := db.Model(&model.PaymentEvent{}).Where("order_id = ?", order.ID).Count(&paymentCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.CreditLedger{}).Where("ref_id = ?", graph.Report.ID).Count(&ledgerCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if paymentCount != 1 || ledgerCount != 1 {
+		t.Fatalf("financial records were deleted: payment_events=%d credit_ledgers=%d", paymentCount, ledgerCount)
 	}
 }
 
