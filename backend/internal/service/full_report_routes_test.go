@@ -19,6 +19,10 @@ func (s fakeFullReportRouteStore) ListEnabledRoutes(context.Context) ([]model.LL
 	return s.rows, nil
 }
 
+func (s fakeFullReportRouteStore) ListRoutesByIDs(context.Context, []uint64) ([]model.LLMModelConfig, error) {
+	return s.rows, nil
+}
+
 func TestDatabaseFullReportRouteResolverFreezesOrderedNonSecretRoutes(t *testing.T) {
 	cipher := llm.NewConfigSecretCipher("route-test-secret")
 	keyCiphertext, err := cipher.Encrypt("private-test-key")
@@ -48,5 +52,26 @@ func TestDatabaseFullReportRouteResolverFreezesOrderedNonSecretRoutes(t *testing
 	text := string(raw)
 	if strings.Contains(text, "private-test-key") || strings.Contains(text, keyCiphertext) || strings.Contains(text, "api_key") {
 		t.Fatalf("frozen route leaks credential material: %s", text)
+	}
+}
+
+func TestDatabaseFullReportRouteResolverRecoversFrozenRouteWithoutLiveReordering(t *testing.T) {
+	cipher := llm.NewConfigSecretCipher("route-recovery-secret")
+	keyCiphertext, err := cipher.Encrypt("current-private-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := fakeFullReportRouteStore{rows: []model.LLMModelConfig{{
+		ID: 9, ProviderID: 7, Name: "已修改名称", ModelID: "live-model", Priority: 99, MaxRetries: 0, Enabled: false,
+		Provider: model.LLMProviderConfig{ID: 7, Code: "live-provider", Name: "已修改供应商", BaseURL: "https://live.example/v1", APIKeyCiphertext: keyCiphertext, Enabled: false},
+	}}}
+	resolver := NewDatabaseFullReportRouteResolver(store, cipher, 45*time.Second)
+	frozen := FullReportModelRoute{RouteNo: 2, ProviderConfigID: 7, ModelConfigID: 9, ProviderCode: "frozen-provider", ProviderName: "冻结供应商", BaseURL: "https://frozen.example/v1", ModelName: "冻结模型", Model: "frozen-model", Priority: 2, MaxRetries: 3, MaxAttempts: 4, TimeoutSeconds: 180, Temperature: 0.5}
+	routes, err := resolver.ResolveFrozen(context.Background(), []FullReportModelRoute{frozen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(routes) != 1 || routes[0].Frozen != frozen || routes[0].Provider == nil {
+		t.Fatalf("frozen route was not preserved: %+v", routes)
 	}
 }

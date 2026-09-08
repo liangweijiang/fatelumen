@@ -30,3 +30,16 @@ func (r *LLMConfigRepo) ListEnabledRoutes(ctx context.Context) ([]model.LLMModel
 	}
 	return rows, nil
 }
+
+// ListRoutesByIDs loads credentials for an already-frozen execution chain.
+// Recovery intentionally ignores current enabled flags and routing order.
+func (r *LLMConfigRepo) ListRoutesByIDs(ctx context.Context, ids []uint64) ([]model.LLMModelConfig, error) {
+	if len(ids) == 0 {
+		return []model.LLMModelConfig{}, nil
+	}
+	var rows []model.LLMModelConfig
+	if err := r.db.WithContext(ctx).Joins("Provider").Where("llm_model_configs.id IN ?", ids).Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("list frozen llm routes: %w", err)
+	}
+	return rows, nil
+}

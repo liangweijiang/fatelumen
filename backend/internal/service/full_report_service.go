@@ -66,7 +66,7 @@ func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID 
 	if err != nil {
 		return nil, err
 	}
-	reportJob := &job.Job{Type: "full_report_v2", Lane: job.LaneReportGeneration, Payload: payload, MaxAttempts: 1}
+	reportJob := &job.Job{Type: FullReportJobType, Lane: job.LaneReportGeneration, Payload: payload, MaxAttempts: 1}
 	if err := s.queue.Enqueue(ctx, reportJob); err != nil {
 		logger.FromCtx(ctx).Error("full report enqueue failed", "err", err, "report_id", report.ID)
 		_ = s.reports.Fail(ctx, report.ID, "enqueue_failed", "report job could not be queued", time.Now().UTC())

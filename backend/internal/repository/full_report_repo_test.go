@@ -407,6 +407,47 @@ func TestFullReportFailConvergesUnfinishedChaptersAndCounts(t *testing.T) {
 	}
 }
 
+func TestRecoverInterruptedExecutionClosesRunningAttempts(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC().Truncate(time.Millisecond)
+	graph := fullReportGraph(now)
+	if err := repo.CreateGraph(context.Background(), graph); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", graph.Report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	attempt := &model.FullReportAttempt{
+		ReportID: graph.Report.ID, ChapterID: graph.Chapters[0].ID, AttemptNo: 1, RouteNo: 1,
+		Provider: "mock", Model: "mock-v1", Status: model.FullReportAttemptStatusRunning,
+		ValidationStatus: model.FullReportValidationStatusPending, PromptHash: graph.Chapters[0].PromptHash,
+		TraceID: "recovery-trace", StartedAt: now, CreatedAt: now,
+	}
+	if err := repo.AppendAttempt(context.Background(), attempt, &model.FullReportAttemptPayload{RequestParameters: model.JSONRaw(`{}`), RequestPrompt: "prompt", CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	recoveredAt := now.Add(time.Minute)
+	if err := repo.RecoverInterruptedExecution(context.Background(), graph.Report.ID, recoveredAt); err != nil {
+		t.Fatal(err)
+	}
+	var stored model.FullReportAttempt
+	if err := db.First(&stored, attempt.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportAttemptStatusFailed || stored.ValidationStatus != model.FullReportValidationStatusFailed || stored.ErrorCode != "worker_interrupted" || stored.FinishedAt == nil || !stored.FinishedAt.Equal(recoveredAt) {
+		t.Fatalf("interrupted attempt was not closed: %+v", stored)
+	}
+	var chapter model.FullReportChapter
+	if err := db.First(&chapter, graph.Chapters[0].ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if chapter.Status != model.FullReportChapterStatusPending || chapter.AttemptCount != 1 {
+		t.Fatalf("chapter recovery cursor changed unexpectedly: %+v", chapter)
+	}
+}
+
 func TestFullReportRenderFailureKeepsSuccessfulChapterCounts(t *testing.T) {
 	repo, db := setupFullReportRepo(t)
 	now := time.Now().UTC().Truncate(time.Millisecond)

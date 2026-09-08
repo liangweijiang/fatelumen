@@ -35,10 +35,12 @@ type ResolvedFullReportRoute struct {
 
 type FullReportRouteResolver interface {
 	Resolve(ctx context.Context) ([]ResolvedFullReportRoute, error)
+	ResolveFrozen(ctx context.Context, frozen []FullReportModelRoute) ([]ResolvedFullReportRoute, error)
 }
 
 type fullReportRouteStore interface {
 	ListEnabledRoutes(ctx context.Context) ([]model.LLMModelConfig, error)
+	ListRoutesByIDs(ctx context.Context, ids []uint64) ([]model.LLMModelConfig, error)
 }
 
 type databaseFullReportRouteResolver struct {
@@ -96,6 +98,39 @@ func (r *databaseFullReportRouteResolver) Resolve(ctx context.Context) ([]Resolv
 		})
 	}
 	return routes, nil
+}
+
+func (r *databaseFullReportRouteResolver) ResolveFrozen(ctx context.Context, frozen []FullReportModelRoute) ([]ResolvedFullReportRoute, error) {
+	if r == nil || r.store == nil || r.secretCipher == nil || len(frozen) == 0 {
+		return nil, errors.New("frozen full report route resolver is not configured")
+	}
+	ids := make([]uint64, len(frozen))
+	for i := range frozen {
+		ids[i] = frozen[i].ModelConfigID
+	}
+	rows, err := r.store.ListRoutesByIDs(ctx, ids)
+	if err != nil {
+		logger.FromCtx(ctx).Error("load frozen full report credentials failed", "err", err)
+		return nil, err
+	}
+	byID := make(map[uint64]model.LLMModelConfig, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	resolved := make([]ResolvedFullReportRoute, 0, len(frozen))
+	for _, route := range frozen {
+		row, ok := byID[route.ModelConfigID]
+		if !ok || row.ProviderID != route.ProviderConfigID {
+			return nil, fmt.Errorf("frozen model route %d is no longer available", route.ModelConfigID)
+		}
+		apiKey, decryptErr := r.secretCipher.Decrypt(row.Provider.APIKeyCiphertext)
+		if decryptErr != nil {
+			logger.FromCtx(ctx).Error("decrypt frozen full report credential failed", "err", decryptErr, "provider_id", route.ProviderConfigID, "model_config_id", route.ModelConfigID)
+			return nil, fmt.Errorf("decrypt frozen provider %d credential: %w", route.ProviderConfigID, decryptErr)
+		}
+		resolved = append(resolved, ResolvedFullReportRoute{Frozen: route, Provider: llm.NewOpenAICompatibleProvider(route.ProviderCode, apiKey, route.BaseURL, route.Model)})
+	}
+	return resolved, nil
 }
 
 func frozenRoutes(routes []ResolvedFullReportRoute) []FullReportModelRoute {

@@ -200,6 +200,20 @@ func (r *FullReportRepo) GetByInternalID(ctx context.Context, reportID uint64) (
 	return &row, nil
 }
 
+// ListInterruptedExecutions pages through reports whose generation chain did
+// not reach rendering or a terminal state. It is used at process startup when
+// the configured queue is in-memory and therefore cannot retain deliveries.
+func (r *FullReportRepo) ListInterruptedExecutions(ctx context.Context, afterID uint64, limit int) ([]model.FullReport, error) {
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	var rows []model.FullReport
+	err := r.db.WithContext(ctx).
+		Where("id > ? AND status IN ?", afterID, []string{model.FullReportStatusPending, model.FullReportStatusPreflighting, model.FullReportStatusGenerating, model.FullReportStatusAssembling}).
+		Order("id ASC").Limit(limit).Find(&rows).Error
+	return rows, err
+}
+
 func (r *FullReportRepo) GetExecutionPayload(ctx context.Context, reportID uint64) (*model.FullReportExecutionPayload, error) {
 	var row model.FullReportExecutionPayload
 	err := r.db.WithContext(ctx).Table("full_report_execution_payloads AS p").
@@ -209,6 +223,30 @@ func (r *FullReportRepo) GetExecutionPayload(ctx context.Context, reportID uint6
 		return nil, err
 	}
 	return &row, nil
+}
+
+// RecoverInterruptedExecution closes attempts that were left running by a
+// process crash. Their consumed attempt numbers remain immutable, allowing the
+// executor to continue at the next frozen route budget.
+func (r *FullReportRepo) RecoverInterruptedExecution(ctx context.Context, reportID uint64, recoveredAt time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
+			return err
+		}
+		if report.Status != model.FullReportStatusGenerating && report.Status != model.FullReportStatusAssembling {
+			return ErrFullReportImmutableWrite
+		}
+		return tx.Model(&model.FullReportAttempt{}).
+			Where("report_id = ? AND status = ?", reportID, model.FullReportAttemptStatusRunning).
+			Updates(map[string]any{
+				"status":            model.FullReportAttemptStatusFailed,
+				"validation_status": model.FullReportValidationStatusFailed,
+				"error_code":        "worker_interrupted",
+				"error_summary":     "报告任务执行中断，已由恢复流程继续处理",
+				"finished_at":       recoveredAt,
+			}).Error
+	})
 }
 
 func (r *FullReportRepo) GetResult(ctx context.Context, reportID uint64) (*model.FullReportResult, error) {

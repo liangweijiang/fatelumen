@@ -203,12 +203,20 @@ func main() {
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
-	handlerReg.Register("full_report_v2", fullReportExecutor)
+	handlerReg.Register(service.FullReportJobType, fullReportExecutor)
 	handlerReg.Register(service.FullReportPDFJobType, service.NewFullReportPDFJobHandler(fullReportRenderJobRepo, pdfPipeline, 1, fullReportRepo))
 	reportWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 3, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, job.LaneDefault, job.LaneReportGeneration)
 	pdfWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 1, 0, job.LanePDFRender)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	if cfg.JobQueue != "db" {
+		recovered, recoveryErr := service.RecoverInterruptedFullReports(ctx, fullReportRepo, jobQueue)
+		if recoveryErr != nil {
+			log.Error("recover interrupted full reports failed", "err", recoveryErr)
+		} else if recovered > 0 {
+			log.Info("interrupted full reports requeued", "count", recovered)
+		}
+	}
 	service.StartFullReportPDFRecovery(ctx, fullReportRenderJobRepo, fullReportRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Minute)
 	reportWorker.Start(ctx)
 	pdfWorker.Start(ctx)

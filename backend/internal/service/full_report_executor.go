@@ -21,6 +21,7 @@ import (
 )
 
 const fullReportRuntimePolicyVersion = "full-report-runtime-v2"
+const FullReportJobType = "full_report_v2"
 
 type FullReportRuntimeConfig struct {
 	ChapterConcurrency int                    `json:"chapter_concurrency"`
@@ -94,13 +95,21 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if report.Status == model.FullReportStatusCompleted {
 		return report.PublicID, nil
 	}
-	if report.Status != model.FullReportStatusPending {
-		// A non-pending report has already been claimed by this immutable
-		// execution chain. Duplicate queue delivery is therefore a no-op.
+	if report.Status != model.FullReportStatusPending && j.Attempts > 0 && (report.Status == model.FullReportStatusGenerating || report.Status == model.FullReportStatusAssembling) {
+		if err := e.resumeFrozenExecution(ctx, payload, report); err != nil {
+			return "", err
+		}
 		return report.PublicID, nil
 	}
-	if err := e.reports.BeginPreflight(ctx, report.ID, time.Now().UTC()); err != nil {
-		return "", fmt.Errorf("claim full report execution: %w", err)
+	if report.Status != model.FullReportStatusPending && !(j.Attempts > 0 && report.Status == model.FullReportStatusPreflighting) {
+		// A non-pending report has already been claimed by this immutable
+		// execution chain. Only a reclaimed durable job may resume it.
+		return report.PublicID, nil
+	}
+	if report.Status == model.FullReportStatusPending {
+		if err := e.reports.BeginPreflight(ctx, report.ID, time.Now().UTC()); err != nil {
+			return "", fmt.Errorf("claim full report execution: %w", err)
+		}
 	}
 	profile, err := e.profiles.FindByID(payload.ProfileID)
 	if err != nil {
@@ -155,71 +164,121 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 	if len(rows) != 10 {
 		return "", repository.ErrFullReportChapterCount
 	}
-	if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, rows, runtime, resolvedRoutes); err != nil {
-		return "", err
+	return report.PublicID, e.continueFrozenExecution(ctx, payload.ReportID, payload.Locale, factsSnapshot, rows, runtime, resolvedRoutes, calculated.Chart.AnnualFortunes, model.FullReportStatusGenerating)
+}
+
+func (e *fullReportExecutor) resumeFrozenExecution(ctx context.Context, payload fullReportPayload, report *model.FullReport) error {
+	if e.routes == nil {
+		return errors.New("full report route resolver is not configured")
 	}
-	rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
+	if err := e.reports.RecoverInterruptedExecution(ctx, report.ID, time.Now().UTC()); err != nil {
+		return fmt.Errorf("prepare interrupted report recovery: %w", err)
+	}
+	frozen, err := e.reports.GetExecutionPayload(ctx, report.ID)
 	if err != nil {
-		return "", err
+		return fmt.Errorf("load frozen report execution: %w", err)
+	}
+	var facts model.InterpretationFacts
+	if err := json.Unmarshal(frozen.FactsSnapshot, &facts); err != nil {
+		return fmt.Errorf("decode frozen report facts: %w", err)
+	}
+	var runtime FullReportRuntimeConfig
+	if err := json.Unmarshal(frozen.RuntimeConfigSnapshot, &runtime); err != nil {
+		return fmt.Errorf("decode frozen report runtime: %w", err)
+	}
+	routes, err := e.routes.ResolveFrozen(ctx, runtime.Routes)
+	if err != nil {
+		return fmt.Errorf("resolve frozen report routes: %w", err)
+	}
+	rows, err := e.reports.ListChaptersWithPayload(ctx, report.ID)
+	if err != nil {
+		return fmt.Errorf("load interrupted report chapters: %w", err)
+	}
+	logger.FromCtx(ctx).Info("resuming interrupted full report", "report_id", report.ID, "stage", report.Status)
+	return e.continueFrozenExecution(ctx, report.ID, payload.Locale, facts, rows, runtime, routes, facts.Chart.Data.AnnualFortunes, report.Status)
+}
+
+func (e *fullReportExecutor) continueFrozenExecution(ctx context.Context, reportID uint64, locale string, facts model.InterpretationFacts, rows []repository.FullReportChapterWithPayload, runtime FullReportRuntimeConfig, routes []ResolvedFullReportRoute, annualFortunes []model.AnnualFortune, stage string) error {
+	needBeginAssembling := stage == model.FullReportStatusGenerating
+	if needBeginAssembling {
+		unfinished := make([]repository.FullReportChapterWithPayload, 0, len(rows))
+		for _, row := range rows {
+			if row.Chapter.Status != model.FullReportChapterStatusSucceeded && row.Chapter.Status != model.FullReportChapterStatusFailed {
+				unfinished = append(unfinished, row)
+			}
+		}
+		if err := e.runChapters(ctx, reportID, locale, facts, unfinished, runtime, routes); err != nil {
+			return err
+		}
+		var err error
+		rows, err = e.reports.ListChaptersWithPayload(ctx, reportID)
+		if err != nil {
+			return err
+		}
 	}
 	for {
 		validationStarted := time.Now().UTC()
-		if err := e.reports.BeginAssembling(ctx, payload.ReportID, validationStarted); err != nil {
-			return "", fmt.Errorf("begin report assembling: %w", err)
+		if needBeginAssembling {
+			if err := e.reports.BeginAssembling(ctx, reportID, validationStarted); err != nil {
+				return fmt.Errorf("begin report assembling: %w", err)
+			}
 		}
-		aggregateValidation := validateFullReport(payload.Locale, factsSnapshot, rows, time.Now().UTC())
+		needBeginAssembling = false
+		aggregateValidation := validateFullReport(locale, facts, rows, time.Now().UTC())
 		aggregateRaw, marshalErr := json.Marshal(aggregateValidation)
 		if marshalErr != nil {
-			return "", fmt.Errorf("marshal aggregate validation: %w", marshalErr)
+			return fmt.Errorf("marshal aggregate validation: %w", marshalErr)
 		}
 		validationFinished := time.Now().UTC()
 		validationRun := &model.FullReportValidationRun{
-			ReportID: payload.ReportID, ValidatorVersion: aggregateValidation.ValidatorVersion,
+			ReportID: reportID, ValidatorVersion: aggregateValidation.ValidatorVersion,
 			Status: validationStatus(aggregateValidation.Passed), Retryable: aggregateValidation.Retryable,
 			AffectedChapters: uint8(len(aggregateValidation.AffectedChapters)), ErrorCode: aggregateValidation.Code,
 			ErrorSummary: aggregateValidation.Summary, StartedAt: validationStarted, FinishedAt: &validationFinished, CreatedAt: validationStarted,
 		}
 		if err := e.reports.SaveAggregateValidation(ctx, validationRun, &model.FullReportValidationPayload{ValidationResult: aggregateRaw, CreatedAt: validationStarted}); err != nil {
-			return "", fmt.Errorf("save aggregate validation: %w", err)
+			return fmt.Errorf("save aggregate validation: %w", err)
 		}
 		if aggregateValidation.Passed {
 			break
 		}
 		retryRows := aggregateRetryRows(rows, aggregateValidation.AffectedChapters, totalRouteAttempts(runtime.Routes))
 		if !aggregateValidation.Retryable || len(retryRows) == 0 {
-			return "", fmt.Errorf("aggregate validation failed: %s", aggregateValidation.Summary)
+			return fmt.Errorf("aggregate validation failed: %s", aggregateValidation.Summary)
 		}
 		retryNos := make([]uint8, 0, len(retryRows))
 		for _, row := range retryRows {
 			retryNos = append(retryNos, row.Chapter.ChapterNo)
 		}
-		if err := e.reports.PrepareAggregateRetry(ctx, payload.ReportID, retryNos, time.Now().UTC()); err != nil {
-			return "", fmt.Errorf("prepare aggregate retry: %w", err)
+		if err := e.reports.PrepareAggregateRetry(ctx, reportID, retryNos, time.Now().UTC()); err != nil {
+			return fmt.Errorf("prepare aggregate retry: %w", err)
 		}
-		if err := e.runChapters(ctx, payload.ReportID, payload.Locale, factsSnapshot, retryRows, runtime, resolvedRoutes); err != nil {
-			return "", fmt.Errorf("aggregate retry: %w", err)
+		if err := e.runChapters(ctx, reportID, locale, facts, retryRows, runtime, routes); err != nil {
+			return fmt.Errorf("aggregate retry: %w", err)
 		}
-		rows, err = e.reports.ListChaptersWithPayload(ctx, payload.ReportID)
+		var err error
+		rows, err = e.reports.ListChaptersWithPayload(ctx, reportID)
 		if err != nil {
-			return "", fmt.Errorf("reload aggregate retry chapters: %w", err)
+			return fmt.Errorf("reload aggregate retry chapters: %w", err)
 		}
+		needBeginAssembling = true
 	}
-	content, err := assembleFullReportContent(payload.Locale, rows)
+	content, err := assembleFullReportContent(locale, rows)
 	if err != nil {
-		return "", err
+		return err
 	}
-	alignAnnualFortunes(&content, calculated.Chart.AnnualFortunes)
+	alignAnnualFortunes(&content, annualFortunes)
 	contentHash, err := hashutil.CanonicalJSONSHA256(content)
 	if err != nil {
-		return "", err
+		return err
 	}
 	if e.pdf == nil {
-		return "", errors.New("full report PDF pipeline is not configured")
+		return errors.New("full report PDF pipeline is not configured")
 	}
-	if err := e.pdf.PrepareAndEnqueue(ctx, payload.ReportID, &model.FullReportResult{Locale: payload.Locale, Content: content, ContentHash: contentHash}); err != nil {
-		return "", fmt.Errorf("prepare report PDF: %w", err)
+	if err := e.pdf.PrepareAndEnqueue(ctx, reportID, &model.FullReportResult{Locale: locale, Content: content, ContentHash: contentHash}); err != nil {
+		return fmt.Errorf("prepare report PDF: %w", err)
 	}
-	return report.PublicID, nil
+	return nil
 }
 
 type frozenChapterPlan struct {
