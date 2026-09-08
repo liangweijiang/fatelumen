@@ -1,7 +1,7 @@
 -- Fresh full-report execution domain. It intentionally does not reuse the
 -- legacy reports/report_fact_snapshots/report_llm_calls execution schema.
--- Legacy tables are removed only by the final cut-over migration after all
--- runtime readers have switched to these tables.
+-- Legacy tables are removed by 20260909_02 after all runtime readers have
+-- switched to these tables.
 
 CREATE TABLE IF NOT EXISTS full_reports (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

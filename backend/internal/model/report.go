@@ -81,25 +81,26 @@ const (
 	ReportStatusFailed     = "failed"
 )
 
-// ---------- Report Model ----------
+// ---------- Report API View ----------
 
-// Report 完整测算报告（异步状态机）。
+// Report 是用户侧完整报告接口的兼容返回结构。
+//
+// 正式报告持久化仅使用 FullReport 领域模型。本结构刻意不包含 GORM
+// 映射标签和 TableName 方法，避免旧 reports 表被再次创建或误写。
 type Report struct {
-	ID         uint64        `gorm:"primaryKey;autoIncrement" json:"id"`
-	UserID     uint64        `gorm:"not null;index" json:"user_id"`
-	ProfileID  uint64        `gorm:"not null" json:"profile_id"`
-	ChartID    uint64        `gorm:"not null" json:"chart_id"`
-	OrderID    *uint64       `gorm:"comment:关联订单" json:"order_id"`
-	Locale     string        `gorm:"type:varchar(8);not null;default:'en'" json:"locale"`
-	Status     string        `gorm:"type:varchar(16);not null;default:'pending';index" json:"status"`
-	PayMethod  string        `gorm:"type:varchar(16);not null;comment:order/credit" json:"pay_method"`
-	Content    ReportContent `gorm:"type:json" json:"content"`
-	PDFURL     string        `gorm:"type:varchar(512)" json:"pdf_url"`
-	ErrorMsg   string        `gorm:"type:varchar(512)" json:"error_msg"`
-	RetryCount int           `gorm:"not null;default:0" json:"retry_count"`
-	Paid       bool          `gorm:"not null;default:false;index" json:"paid"`
-	CreatedAt  time.Time     `gorm:"not null" json:"created_at"`
-	UpdatedAt  time.Time     `gorm:"not null" json:"updated_at"`
+	ID         uint64        `json:"id"`
+	UserID     uint64        `json:"user_id"`
+	ProfileID  uint64        `json:"profile_id"`
+	ChartID    uint64        `json:"chart_id"`
+	OrderID    *uint64       `json:"order_id"`
+	Locale     string        `json:"locale"`
+	Status     string        `json:"status"`
+	PayMethod  string        `json:"pay_method"`
+	Content    ReportContent `json:"content"`
+	PDFURL     string        `json:"pdf_url"`
+	ErrorMsg   string        `json:"error_msg"`
+	RetryCount int           `json:"retry_count"`
+	Paid       bool          `json:"paid"`
+	CreatedAt  time.Time     `json:"created_at"`
+	UpdatedAt  time.Time     `json:"updated_at"`
 }
-
-func (Report) TableName() string { return "reports" }
