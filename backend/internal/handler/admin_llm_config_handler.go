@@ -3,6 +3,7 @@ package handler
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strconv"
@@ -23,10 +24,15 @@ type AdminLLMConfigHandler struct {
 	db           *gorm.DB
 	audit        *repository.AuditRepo
 	secretCipher *llm.ConfigSecretCipher
+	environment  string
 }
 
-func NewAdminLLMConfigHandler(db *gorm.DB, audit *repository.AuditRepo, encryptionSecret string) *AdminLLMConfigHandler {
-	return &AdminLLMConfigHandler{db: db, audit: audit, secretCipher: llm.NewConfigSecretCipher(encryptionSecret)}
+func NewAdminLLMConfigHandler(db *gorm.DB, audit *repository.AuditRepo, encryptionSecret string, environment ...string) *AdminLLMConfigHandler {
+	env := "unknown"
+	if len(environment) > 0 && strings.TrimSpace(environment[0]) != "" {
+		env = environment[0]
+	}
+	return &AdminLLMConfigHandler{db: db, audit: audit, secretCipher: llm.NewConfigSecretCipher(encryptionSecret), environment: env}
 }
 
 type providerInput struct {
@@ -103,7 +109,7 @@ func (h *AdminLLMConfigHandler) CreateProvider(c *gin.Context) {
 		response.Error(c, "保存供应商失败")
 		return
 	}
-	h.writeAudit(c, "create", "llm_provider_config", row.ID)
+	h.writeAudit(c, "create", "llm_provider_config", row.ID, nil, safeProviderAudit(row, true))
 	response.OK(c, row)
 }
 
@@ -121,6 +127,7 @@ func (h *AdminLLMConfigHandler) UpdateProvider(c *gin.Context) {
 		response.Error(c, "读取供应商失败")
 		return
 	}
+	before := safeProviderAudit(row, false)
 	var in providerInput
 	if err := c.ShouldBindJSON(&in); err != nil || !validBaseURL(in.BaseURL) {
 		response.Fail(c, response.CodeBadRequest, "供应商配置不完整")
@@ -146,13 +153,22 @@ func (h *AdminLLMConfigHandler) UpdateProvider(c *gin.Context) {
 		response.Error(c, "保存供应商失败")
 		return
 	}
-	h.writeAudit(c, "update", "llm_provider_config", row.ID)
+	h.writeAudit(c, "update", "llm_provider_config", row.ID, before, safeProviderAudit(row, strings.TrimSpace(in.APIKey) != ""))
 	response.OK(c, row)
 }
 
 func (h *AdminLLMConfigHandler) DeleteProvider(c *gin.Context) {
 	id, ok := llmID(c)
 	if !ok {
+		return
+	}
+	var row model.LLMProviderConfig
+	if err := h.db.WithContext(c).First(&row, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, response.CodeNotFound, "供应商不存在")
+		return
+	} else if err != nil {
+		logger.FromCtx(c).Error("get llm provider for delete failed", "err", err, "provider_id", id)
+		response.Error(c, "删除供应商失败")
 		return
 	}
 	var count int64
@@ -175,7 +191,7 @@ func (h *AdminLLMConfigHandler) DeleteProvider(c *gin.Context) {
 		response.Fail(c, response.CodeNotFound, "供应商不存在")
 		return
 	}
-	h.writeAudit(c, "delete", "llm_provider_config", id)
+	h.writeAudit(c, "delete", "llm_provider_config", id, safeProviderAudit(row, false), nil)
 	response.OK(c, gin.H{"deleted": id})
 }
 
@@ -232,6 +248,7 @@ func (h *AdminLLMConfigHandler) saveModel(c *gin.Context, id uint64) {
 		enabled = *in.Enabled
 	}
 	row := model.LLMModelConfig{ID: id, ProviderID: in.ProviderID, Name: strings.TrimSpace(in.Name), ModelID: strings.TrimSpace(in.ModelID), Priority: in.Priority, MaxRetries: in.MaxRetries, Enabled: enabled}
+	var before any
 	if id == 0 {
 		if err := h.db.WithContext(c).Create(&row).Error; err != nil {
 			logger.FromCtx(c).Error("create llm model failed", "err", err, "provider_id", in.ProviderID)
@@ -251,24 +268,34 @@ func (h *AdminLLMConfigHandler) saveModel(c *gin.Context, id uint64) {
 		if in.Enabled == nil {
 			row.Enabled = existing.Enabled
 		}
+		before = safeModelAudit(existing)
 		if err := h.db.WithContext(c).Model(&existing).Updates(map[string]any{"provider_id": row.ProviderID, "name": row.Name, "model_id": row.ModelID, "priority": row.Priority, "max_retries": row.MaxRetries, "enabled": row.Enabled}).Error; err != nil {
 			logger.FromCtx(c).Error("update llm model failed", "err", err, "model_config_id", id)
 			response.Error(c, "保存模型失败")
 			return
 		}
 	}
-	h.writeAudit(c, map[bool]string{true: "update", false: "create"}[id > 0], "llm_model_config", row.ID)
 	if err := h.db.WithContext(c).Preload("Provider").First(&row, row.ID).Error; err != nil {
 		logger.FromCtx(c).Error("reload llm model failed", "err", err, "model_config_id", row.ID)
 		response.Error(c, "读取模型失败")
 		return
 	}
+	h.writeAudit(c, map[bool]string{true: "update", false: "create"}[id > 0], "llm_model_config", row.ID, before, safeModelAudit(row))
 	response.OK(c, row)
 }
 
 func (h *AdminLLMConfigHandler) DeleteModel(c *gin.Context) {
 	id, ok := llmID(c)
 	if !ok {
+		return
+	}
+	var row model.LLMModelConfig
+	if err := h.db.WithContext(c).First(&row, id).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		response.Fail(c, response.CodeNotFound, "模型不存在")
+		return
+	} else if err != nil {
+		logger.FromCtx(c).Error("get llm model for delete failed", "err", err, "model_config_id", id)
+		response.Error(c, "删除模型失败")
 		return
 	}
 	result := h.db.WithContext(c).Delete(&model.LLMModelConfig{}, id)
@@ -281,15 +308,28 @@ func (h *AdminLLMConfigHandler) DeleteModel(c *gin.Context) {
 		response.Fail(c, response.CodeNotFound, "模型不存在")
 		return
 	}
-	h.writeAudit(c, "delete", "llm_model_config", id)
+	h.writeAudit(c, "delete", "llm_model_config", id, safeModelAudit(row), nil)
 	response.OK(c, gin.H{"deleted": id})
 }
 
-func (h *AdminLLMConfigHandler) writeAudit(c *gin.Context, action, resource string, id uint64) {
+func (h *AdminLLMConfigHandler) writeAudit(c *gin.Context, action, resource string, id uint64, before, after any) {
 	if h.audit == nil {
 		return
 	}
-	h.audit.Write(c.Request.Context(), model.AdminAuditLog{AdminID: middleware.GetAdminID(c), AdminName: c.GetString("admin_name"), Action: action, Resource: resource, ResourceID: strconv.FormatUint(id, 10), IP: c.ClientIP()})
+	detail, err := json.Marshal(gin.H{"environment": h.environment, "before": before, "after": after})
+	if err != nil {
+		logger.FromCtx(c.Request.Context()).Error("encode llm config audit failed", "err", err, "resource", resource, "resource_id", id)
+		return
+	}
+	h.audit.Write(c.Request.Context(), model.AdminAuditLog{AdminID: middleware.GetAdminID(c), AdminName: c.GetString("admin_name"), Action: action, Resource: resource, ResourceID: strconv.FormatUint(id, 10), Detail: model.JSONRaw(detail), IP: c.ClientIP()})
+}
+
+func safeProviderAudit(row model.LLMProviderConfig, secretChanged bool) gin.H {
+	return gin.H{"code": row.Code, "name": row.Name, "base_url": row.BaseURL, "enabled": row.Enabled, "api_key_configured": row.APIKeyCiphertext != "", "api_key_changed": secretChanged}
+}
+
+func safeModelAudit(row model.LLMModelConfig) gin.H {
+	return gin.H{"provider_id": row.ProviderID, "name": row.Name, "model_id": row.ModelID, "priority": row.Priority, "max_retries": row.MaxRetries, "enabled": row.Enabled}
 }
 
 func llmPageArgs(c *gin.Context) (int, int) {

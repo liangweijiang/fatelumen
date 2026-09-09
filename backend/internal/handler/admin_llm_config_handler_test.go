@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/repository"
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -111,6 +112,52 @@ func TestAdminLLMConfigProviderModelAssociationAndPagination(t *testing.T) {
 	}
 	if listEnvelope.Data.Total != 1 || listEnvelope.Data.Page != 1 || listEnvelope.Data.PageSize != 10 || len(listEnvelope.Data.Items) != 1 {
 		t.Fatalf("bad pagination: %s", list.Body.String())
+	}
+}
+
+func TestAdminLLMConfigAuditStoresSafeBeforeAfter(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, err := gorm.Open(sqlite.Open("file:llm-audit?mode=memory&cache=shared"), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.AutoMigrate(&model.LLMProviderConfig{}, &model.LLMModelConfig{}, &model.AdminAuditLog{}); err != nil {
+		t.Fatal(err)
+	}
+	h := NewAdminLLMConfigHandler(db, repository.NewAuditRepo(db), "test-encryption-secret")
+	r := gin.New()
+	r.POST("/providers", h.CreateProvider)
+	r.PUT("/providers/:id", h.UpdateProvider)
+
+	created := performJSON(r, http.MethodPost, "/providers", `{"code":"deepseek","name":"DeepSeek","base_url":"https://api.deepseek.com","api_key":"sk-never-log-this","enabled":true}`)
+	if created.Code != http.StatusOK {
+		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
+	}
+	var envelope struct {
+		Data model.LLMProviderConfig `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	updated := performJSON(r, http.MethodPut, "/providers/"+jsonNumber(envelope.Data.ID), `{"name":"DeepSeek Paid","base_url":"https://api.deepseek.com/v1","api_key":"sk-replaced-secret","enabled":true}`)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("update status=%d body=%s", updated.Code, updated.Body.String())
+	}
+	var logs []model.AdminAuditLog
+	if err := db.Order("id ASC").Find(&logs).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(logs) != 2 {
+		t.Fatalf("audit count=%d want 2", len(logs))
+	}
+	for _, log := range logs {
+		detail := string(log.Detail)
+		if strings.Contains(detail, "sk-never-log-this") || strings.Contains(detail, "sk-replaced-secret") || strings.Contains(detail, "ciphertext") {
+			t.Fatalf("audit leaked provider secret: %s", detail)
+		}
+	}
+	if !strings.Contains(string(logs[1].Detail), `"api_key_changed":true`) || !strings.Contains(string(logs[1].Detail), `"before"`) || !strings.Contains(string(logs[1].Detail), `"after"`) {
+		t.Fatalf("update audit missing safe diff: %s", logs[1].Detail)
 	}
 }
 

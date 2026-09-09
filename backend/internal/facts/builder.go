@@ -101,7 +101,7 @@ func Build(in BuildInput) (model.InterpretationFacts, error) {
 		ChapterFacts: []model.ChapterFacts{{ChapterKey: "structure", FactCodes: append([]string{dayMasterStrengthCode, tenGodSummaryCode}, elementFactCodes(elementFacts)...)}, {ChapterKey: "day_master", FactCodes: append([]string{dayMasterStrengthCode}, elementFactCodes(elementFacts)...)}, {ChapterKey: "ten_gods", FactCodes: tenGodFactCodes(tenGodFacts)}},
 		RuleMatches:  ruleMatches, Warnings: warnings, Versions: in.Versions,
 	}
-	hash, err := calculateFactsHash(f)
+	hash, err := CalculateHash(f)
 	if err != nil {
 		return model.InterpretationFacts{}, err
 	}
@@ -423,7 +423,10 @@ func nonEmpty(v string) []string {
 	return []string{v}
 }
 
-func calculateFactsHash(f model.InterpretationFacts) (string, error) {
+// CalculateHash reproduces the canonical hash stored with an immutable facts
+// snapshot. It is exported so read-side integrity checks cannot drift from the
+// write-side normalization rules.
+func CalculateHash(f model.InterpretationFacts) (string, error) {
 	f.FactsHash = ""
 	// Prompt changes affect LLM call traces, not deterministic report facts.
 	f.Versions.PromptVersion = ""

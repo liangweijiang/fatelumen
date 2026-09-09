@@ -296,6 +296,36 @@ func TestE2E_ReportUnlockRouteRemoved(t *testing.T) {
 	}
 }
 
+func TestE2E_FullReportMutationAndManualRerunRoutesNotExposed(t *testing.T) {
+	db := setupTestDB(t)
+	router := createTestRouter(t, db, 1, 2)
+	tests := []struct {
+		method string
+		path   string
+		token  string
+	}{
+		{http.MethodPatch, "/api/v1/reports/1", makeToken(t, 2)},
+		{http.MethodDelete, "/api/v1/reports/1", makeToken(t, 2)},
+		{http.MethodPost, "/api/v1/reports/1/retry", makeToken(t, 2)},
+		{http.MethodPost, "/api/v1/reports/1/chapters/1/retry", makeToken(t, 2)},
+		{http.MethodPatch, "/api/v1/admin/reports/1", makeAdminToken(t)},
+		{http.MethodDelete, "/api/v1/admin/reports/1", makeAdminToken(t)},
+		{http.MethodPost, "/api/v1/admin/reports/1/retry", makeAdminToken(t)},
+		{http.MethodPost, "/api/v1/admin/reports/1/chapters/1/retry", makeAdminToken(t)},
+	}
+	for _, test := range tests {
+		t.Run(test.method+test.path, func(t *testing.T) {
+			req := httptest.NewRequest(test.method, test.path, nil)
+			req.Header.Set("Authorization", "Bearer "+test.token)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if w.Code != http.StatusNotFound {
+				t.Fatalf("mutation route %s %s returned HTTP %d, want 404", test.method, test.path, w.Code)
+			}
+		})
+	}
+}
+
 // ---------- Verify admin token is NOT leaked to user-side report route ----------
 
 func TestE2E_AdminToken_UserReportRoute_Unauthorized(t *testing.T) {

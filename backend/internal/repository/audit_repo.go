@@ -50,3 +50,16 @@ func (r *AuditRepo) ListAudit(ctx context.Context, resource string, limit, offse
 	}
 	return items, total, nil
 }
+
+func (r *AuditRepo) ListAuditResources(ctx context.Context, resources []string, limit, offset int) ([]model.AdminAuditLog, int64, error) {
+	q := r.db.WithContext(ctx).Model(&model.AdminAuditLog{}).Where("resource IN ?", resources)
+	var total int64
+	if err := q.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var items []model.AdminAuditLog
+	if err := q.Order("created_at DESC, id DESC").Limit(limit).Offset(offset).Find(&items).Error; err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}

@@ -50,9 +50,14 @@ type fullReportExecutor struct {
 	runtime  FullReportRuntimeConfig
 	pdf      FullReportPDFScheduler
 	outcomes FullReportOutcomeNotifier
+	settings reportRuntimeSettingReader
 }
 
-func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig, pdf FullReportPDFScheduler, outcomes FullReportOutcomeNotifier) job.JobHandler {
+type reportRuntimeSettingReader interface {
+	ReportChapterConcurrency(ctx context.Context, fallback int) (int, error)
+}
+
+func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig, pdf FullReportPDFScheduler, outcomes FullReportOutcomeNotifier, settings ...reportRuntimeSettingReader) job.JobHandler {
 	if engine == nil {
 		engine = birthchart.NewDefaultEngine()
 	}
@@ -62,7 +67,11 @@ func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.
 	if runtime.ChapterTimeout <= 0 {
 		runtime.ChapterTimeout = 180 * time.Second
 	}
-	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime, pdf: pdf, outcomes: outcomes}
+	var settingReader reportRuntimeSettingReader
+	if len(settings) > 0 {
+		settingReader = settings[0]
+	}
+	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime, pdf: pdf, outcomes: outcomes, settings: settingReader}
 }
 
 func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result string, err error) {
@@ -125,6 +134,13 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 		return "", fmt.Errorf("resolve full report model routes: %w", err)
 	}
 	runtime := e.runtime
+	if e.settings != nil {
+		runtime.ChapterConcurrency, err = e.settings.ReportChapterConcurrency(ctx, runtime.ChapterConcurrency)
+		if err != nil {
+			logger.FromCtx(ctx).Error("resolve report runtime settings failed", "err", err, "report_id", report.ID)
+			return "", fmt.Errorf("resolve report runtime settings: %w", err)
+		}
+	}
 	runtime.Routes = frozenRoutes(resolvedRoutes)
 	input := birthchartInputFromProfile(profile)
 	calculated, err := e.engine.Calculate(ctx, input)

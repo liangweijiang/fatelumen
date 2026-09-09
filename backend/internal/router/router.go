@@ -40,33 +40,34 @@ func (h *DBHealthChecker) Ping(ctx context.Context) error {
 
 // App 包含所有路由依赖的上下文。
 type App struct {
-	DB                      *gorm.DB
-	Auth                    *middleware.AuthMiddleware
-	AdminAuth               *middleware.AdminAuthMiddleware
-	HealthChecker           HealthChecker
-	StaticDir               string
-	AuthHandler             *handler.AuthHandler
-	AdminAuthHandler        *handler.AdminAuthHandler
-	ContentHandler          *handler.ContentHandler
-	PricingHandler          *handler.PricingHandler
-	ReportInputHandler      *handler.ReportInputHandler
-	ProfHandler             *handler.ProfileHandler
-	ChartHandler            *handler.ChartHandler
-	FreeChartHandler        *handler.FreeChartHandler
-	LocationHandler         *handler.LocationHandler
-	GeoHandler              *handler.GeoHandler
-	AdminGeoHandler         *handler.AdminGeoHandler
-	AdminBaziBaseHandler    *handler.AdminBaziBaseHandler
-	AdminReportTraceHandler *handler.AdminReportTraceHandler
-	AdminCalculationHandler *handler.AdminCalculationHandler
-	AdminLLMConfigHandler   *handler.AdminLLMConfigHandler
-	ReadingHandler          *handler.ReadingHandler
-	ReportHandler           *handler.ReportHandler
-	OrderHandler            *handler.OrderHandler
-	WebhookHandler          *handler.WebhookHandler
-	DevPayHandler           *handler.DevPayHandler
-	AdminHandler            *handler.AdminHandler
-	ResourceHandler         *handler.ResourceHandler
+	DB                        *gorm.DB
+	Auth                      *middleware.AuthMiddleware
+	AdminAuth                 *middleware.AdminAuthMiddleware
+	HealthChecker             HealthChecker
+	StaticDir                 string
+	AuthHandler               *handler.AuthHandler
+	AdminAuthHandler          *handler.AdminAuthHandler
+	ContentHandler            *handler.ContentHandler
+	PricingHandler            *handler.PricingHandler
+	ReportInputHandler        *handler.ReportInputHandler
+	ProfHandler               *handler.ProfileHandler
+	ChartHandler              *handler.ChartHandler
+	FreeChartHandler          *handler.FreeChartHandler
+	LocationHandler           *handler.LocationHandler
+	GeoHandler                *handler.GeoHandler
+	AdminGeoHandler           *handler.AdminGeoHandler
+	AdminBaziBaseHandler      *handler.AdminBaziBaseHandler
+	AdminReportTraceHandler   *handler.AdminReportTraceHandler
+	AdminCalculationHandler   *handler.AdminCalculationHandler
+	AdminLLMConfigHandler     *handler.AdminLLMConfigHandler
+	AdminSystemSettingHandler *handler.AdminSystemSettingHandler
+	ReadingHandler            *handler.ReadingHandler
+	ReportHandler             *handler.ReportHandler
+	OrderHandler              *handler.OrderHandler
+	WebhookHandler            *handler.WebhookHandler
+	DevPayHandler             *handler.DevPayHandler
+	AdminHandler              *handler.AdminHandler
+	ResourceHandler           *handler.ResourceHandler
 
 	// Pre-built rate-limit middleware (set by main)
 	RateLimitAuth    gin.HandlerFunc
@@ -272,6 +273,7 @@ func Setup(app *App) *gin.Engine {
 				admin.GET("/reports", app.AdminReportTraceHandler.List)
 				admin.GET("/reports/:id", app.AdminReportTraceHandler.Overview)
 				admin.GET("/reports/:id/result", app.AdminReportTraceHandler.Result)
+				admin.GET("/reports/:id/integrity", app.AdminReportTraceHandler.Integrity)
 				admin.GET("/reports/:id/facts", app.AdminReportTraceHandler.Facts)
 				admin.GET("/reports/:id/execution/preflight", app.AdminReportTraceHandler.Preflight)
 				admin.POST("/reports/:id/prompt-preview", app.AdminReportTraceHandler.PromptPreview)
@@ -307,6 +309,11 @@ func Setup(app *App) *gin.Engine {
 				admin.POST("/llm-models", app.AdminLLMConfigHandler.CreateModel)
 				admin.PUT("/llm-models/:id", app.AdminLLMConfigHandler.UpdateModel)
 				admin.DELETE("/llm-models/:id", app.AdminLLMConfigHandler.DeleteModel)
+			}
+			if app.AdminSystemSettingHandler != nil {
+				admin.GET("/settings/report", app.AdminSystemSettingHandler.GetReport)
+				admin.PUT("/settings/report", app.AdminSystemSettingHandler.SaveReport)
+				admin.GET("/settings/audit", app.AdminSystemSettingHandler.Audit)
 			}
 			if app.ResourceHandler != nil {
 				admin.GET("/resources/:resource/_schema", app.ResourceHandler.Schema)

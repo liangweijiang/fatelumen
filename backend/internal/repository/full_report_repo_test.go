@@ -591,6 +591,37 @@ func TestFullReportBeginPreflightClaimsExactlyOnce(t *testing.T) {
 	}
 }
 
+func TestFullReportChartLinkCanOnlyBeWrittenDuringPreflight(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	report := fullReportGraph(now).Report
+	if err := repo.Create(context.Background(), report); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateChartID(context.Background(), report.ID, 10); !errors.Is(err, ErrFullReportImmutableWrite) {
+		t.Fatalf("pending report chart update error = %v, want immutable write", err)
+	}
+	if err := repo.BeginPreflight(context.Background(), report.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateChartID(context.Background(), report.ID, 10); err != nil {
+		t.Fatalf("preflight chart update failed: %v", err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", report.ID).Updates(map[string]any{"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateChartID(context.Background(), report.ID, 11); !errors.Is(err, ErrFullReportImmutableWrite) {
+		t.Fatalf("generating report chart update error = %v, want immutable write", err)
+	}
+	var stored model.FullReport
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.ChartID == nil || *stored.ChartID != 10 {
+		t.Fatalf("chart link changed outside preflight: %v", stored.ChartID)
+	}
+}
+
 func TestFullReportStageTransitionsRecordTimesAndRejectSkipping(t *testing.T) {
 	repo, db := setupFullReportRepo(t)
 	now := time.Now().UTC().Truncate(time.Millisecond)

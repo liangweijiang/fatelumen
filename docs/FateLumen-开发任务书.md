@@ -611,6 +611,9 @@ CREATE TABLE geo_cities (
 | GET | `/api/v1/admin/reports/:id/validations` | 查看报告汇总校验轮次 | Admin |
 | GET | `/api/v1/admin/reports/:id/validations/:validationId` | 查看汇总校验规则详情 | Admin |
 | GET | `/api/v1/admin/reports/:id/result` | 查看最终冻结报告及内容哈希 | Admin |
+| GET | `/api/v1/admin/reports/:id/integrity` | 按需重算事实、执行与内容哈希，查看冻结数据是否一致 | Admin |
+| GET/PUT | `/api/v1/admin/settings/report` | 读取或保存十章并发数；新报告启动时冻结 | Admin |
+| GET | `/api/v1/admin/settings/audit` | 分页查看供应商、模型和报告设置的安全变更记录 | Admin |
 
 追溯接口必须以 `report_id` 限定资源归属，轻量列表不得联查Prompt、模型原始输出、冻结事实或正文大字段；大字段按区块、章节和用途独立读取。展示用JSON的中文标签、分组、折叠与格式化可由前端完成，但通过/拒绝、重试、最终采用attempt、哈希和冻结链归属只能由后端判定。完整契约、隐私边界与持久化草案见 `docs/深度解读基础数据与追溯规范.md`。C端Token必须被拒绝；接口不得返回API Key、认证头、邮箱、电话或支付凭证。
 

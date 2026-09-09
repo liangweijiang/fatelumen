@@ -14,6 +14,7 @@ import (
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/pkg/response"
 	"fatelumen/backend/internal/repository"
+	"fatelumen/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -123,6 +124,42 @@ func (h *AdminReportTraceHandler) Result(c *gin.Context) {
 	}
 	h.auditRead(c, "view_report_result", reportID, "")
 	response.OK(c, result)
+}
+
+// Integrity recalculates immutable hashes only when an administrator requests
+// it, so normal report list and overview reads never load large snapshots.
+func (h *AdminReportTraceHandler) Integrity(c *gin.Context) {
+	reportID, ok := reportTraceID(c, "id")
+	if !ok {
+		return
+	}
+	report, err := h.reports.AdminGetByID(c.Request.Context(), reportID)
+	if err != nil {
+		h.readError(c, err, "report unavailable for integrity check", reportID)
+		return
+	}
+	trace, err := h.reports.AdminGetExecutionTrace(c.Request.Context(), reportID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		h.readError(c, err, "report execution unavailable for integrity check", reportID)
+		return
+	}
+	result, err := h.reports.AdminGetResult(c.Request.Context(), reportID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		h.readError(c, err, "report result unavailable for integrity check", reportID)
+		return
+	}
+	var traceInput *service.FullReportIntegrityTrace
+	if trace != nil {
+		traceInput = service.NewIntegrityTrace(trace.Snapshot, trace.Payload)
+	}
+	verification, err := service.VerifyFullReportIntegrity(report, traceInput, result)
+	if err != nil {
+		logger.FromCtx(c.Request.Context()).Error("verify report integrity failed", "err", err, "report_id", reportID)
+		response.Error(c, "report integrity check unavailable")
+		return
+	}
+	h.auditRead(c, "verify_report_integrity", reportID, "")
+	response.OK(c, verification)
 }
 
 func encodeReportCursor(createdAt time.Time, id uint64) string {

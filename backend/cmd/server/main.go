@@ -209,11 +209,12 @@ func main() {
 	}
 	cleanupRunner := service.NewFullReportCleanupRunner(fullReportCleanupJobRepo, fileDeleter)
 	llmConfigRepo := repository.NewLLMConfigRepo(db)
+	systemSettingRepo := repository.NewSystemSettingRepo(db)
 	fullReportRoutes := service.NewDatabaseFullReportRouteResolver(llmConfigRepo, llm.NewConfigSecretCipher(cfg.AdminJWTSecret), time.Duration(cfg.ReportChapterTimeoutSeconds)*time.Second)
 	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, fullReportRoutes, baseChartEngine, service.FullReportRuntimeConfig{
 		ChapterConcurrency: cfg.ReportChapterConcurrency,
 		ChapterTimeout:     time.Duration(cfg.ReportChapterTimeoutSeconds) * time.Second,
-	}, pdfPipeline, reportOutcomeNotifier)
+	}, pdfPipeline, reportOutcomeNotifier, systemSettingRepo)
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
@@ -317,7 +318,8 @@ func main() {
 	adminBaziBaseHandler := handler.NewAdminBaziBaseHandler(baziBaseCatalog, annualCalendarRepo)
 	adminReportTraceHandler := handler.NewAdminReportTraceHandler(fullReportRepo, auditRepo, fullReportRenderJobRepo)
 	adminCalculationHandler := handler.NewAdminCalculationHandler(db, baseChartEngine, auditRepo)
-	adminLLMConfigHandler := handler.NewAdminLLMConfigHandler(db, auditRepo, cfg.AdminJWTSecret)
+	adminLLMConfigHandler := handler.NewAdminLLMConfigHandler(db, auditRepo, cfg.AdminJWTSecret, cfg.AppEnv)
+	adminSystemSettingHandler := handler.NewAdminSystemSettingHandler(systemSettingRepo, auditRepo, cfg.ReportChapterConcurrency, cfg.AppEnv)
 	locationHandler := handler.NewLocationHandler(locationResolver)
 	readingHandler := handler.NewReadingHandler(readingSvc)
 
@@ -339,36 +341,37 @@ func main() {
 	}
 
 	app := &router.App{
-		StaticDir:               cfg.LocalStorageDir,
-		DB:                      db,
-		Auth:                    authMW,
-		AdminAuth:               adminAuthMW,
-		HealthChecker:           router.NewDBHealthChecker(db),
-		AuthHandler:             authHandler,
-		AdminAuthHandler:        adminAuthHandler,
-		ContentHandler:          contentHandler,
-		PricingHandler:          pricingHandler,
-		ReportInputHandler:      reportInputHandler,
-		ProfHandler:             profileHandler,
-		ChartHandler:            chartHandler,
-		FreeChartHandler:        freeChartHandler,
-		GeoHandler:              geoHandler,
-		AdminGeoHandler:         adminGeoHandler,
-		AdminBaziBaseHandler:    adminBaziBaseHandler,
-		AdminReportTraceHandler: adminReportTraceHandler,
-		AdminCalculationHandler: adminCalculationHandler,
-		AdminLLMConfigHandler:   adminLLMConfigHandler,
-		LocationHandler:         locationHandler,
-		ReadingHandler:          readingHandler,
-		ReportHandler:           reportHTTPHandler,
-		OrderHandler:            orderHTTPHandler,
-		WebhookHandler:          webhookHandler,
-		DevPayHandler:           devPayHandler,
-		AdminHandler:            adminHTTPHandler,
-		ResourceHandler:         resourceHandler,
-		RateLimitAuth:           rlAuth,
-		RateLimitReading:        rlReading,
-		RateLimitOrder:          rlOrder,
+		StaticDir:                 cfg.LocalStorageDir,
+		DB:                        db,
+		Auth:                      authMW,
+		AdminAuth:                 adminAuthMW,
+		HealthChecker:             router.NewDBHealthChecker(db),
+		AuthHandler:               authHandler,
+		AdminAuthHandler:          adminAuthHandler,
+		ContentHandler:            contentHandler,
+		PricingHandler:            pricingHandler,
+		ReportInputHandler:        reportInputHandler,
+		ProfHandler:               profileHandler,
+		ChartHandler:              chartHandler,
+		FreeChartHandler:          freeChartHandler,
+		GeoHandler:                geoHandler,
+		AdminGeoHandler:           adminGeoHandler,
+		AdminBaziBaseHandler:      adminBaziBaseHandler,
+		AdminReportTraceHandler:   adminReportTraceHandler,
+		AdminCalculationHandler:   adminCalculationHandler,
+		AdminLLMConfigHandler:     adminLLMConfigHandler,
+		AdminSystemSettingHandler: adminSystemSettingHandler,
+		LocationHandler:           locationHandler,
+		ReadingHandler:            readingHandler,
+		ReportHandler:             reportHTTPHandler,
+		OrderHandler:              orderHTTPHandler,
+		WebhookHandler:            webhookHandler,
+		DevPayHandler:             devPayHandler,
+		AdminHandler:              adminHTTPHandler,
+		ResourceHandler:           resourceHandler,
+		RateLimitAuth:             rlAuth,
+		RateLimitReading:          rlReading,
+		RateLimitOrder:            rlOrder,
 	}
 	engine := router.Setup(app)
 
@@ -445,6 +448,7 @@ func autoMigrate(db *gorm.DB) error {
 		&model.FullReportResult{},
 		&model.FullReportRenderJob{},
 		&model.FullReportCleanupJob{},
+		&model.SystemSetting{},
 		&model.CalculationArchive{},
 		&model.CalculationVersion{},
 		&model.PromptChapterConfig{},

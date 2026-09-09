@@ -118,13 +118,13 @@ func (r *FullReportRepo) CancelPendingCreditCharge(ctx context.Context, reportID
 
 func (r *FullReportRepo) UpdateChartID(ctx context.Context, reportID, chartID uint64) error {
 	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
-		Where("id = ? AND status NOT IN ?", reportID, []string{model.FullReportStatusCompleted, model.FullReportStatusFailed}).
+		Where("id = ? AND status = ?", reportID, model.FullReportStatusPreflighting).
 		Updates(map[string]any{"chart_id": chartID, "updated_at": time.Now().UTC()})
 	if res.Error != nil {
 		return res.Error
 	}
 	if res.RowsAffected != 1 {
-		return ErrFullReportTerminal
+		return ErrFullReportImmutableWrite
 	}
 	return nil
 }

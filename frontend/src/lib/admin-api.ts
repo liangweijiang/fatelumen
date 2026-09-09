@@ -215,6 +215,47 @@ export async function fetchAdminReportResult(id: string | number) {
   return unwrap<AdminFullReportResult>(data);
 }
 
+export interface AdminReportHashCheck {
+  status: "matched" | "mismatched" | "missing";
+  stored_hash?: string;
+  actual_hash?: string;
+}
+
+export interface AdminReportIntegrity {
+  passed: boolean;
+  facts: AdminReportHashCheck;
+  execution: AdminReportHashCheck;
+  content: AdminReportHashCheck;
+}
+
+export async function fetchAdminReportIntegrity(id: string | number) {
+  const { data } = await api.get(`/admin/reports/${id}/integrity`);
+  return unwrap<AdminReportIntegrity>(data);
+}
+
+export interface AdminReportSettings { chapter_concurrency: number }
+
+export async function fetchAdminReportSettings() {
+  const { data } = await api.get("/admin/settings/report");
+  return unwrap<AdminReportSettings>(data);
+}
+
+export async function saveAdminReportSettings(input: AdminReportSettings) {
+  const { data } = await api.put("/admin/settings/report", input);
+  return unwrap<AdminReportSettings>(data);
+}
+
+export interface AdminSettingAuditItem {
+  id: number; admin_id: number; admin_name: string; action: string; resource: string;
+  resource_id: string; detail?: { environment?: string; before?: Record<string, unknown>; after?: Record<string, unknown> };
+  ip?: string; created_at: string;
+}
+
+export async function fetchAdminSettingAudits(page = 1, pageSize = 20, resource = "") {
+  const { data } = await api.get("/admin/settings/audit", { params: { page, page_size: pageSize, resource: resource || undefined } });
+  return unwrap<{ items: AdminSettingAuditItem[]; total: number; page: number; page_size: number }>(data);
+}
+
 export async function fetchReportLLMCall(id: string | number, callId: number) {
   const { data } = await api.get(`/admin/reports/${id}/llm-calls/${callId}`);
   return unwrap<{ attempt: ReportAttemptItem; payload: Record<string, unknown>; chapter: ReportChapterTraceItem }>(data);
