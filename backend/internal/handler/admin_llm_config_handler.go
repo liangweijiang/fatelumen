@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/url"
 	"strconv"
@@ -28,7 +30,7 @@ func NewAdminLLMConfigHandler(db *gorm.DB, audit *repository.AuditRepo, encrypti
 }
 
 type providerInput struct {
-	Code    string `json:"code" binding:"required,max=64"`
+	Code    string `json:"code" binding:"max=64"`
 	Name    string `json:"name" binding:"required,max=100"`
 	BaseURL string `json:"base_url" binding:"required,max=500"`
 	APIKey  string `json:"api_key"`
@@ -86,7 +88,16 @@ func (h *AdminLLMConfigHandler) CreateProvider(c *gin.Context) {
 	if in.Enabled != nil {
 		enabled = *in.Enabled
 	}
-	row := model.LLMProviderConfig{Code: normalizedCode(in.Code), Name: strings.TrimSpace(in.Name), BaseURL: strings.TrimRight(strings.TrimSpace(in.BaseURL), "/"), APIKeyCiphertext: ciphertext, APIKeyHint: keyHint(in.APIKey), Enabled: enabled}
+	code := normalizedCode(in.Code)
+	if code == "" || code == "custom" {
+		code, err = newCustomProviderCode()
+		if err != nil {
+			logger.FromCtx(c).Error("generate llm provider code failed", "err", err)
+			response.Error(c, "保存供应商失败")
+			return
+		}
+	}
+	row := model.LLMProviderConfig{Code: code, Name: strings.TrimSpace(in.Name), BaseURL: strings.TrimRight(strings.TrimSpace(in.BaseURL), "/"), APIKeyCiphertext: ciphertext, APIKeyHint: keyHint(in.APIKey), Enabled: enabled}
 	if err := h.db.WithContext(c.Request.Context()).Create(&row).Error; err != nil {
 		logger.FromCtx(c).Error("create llm provider failed", "err", err)
 		response.Error(c, "保存供应商失败")
@@ -115,7 +126,9 @@ func (h *AdminLLMConfigHandler) UpdateProvider(c *gin.Context) {
 		response.Fail(c, response.CodeBadRequest, "供应商配置不完整")
 		return
 	}
-	row.Code, row.Name, row.BaseURL = normalizedCode(in.Code), strings.TrimSpace(in.Name), strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
+	// Code is an immutable internal identifier. Changing it would detach this
+	// provider from its preset model catalogue and frozen routing references.
+	row.Name, row.BaseURL = strings.TrimSpace(in.Name), strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
 	if in.Enabled != nil {
 		row.Enabled = *in.Enabled
 	}
@@ -304,6 +317,13 @@ func validBaseURL(value string) bool {
 }
 func normalizedCode(value string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(value), " ", "-"))
+}
+func newCustomProviderCode() (string, error) {
+	random := make([]byte, 6)
+	if _, err := rand.Read(random); err != nil {
+		return "", err
+	}
+	return "custom-" + hex.EncodeToString(random), nil
 }
 func keyHint(key string) string {
 	key = strings.TrimSpace(key)

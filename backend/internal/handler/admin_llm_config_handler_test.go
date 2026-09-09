@@ -25,6 +25,7 @@ func TestAdminLLMConfigProviderModelAssociationAndPagination(t *testing.T) {
 	h := NewAdminLLMConfigHandler(db, nil, "test-encryption-secret")
 	r := gin.New()
 	r.POST("/providers", h.CreateProvider)
+	r.PUT("/providers/:id", h.UpdateProvider)
 	r.GET("/providers", h.ListProviders)
 	r.POST("/models", h.CreateModel)
 	r.GET("/models", h.ListModels)
@@ -49,6 +50,29 @@ func TestAdminLLMConfigProviderModelAssociationAndPagination(t *testing.T) {
 	}
 	if strings.Contains(persisted.APIKeyCiphertext, "sk-private-value") {
 		t.Fatal("API key was stored in plaintext")
+	}
+
+	customResp := performJSON(r, http.MethodPost, "/providers", `{"name":"Private Gateway","base_url":"http://localhost:18080/v1","api_key":"private-key","enabled":true}`)
+	var customEnvelope struct {
+		Code int                     `json:"code"`
+		Data model.LLMProviderConfig `json:"data"`
+	}
+	if err := json.Unmarshal(customResp.Body.Bytes(), &customEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if customEnvelope.Code != 0 || !strings.HasPrefix(customEnvelope.Data.Code, "custom-") {
+		t.Fatalf("custom provider code was not generated: %s", customResp.Body.String())
+	}
+
+	updated := performJSON(r, http.MethodPut, "/providers/"+jsonNumber(providerEnvelope.Data.ID), `{"code":"changed","name":"DeepSeek Updated","base_url":"https://api.deepseek.com/v1","enabled":true}`)
+	if updated.Code != http.StatusOK {
+		t.Fatalf("update provider status=%d body=%s", updated.Code, updated.Body.String())
+	}
+	if err := db.First(&persisted, providerEnvelope.Data.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if persisted.Code != "deepseek" {
+		t.Fatalf("provider code must be immutable, got %q", persisted.Code)
 	}
 
 	invalid := performJSON(r, http.MethodPost, "/models", `{"provider_id":999,"name":"bad","model_id":"bad","priority":1,"max_retries":3,"enabled":true}`)
