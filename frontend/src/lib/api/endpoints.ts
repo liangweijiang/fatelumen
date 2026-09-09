@@ -13,7 +13,6 @@ import type {
   Order,
   CreateOrderPayload,
   CreateOrderResult,
-  UnlockReportResult,
   FreeChartPayload,
   FreeChartResult,
   FreeChartPage,
@@ -148,11 +147,6 @@ export async function getReport(id: number): Promise<Report> {
 
 export async function listReports(): Promise<Report[]> {
   const { data } = await api.get("/reports");
-  return data.data ?? data;
-}
-
-export async function unlockReportWithCredits(id: number): Promise<UnlockReportResult> {
-  const { data } = await api.post(`/reports/${id}/unlock`);
   return data.data ?? data;
 }
 

@@ -21,7 +21,6 @@ type fakeReportSvc struct {
 	createFn func(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	getFn    func(ctx context.Context, userID, reportID uint64) (*model.Report, error)
 	listFn   func(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error)
-	unlockFn func(ctx context.Context, userID, reportID uint64) error
 }
 
 func (f *fakeReportSvc) CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error) {
@@ -34,13 +33,6 @@ func (f *fakeReportSvc) GetReport(ctx context.Context, userID, reportID uint64) 
 
 func (f *fakeReportSvc) ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
 	return f.listFn(ctx, userID, limit, cursor)
-}
-
-func (f *fakeReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
-	if f.unlockFn != nil {
-		return f.unlockFn(ctx, userID, reportID)
-	}
-	return nil
 }
 
 func testHandler(svc reportSvc) *ReportHandler {

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
 	"fatelumen/backend/internal/model"
@@ -56,7 +55,6 @@ type AdminReportsPage struct {
 type adminReportStore interface {
 	AdminListReports(filter repository.ReportFilter, limit, offset int) ([]model.Report, int64, error)
 	AdminGetReportByID(id uint64) (*model.Report, error)
-	MarkPaid(reportID, orderID uint64) error
 }
 
 type adminReportUserStore interface {
@@ -101,10 +99,6 @@ func (a fullReportAdminAdapter) AdminGetReportByID(id uint64) (*model.Report, er
 		}
 	}
 	return fullReportDTO(report, result), nil
-}
-
-func (a fullReportAdminAdapter) MarkPaid(reportID, _ uint64) error {
-	return a.repo.AdminMarkPaid(context.Background(), reportID, "admin")
 }
 
 // ListReports admin 分页报告列表。
@@ -183,41 +177,4 @@ func (s *AdminReportService) GetReportDetail(ctx context.Context, reportID uint6
 		PDFURL:      report.PDFURL,
 		UpdatedAt:   report.UpdatedAt,
 	}, nil
-}
-
-// UnlockReport admin 人工解锁报告（标记 paid，不关联订单）。
-func (s *AdminReportService) UnlockReport(ctx context.Context, operatorID, reportID uint64, reason string) error {
-	if strings.TrimSpace(reason) == "" {
-		return errors.New("reason required")
-	}
-
-	report, err := s.reportRepo.AdminGetReportByID(reportID)
-	if err != nil {
-		return err
-	}
-
-	if report.Paid {
-		logger.FromCtx(ctx).Info("admin unlock report skipped (already unlocked)",
-			"operator_id", operatorID,
-			"report_id", reportID,
-		)
-		return nil
-	}
-
-	if err := s.reportRepo.MarkPaid(reportID, 0); err != nil {
-		logger.FromCtx(ctx).Error("admin manual unlock failed",
-			"err", err,
-			"operator_id", operatorID,
-			"target_report_id", reportID,
-			"reason", reason,
-		)
-		return err
-	}
-
-	logger.FromCtx(ctx).Info("admin manual unlock report",
-		"operator_id", operatorID,
-		"target_report_id", reportID,
-		"reason", reason,
-	)
-	return nil
 }

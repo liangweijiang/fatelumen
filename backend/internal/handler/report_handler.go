@@ -18,7 +18,6 @@ import (
 type reportSvc interface {
 	CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error)
 	GetReport(ctx context.Context, userID, reportID uint64) (*model.Report, error)
-	UnlockWithCredits(ctx context.Context, userID, reportID uint64) error
 	ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error)
 }
 
@@ -187,31 +186,4 @@ func (h *ReportHandler) List(c *gin.Context) {
 		c.Header("X-Next-Cursor", encodeReportCursor(last.CreatedAt, last.ID))
 	}
 	response.OK(c, reports)
-}
-
-// UnlockWithCredits POST /api/v1/reports/:id/unlock —— 用积分解锁报告。
-func (h *ReportHandler) UnlockWithCredits(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	if userID == 0 {
-		response.Fail(c, response.CodeUnauthorized, "unauthorized")
-		return
-	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil {
-		response.Fail(c, response.CodeBadRequest, "invalid report id")
-		return
-	}
-	if err := h.svc.UnlockWithCredits(c.Request.Context(), userID, id); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			response.Fail(c, response.CodeNotFound, "report not found")
-			return
-		}
-		if errors.Is(err, repository.ErrInsufficientCredits) {
-			response.Fail(c, response.CodeNoCredits, "insufficient credits")
-			return
-		}
-		response.Error(c, err.Error())
-		return
-	}
-	response.OK(c, gin.H{"report_id": id, "unlocked": true})
 }

@@ -3,9 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { getReport, getChart, getMe } from "@/lib/api/endpoints";
+import { getReport, getChart } from "@/lib/api/endpoints";
 import type { Report, Chart } from "@/types/api";
-import CheckoutBlock from "@/components/report/CheckoutBlock";
 
 export default function ReportPage() {
   const t = useTranslations("report");
@@ -15,7 +14,6 @@ export default function ReportPage() {
 
   const [report, setReport] = useState<Report | null>(null);
   const [chart, setChart] = useState<Chart | null>(null);
-  const [credits, setCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -28,14 +26,6 @@ export default function ReportPage() {
     try {
       const r = await getReport(id);
       setReport(r);
-      if (r.locked === true) {
-        try {
-          const me = await getMe();
-          setCredits(me.credits ?? 0);
-        } catch {
-          // 余额拉取失败不阻断报告展示
-        }
-      }
       if (r.status === "done" || r.status === "failed") {
         setLoading(false);
         setError(r.status === "failed");
@@ -431,13 +421,7 @@ export default function ReportPage() {
           </div>
         )}
 
-        {locked && (
-          <CheckoutBlock
-            reportId={id}
-            credits={credits}
-            onUnlocked={() => window.location.reload()}
-          />
-        )}
+        {locked && <p className="mx-auto mb-6 max-w-[520px] border px-5 py-4 text-center text-sm" style={{ borderColor: "var(--line)", background: "var(--bg-card)", color: "var(--ink-soft)" }}>该记录来自旧版结算流程，不能在报告完成后再次解锁。请返回测算页重新生成报告。</p>}
 
         {/* Bottom action bar — 仅解锁后可下载 */}
         {!locked && (

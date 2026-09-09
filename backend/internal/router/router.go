@@ -213,7 +213,6 @@ func Setup(app *App) *gin.Engine {
 				reports.POST("", app.RateLimitReading, app.ReportHandler.Create)
 				reports.GET("/:id", app.ReportHandler.Get)
 				reports.GET("", app.ReportHandler.List)
-				reports.POST("/:id/unlock", app.ReportHandler.UnlockWithCredits)
 			}
 
 			orders := authed.Group("/orders")

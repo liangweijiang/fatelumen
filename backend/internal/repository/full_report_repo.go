@@ -331,55 +331,6 @@ func (r *FullReportRepo) GetResult(ctx context.Context, reportID uint64) (*model
 	return &result, err
 }
 
-func (r *FullReportRepo) UnlockWithCredits(ctx context.Context, userID, reportID uint64, cost int) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var report model.FullReport
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", reportID, userID).First(&report).Error; err != nil {
-			return err
-		}
-		if report.Paid {
-			return nil
-		}
-		if report.Status != model.FullReportStatusCompleted {
-			return ErrFullReportNotReady
-		}
-		var user model.User
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, userID).Error; err != nil {
-			return err
-		}
-		if user.Credits < cost {
-			return ErrInsufficientCredits
-		}
-		if err := tx.Model(&model.User{}).Where("id = ?", userID).Update("credits", gorm.Expr("credits - ?", cost)).Error; err != nil {
-			return err
-		}
-		balance := user.Credits - cost
-		refID := reportID
-		if err := tx.Create(&model.CreditLedger{UserID: userID, Delta: -cost, BalanceAfter: balance, Reason: "unlock_full_report", RefID: &refID, CreatedAt: time.Now().UTC()}).Error; err != nil {
-			return err
-		}
-		return tx.Model(&model.FullReport{}).Where("id = ?", reportID).Updates(map[string]any{"paid": true, "pay_method": "credit", "updated_at": time.Now().UTC()}).Error
-	})
-}
-
-func (r *FullReportRepo) MarkPaid(ctx context.Context, reportID, orderID uint64, payMethod string) error {
-	return r.db.WithContext(ctx).Model(&model.FullReport{}).Where("id = ?", reportID).Updates(map[string]any{
-		"paid": true, "order_id": orderID, "pay_method": payMethod, "updated_at": time.Now().UTC(),
-	}).Error
-}
-
-func (r *FullReportRepo) AdminMarkPaid(ctx context.Context, reportID uint64, payMethod string) error {
-	res := r.db.WithContext(ctx).Model(&model.FullReport{}).Where("id = ?", reportID).
-		Updates(map[string]any{"paid": true, "pay_method": payMethod, "updated_at": time.Now().UTC()})
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected != 1 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
-}
-
 func (r *FullReportRepo) AdminGetByID(ctx context.Context, reportID uint64) (*model.FullReport, error) {
 	var report model.FullReport
 	err := r.db.WithContext(ctx).Where("id = ? AND status <> ?", reportID, model.FullReportStatusDeleting).First(&report).Error

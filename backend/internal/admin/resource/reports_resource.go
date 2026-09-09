@@ -11,7 +11,6 @@ import (
 type reportListSvc interface {
 	ListReports(ctx context.Context, status string, paid *bool, userID uint64, page, pageSize int) (*service.AdminReportsPage, error)
 	GetReportDetail(ctx context.Context, reportID uint64) (*service.AdminReportDetail, error)
-	UnlockReport(ctx context.Context, operatorID, reportID uint64, reason string) error
 }
 
 type ReportsResource struct {
@@ -82,25 +81,5 @@ func (r *ReportsResource) Update(ctx *AdminContext, id string, patch map[string]
 }
 
 func (r *ReportsResource) Actions() []Action {
-	return []Action{
-		{
-			Name:  "unlock",
-			Label: "解锁报告",
-			Perm:  "report:unlock",
-			Handler: func(ctx *AdminContext, id string, params map[string]interface{}) (interface{}, error) {
-				rid, err := strconv.ParseUint(id, 10, 64)
-				if err != nil {
-					return nil, err
-				}
-				reason, _ := params["reason"].(string)
-				if reason == "" {
-					reason = "admin manual unlock"
-				}
-				if err := r.svc.UnlockReport(context.Background(), ctx.AdminID, rid, reason); err != nil {
-					return nil, err
-				}
-				return map[string]interface{}{"id": rid, "paid": true}, nil
-			},
-		},
-	}
+	return nil
 }

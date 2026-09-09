@@ -12,18 +12,14 @@ import (
 )
 
 type fakeAdminReportStore struct {
-	reports       []model.Report
-	total         int64
-	listErr       error
-	report        *model.Report
-	getErr        error
-	filter        repository.ReportFilter
-	limit         int
-	offset        int
-	markPaidCalls int
-	markPaidErr   error
-	lastReportID  uint64
-	lastOrderID   uint64
+	reports []model.Report
+	total   int64
+	listErr error
+	report  *model.Report
+	getErr  error
+	filter  repository.ReportFilter
+	limit   int
+	offset  int
 }
 
 func newFakeAdminReportStore() *fakeAdminReportStore {
@@ -45,19 +41,6 @@ func (f *fakeAdminReportStore) AdminGetReportByID(id uint64) (*model.Report, err
 		return nil, f.getErr
 	}
 	return f.report, nil
-}
-
-func (f *fakeAdminReportStore) MarkPaid(reportID, orderID uint64) error {
-	f.markPaidCalls++
-	f.lastReportID = reportID
-	f.lastOrderID = orderID
-	if f.markPaidErr != nil {
-		return f.markPaidErr
-	}
-	if f.report != nil {
-		f.report.Paid = true
-	}
-	return nil
 }
 
 type fakeAdminReportUserStore struct {
@@ -204,77 +187,6 @@ func TestAdminGetReportDetail_NotFound(t *testing.T) {
 	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
 
 	_, err := svc.GetReportDetail(context.Background(), 99)
-	if err == nil {
-		t.Fatal("expected error for not found")
-	}
-}
-
-// ---------- UnlockReport ----------
-
-func TestUnlockReport_Success(t *testing.T) {
-	store := newFakeAdminReportStore()
-	store.report = &model.Report{
-		ID:        1,
-		Paid:      false,
-		PayMethod: "order",
-	}
-
-	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
-	err := svc.UnlockReport(context.Background(), 1, 1, "customer service requested")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if store.markPaidCalls != 1 {
-		t.Errorf("markPaidCalls: want 1, got %d", store.markPaidCalls)
-	}
-	if store.lastOrderID != 0 {
-		t.Errorf("orderID passed to MarkPaid: want 0 (no order touched), got %d", store.lastOrderID)
-	}
-	if !store.report.Paid {
-		t.Error("report.Paid should be true after unlock")
-	}
-}
-
-func TestUnlockReport_EmptyReason(t *testing.T) {
-	store := newFakeAdminReportStore()
-
-	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
-	err := svc.UnlockReport(context.Background(), 1, 1, "  ")
-	if err == nil {
-		t.Fatal("expected error for empty reason")
-	}
-	if err.Error() != "reason required" {
-		t.Errorf("error: want 'reason required', got '%s'", err.Error())
-	}
-	if store.markPaidCalls != 0 {
-		t.Error("MarkPaid should not be called when reason is empty")
-	}
-}
-
-func TestUnlockReport_Idempotent(t *testing.T) {
-	store := newFakeAdminReportStore()
-	store.report = &model.Report{
-		ID:        1,
-		Paid:      true,
-		PayMethod: "credit",
-	}
-
-	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
-	err := svc.UnlockReport(context.Background(), 1, 1, "already unlocked")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if store.markPaidCalls != 0 {
-		t.Error("MarkPaid should not be called when already paid")
-	}
-}
-
-func TestUnlockReport_NotFound(t *testing.T) {
-	store := newFakeAdminReportStore()
-	store.getErr = errors.New("not found")
-
-	svc := &AdminReportService{reportRepo: store, userRepo: newFakeAdminReportUserStore()}
-	err := svc.UnlockReport(context.Background(), 1, 99, "not found reason")
 	if err == nil {
 		t.Fatal("expected error for not found")
 	}

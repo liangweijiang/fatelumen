@@ -269,11 +269,6 @@ export interface CreateOrderResult {
   checkout_url: string;
 }
 
-export interface UnlockReportResult {
-  report_id: number;
-  unlocked: boolean;
-}
-
 export interface FreeChartLocation {
   country_code?: string; country_name?: string; region_code?: string; region_name?: string;
   city?: string; place_id?: string; display_name?: string;

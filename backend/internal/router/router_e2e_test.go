@@ -3,7 +3,6 @@ package router
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -104,12 +103,6 @@ func (f *fakeAllAdminServices) ListReports(ctx context.Context, status string, p
 func (f *fakeAllAdminServices) GetReportDetail(ctx context.Context, reportID uint64) (*service.AdminReportDetail, error) {
 	return &service.AdminReportDetail{ID: reportID, Type: "order", Status: "done", Paid: true}, nil
 }
-func (f *fakeAllAdminServices) UnlockReport(ctx context.Context, operatorID, reportID uint64, reason string) error {
-	if reason == "" {
-		return errors.New("reason required")
-	}
-	return nil
-}
 
 // fakeUserReportSvc implements handler.reportSvc for user-side report routes.
 type fakeUserReportSvc struct {
@@ -135,10 +128,6 @@ func (f *fakeUserReportSvc) GetReport(ctx context.Context, userID, reportID uint
 func (f *fakeUserReportSvc) ListReports(ctx context.Context, userID uint64, limit int, cursor *repository.FullReportCursor) ([]model.Report, bool, error) {
 	return []model.Report{}, false, nil
 }
-func (f *fakeUserReportSvc) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
-	return nil
-}
-
 func createTestRouter(t *testing.T, db *gorm.DB, userReportID, userUserID uint64) *gin.Engine {
 	t.Helper()
 	authMW := middleware.NewAuthMiddleware(testJWTSecret, db)
@@ -291,6 +280,19 @@ func TestE2E_NormalUser_OthersReport_NotFound(t *testing.T) {
 	resp := mustParseResp(t, w)
 	if resp.Code != response.CodeNotFound {
 		t.Errorf("user should get 404 for other's report, got code=%d msg=%s", resp.Code, resp.Msg)
+	}
+}
+
+func TestE2E_ReportUnlockRouteRemoved(t *testing.T) {
+	db := setupTestDB(t)
+	router := createTestRouter(t, db, 1, 2)
+	userToken := makeToken(t, 2)
+	req := httptest.NewRequest("POST", "/api/v1/reports/1/unlock", nil)
+	req.Header.Set("Authorization", "Bearer "+userToken)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("removed report unlock route returned HTTP %d, want 404", w.Code)
 	}
 }
 

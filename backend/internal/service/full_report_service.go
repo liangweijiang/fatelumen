@@ -120,14 +120,6 @@ func (s *FullReportService) ListReports(ctx context.Context, userID uint64, limi
 	return out, hasMore, nil
 }
 
-func (s *FullReportService) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
-	err := s.reports.UnlockWithCredits(ctx, userID, reportID, s.reportCost)
-	if err != nil {
-		logger.FromCtx(ctx).Error("full report unlock failed", "err", err, "user_id", userID, "report_id", reportID)
-	}
-	return err
-}
-
 func fullReportDTO(report *model.FullReport, result *model.FullReportResult) *model.Report {
 	status := report.Status
 	switch report.Status {

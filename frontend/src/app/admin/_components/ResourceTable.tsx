@@ -67,14 +67,9 @@ export default function ResourceTable({ resource, detailHref }: { resource: stri
   const onAction = useCallback(
     async (actionName: string) => {
       if (activeId === null) return;
-      let params: Record<string, unknown> = {};
-      if (actionName === "unlock") {
-        const reason = window.prompt("解锁原因（可留空）", "");
-        params = { reason: reason ?? "" };
-      }
       setActing(true);
       try {
-        await runResourceAction(resource, activeId, actionName, params);
+		await runResourceAction(resource, activeId, actionName, {});
         await queryClient.invalidateQueries({ queryKey: ["admin-list", resource] });
         await queryClient.invalidateQueries({ queryKey: ["admin-detail", resource, activeId] });
       } catch {
