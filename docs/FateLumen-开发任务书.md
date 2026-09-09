@@ -282,7 +282,7 @@ CREATE TABLE reports (
   order_id      BIGINT UNSIGNED COMMENT '关联订单(付费方式时)',
   locale        VARCHAR(8)   NOT NULL DEFAULT 'en',
   status        VARCHAR(16)  NOT NULL DEFAULT 'pending' COMMENT 'pending/processing/done/failed',
-  pay_method    VARCHAR(16)  NOT NULL COMMENT 'order(付费订单) / credit(扣积分)',
+  pay_method    VARCHAR(16)  NOT NULL COMMENT 'credit(统一扣积分) / unlimited(后台体验豁免)',
   content       JSON         COMMENT '10章完整报告结构化 JSON',
   pdf_url       VARCHAR(512) COMMENT 'PDF R2 URL',
   error_msg     VARCHAR(512) COMMENT '失败原因',
@@ -558,12 +558,14 @@ CREATE TABLE geo_cities (
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| POST | `/api/v1/readings/full` | 创建完整报告任务(需已支付 or 扣积分)，返回 `report_id` |
+| POST | `/api/v1/readings/full` | 扣除 10 积分并创建完整报告任务，返回 `report_id` |
 | GET | `/api/v1/readings/full/{report_id}` | 轮询状态；`done` 时返回 `pdf_url` + `content` |
 
-**`POST /api/v1/readings/full` 请求体：** `{"profile_id":123,"locale":"en","pay_method":"credit"}`
-- `pay_method=credit`：直接扣 10 积分(不足返回 `code=4020 insufficient credits`)
-- `pay_method=order`：要求 `order_id`,校验该订单 `status=paid` 且未被其它报告占用(渠道无关)
+**`POST /api/v1/readings/full` 请求体：** `{"profile_id":123,"locale":"en"}`
+- 所有普通用户统一扣 10 积分；扣减、积分流水和报告创建必须在同一事务内完成，任一步失败全部回滚。
+- 余额不足返回 `code=4020 insufficient credits`，不得创建报告任务。
+- 现金购买报告也先由支付成功事件发放 10 积分，再调用同一报告创建入口消费 10 积分；报告生成逻辑不区分积分来源。
+- 后台明确标记的无限体验用户保留豁免，不写积分消费流水。
   **响应：** `{"report_id":7,"status":"pending"}`
   **轮询响应(done)：** `{"report_id":7,"status":"done","pdf_url":"https://...","content":{...}}`
 
@@ -1149,7 +1151,7 @@ pending ───────────────► processing ──成功
 
 - 创建 `reports` 记录(status=pending) → **立即返回** report_id。
 - 通过 `JobQueue.Enqueue` 入队任务;worker 执行时用 `defer` + recover 保证 panic 也能落到 `failed`。
-- 失败自动重试**最多 3 次**(retry_count)，超过标记 failed 并退还积分(若用积分)。
+- 失败按冻结的模型路由与重试预算自动重试；预算耗尽时，在同一事务内将整份报告标记为 `failed`、退还该报告实际扣除的积分并写反向流水。
 - **超时控制**：单个 LLM 调用用 `context.WithTimeout`(如 60s);整个报告任务总超时(如 5min)。
 - 报告 `done` 后调 `Notifier.Send`(模板 `report_ready`,按用户 locale)通知用户;PDF/图片经 `Renderer` 生成、`Storage` 上传。
 
@@ -1483,7 +1485,7 @@ func (r *Registry) Enabled() []string { /* 返回所有已注册 id */ }
 ```go
 // 金额绝不来自前端。前端只传 sku，后端查表得 amount/currency/credits。
 var Catalog = map[string]SKU{
-    "report_single": {Type: "report",  AmountCents: 599,  Currency: "usd", Credits: 0},
+    "report_single": {Type: "credits", AmountCents: 599,  Currency: "usd", Credits: 10},
     "pack_50":       {Type: "credits", AmountCents: 999,  Currency: "usd", Credits: 50},
     "pack_120":      {Type: "credits", AmountCents: 1999, Currency: "usd", Credits: 120},
 }
@@ -1500,9 +1502,9 @@ var Catalog = map[string]SKU{
 6. 统一处理器:
   - 先查 `payment_events`(provider+event_id)去重,已处理直接 200。
   - 按 `provider_ref` 回查订单(事务内)。
-  - `payment_succeeded` → 订单置 `paid`;若 `type=credits` 写 `credit_ledger` + 加 `users.credits`(同一事务)。
+  - `payment_succeeded` → 订单置 `paid`;所有积分商品（含单次报告商品）写 `credit_ledger` + 加 `users.credits`(同一事务)。
   - 写入 `payment_events` 标记已处理。
-7. 前端支付成功页轮询订单状态,paid 后调 `POST /readings/full {order_id}` 触发报告生成。
+7. 前端支付成功页轮询订单状态；单次报告商品到账 10 积分后，由已保存的报告创建请求调用 `POST /readings/full`，再通过统一入口扣除 10 积分并触发生成。
 
 ### 11.5 安全与一致性红线
 
@@ -1511,7 +1513,7 @@ var Catalog = map[string]SKU{
 - **Webhook 幂等**:`payment_events(provider,event_id)` 唯一键 + 订单状态双重保护,重复回调只处理一次。
 - **下单幂等**:`orders(provider,provider_ref)` 唯一键,防同一渠道会话重复落单。
 - 订单与发积分**同事务**,失败回滚。
-- 退款/报告失败用积分时,自动写反向 `credit_ledger`。
+- 报告首次进入最终失败状态时，状态更新、返还实际消费积分和反向 `credit_ledger` 必须同事务完成；章节失败、模型切换及单次调用重试不触发退款。
 - Webhook 路由**不走 JWT 中间件**(渠道服务器无 token),仅靠验签鉴权。
 
 ### 11.6 MVP 落地范围

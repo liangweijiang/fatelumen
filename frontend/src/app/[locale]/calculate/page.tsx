@@ -159,8 +159,8 @@ export default function CalculatePage() {
     try {
       const report = await createReportFromInput({ profile: profileInput, save_action: "new", locale });
       router.push(`/${locale}/reports/${report.report_id}`);
-    } catch {
-      toast.error(t("error"));
+    } catch (error) {
+      toast.error(error instanceof Error && error.message === "insufficient credits" ? t("insufficientCredits") : t("error"));
     } finally {
       setSubmitting(false);
     }

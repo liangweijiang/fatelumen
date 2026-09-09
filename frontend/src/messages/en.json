@@ -122,6 +122,7 @@
     "submit": "Generate My Reading",
     "submitting": "Generating…",
     "error": "Something went wrong, please retry",
+    "insufficientCredits": "Insufficient credits. A full report requires 10 credits.",
     "profileFailed": "Profile creation failed",
     "reportFailed": "Report creation failed",
     "profileSource": "Who is this reading for?",

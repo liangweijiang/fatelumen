@@ -20,8 +20,8 @@ type CreditLedger struct {
 	UserID       uint64    `gorm:"not null;index" json:"user_id"`
 	Delta        int       `gorm:"not null;comment:正=充值 负=消费" json:"delta"`
 	BalanceAfter int       `gorm:"not null" json:"balance_after"`
-	Reason       string    `gorm:"type:varchar(64);not null" json:"reason"`
-	RefID        *uint64   `gorm:"comment:关联 order_id 或 report_id" json:"ref_id"`
+	Reason       string    `gorm:"type:varchar(64);not null;index:idx_credit_ledger_ref_reason,priority:2" json:"reason"`
+	RefID        *uint64   `gorm:"index:idx_credit_ledger_ref_reason,priority:1;comment:关联 order_id 或 report_id" json:"ref_id"`
 	CreatedAt    time.Time `gorm:"not null" json:"created_at"`
 }
 

@@ -132,6 +132,7 @@
     "submit": "为我起盘推演",
     "submitting": "推演中…",
     "error": "推演出错，请重试",
+    "insufficientCredits": "命点余额不足，完整报告需要 10 命点",
     "profileFailed": "档案创建失败",
     "reportFailed": "报告创建失败",
     "profileSource": "本次为谁测算",

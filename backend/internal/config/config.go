@@ -182,7 +182,7 @@ func Load() (*Config, error) {
 	viper.SetDefault("CHROMIUM_PATH", "/usr/bin/chromium")
 	viper.SetDefault("QUOTA_DAILY_LIMIT", 3)
 	viper.SetDefault("ORDER_REPORT_PRICE_CENTS", 999)
-	viper.SetDefault("REPORT_UNLOCK_CREDITS", 30)
+	viper.SetDefault("REPORT_UNLOCK_CREDITS", 10)
 	viper.SetDefault("REPORT_CHAPTER_CONCURRENCY", 3)
 	viper.SetDefault("REPORT_CHAPTER_MAX_ATTEMPTS", 2)
 	viper.SetDefault("REPORT_CHAPTER_TIMEOUT_SECONDS", 180)

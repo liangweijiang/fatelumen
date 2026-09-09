@@ -40,6 +40,82 @@ func (r *FullReportRepo) Create(ctx context.Context, report *model.FullReport) e
 	return r.db.WithContext(ctx).Create(report).Error
 }
 
+// CreateWithCreditCharge atomically creates a pending report and consumes the
+// user's report credits. Unlimited users retain their explicit back-office
+// exemption, but their report is still marked paid so delivery is not gated.
+func (r *FullReportRepo) CreateWithCreditCharge(ctx context.Context, report *model.FullReport, cost int) error {
+	if cost <= 0 {
+		return errors.New("full report credit cost must be positive")
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, report.UserID).Error; err != nil {
+			return err
+		}
+		report.Paid = true
+		if user.Unlimited {
+			report.PayMethod = "unlimited"
+			return tx.Create(report).Error
+		}
+		if user.Credits < cost {
+			return ErrInsufficientCredits
+		}
+		report.PayMethod = "credit"
+		if err := tx.Create(report).Error; err != nil {
+			return err
+		}
+		balance := user.Credits - cost
+		if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Update("credits", balance).Error; err != nil {
+			return err
+		}
+		refID := report.ID
+		return tx.Create(&model.CreditLedger{
+			UserID: user.ID, Delta: -cost, BalanceAfter: balance,
+			Reason: "consume_report", RefID: &refID, CreatedAt: time.Now().UTC(),
+		}).Error
+	})
+}
+
+// CancelPendingCreditCharge compensates the narrow failure window where the
+// report transaction committed but its queue delivery could not be created.
+// Generation-time terminal refunds are handled by the separate failure policy.
+func (r *FullReportRepo) CancelPendingCreditCharge(ctx context.Context, reportID uint64, code, summary string, failedAt time.Time) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.FullReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&report, reportID).Error; err != nil {
+			return err
+		}
+		if report.Status == model.FullReportStatusFailed {
+			return nil
+		}
+		if report.Status != model.FullReportStatusPending {
+			return ErrFullReportImmutableWrite
+		}
+		if report.PayMethod == "credit" {
+			var debit model.CreditLedger
+			if err := tx.Where("user_id = ? AND reason = ? AND ref_id = ?", report.UserID, "consume_report", report.ID).First(&debit).Error; err != nil {
+				return err
+			}
+			var user model.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, report.UserID).Error; err != nil {
+				return err
+			}
+			refID := report.ID
+			balance := user.Credits - debit.Delta
+			if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Update("credits", balance).Error; err != nil {
+				return err
+			}
+			if err := tx.Create(&model.CreditLedger{UserID: user.ID, Delta: -debit.Delta, BalanceAfter: balance, Reason: "refund_report_creation", RefID: &refID, CreatedAt: failedAt}).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&model.FullReport{}).Where("id = ?", report.ID).Updates(map[string]any{
+			"paid": false, "status": model.FullReportStatusFailed, "current_stage": model.FullReportStatusFailed,
+			"error_code": code, "error_summary": summary, "failed_at": failedAt, "completed_at": failedAt, "updated_at": failedAt,
+		}).Error
+	})
+}
+
 func (r *FullReportRepo) UpdateChartID(ctx context.Context, reportID, chartID uint64) error {
 	res := r.db.WithContext(ctx).Model(&model.FullReport{}).
 		Where("id = ? AND status NOT IN ?", reportID, []string{model.FullReportStatusCompleted, model.FullReportStatusFailed}).
@@ -450,6 +526,46 @@ type FullReportModelStats struct {
 	CompletionTokens   *int64 `json:"completion_tokens"`
 	TotalTokens        *int64 `json:"total_tokens"`
 	DurationMS         int64  `json:"duration_ms"`
+}
+
+type FullReportCreditSettlement struct {
+	Status   string               `json:"status"`
+	Charged  int                  `json:"charged"`
+	Refunded int                  `json:"refunded"`
+	Net      int                  `json:"net"`
+	Entries  []model.CreditLedger `json:"entries"`
+}
+
+func (r *FullReportRepo) AdminCreditSettlement(ctx context.Context, report *model.FullReport) (*FullReportCreditSettlement, error) {
+	settlement := &FullReportCreditSettlement{Status: "not_charged", Entries: make([]model.CreditLedger, 0)}
+	if report.PayMethod == "unlimited" {
+		settlement.Status = "exempt"
+		return settlement, nil
+	}
+	if err := r.db.WithContext(ctx).
+		Where("ref_id = ? AND reason IN ?", report.ID, []string{"consume_report", "refund_report", "refund_report_creation"}).
+		Order("id ASC").Find(&settlement.Entries).Error; err != nil {
+		return nil, err
+	}
+	for _, entry := range settlement.Entries {
+		switch entry.Reason {
+		case "consume_report":
+			if entry.Delta < 0 {
+				settlement.Charged += -entry.Delta
+			}
+		case "refund_report", "refund_report_creation":
+			if entry.Delta > 0 {
+				settlement.Refunded += entry.Delta
+			}
+		}
+	}
+	settlement.Net = settlement.Charged - settlement.Refunded
+	if settlement.Refunded > 0 {
+		settlement.Status = "refunded"
+	} else if settlement.Charged > 0 {
+		settlement.Status = "charged"
+	}
+	return settlement, nil
 }
 
 func (r *FullReportRepo) AdminGetExecutionTrace(ctx context.Context, reportID uint64) (*FullReportExecutionTrace, error) {
@@ -1053,6 +1169,33 @@ func (r *FullReportRepo) Fail(ctx context.Context, reportID uint64, code, summar
 			return ErrFullReportTerminal
 		}
 
+		refunded := false
+		if report.Paid && report.PayMethod == "credit" {
+			var debit model.CreditLedger
+			if err := tx.Where("user_id = ? AND reason = ? AND ref_id = ?", report.UserID, "consume_report", report.ID).First(&debit).Error; err != nil {
+				return fmt.Errorf("find report credit debit: %w", err)
+			}
+			if debit.Delta >= 0 {
+				return errors.New("report credit debit has invalid delta")
+			}
+			var user model.User
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&user, report.UserID).Error; err != nil {
+				return err
+			}
+			balance := user.Credits - debit.Delta
+			if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Update("credits", balance).Error; err != nil {
+				return err
+			}
+			refID := report.ID
+			if err := tx.Create(&model.CreditLedger{
+				UserID: user.ID, Delta: -debit.Delta, BalanceAfter: balance,
+				Reason: "refund_report", RefID: &refID, CreatedAt: failedAt,
+			}).Error; err != nil {
+				return err
+			}
+			refunded = true
+		}
+
 		// A failed report is terminal. Converge every unfinished chapter in the
 		// same transaction so list/detail views never expose pending work under
 		// a terminal report. Existing successes and chapter-specific failures
@@ -1078,7 +1221,7 @@ func (r *FullReportRepo) Fail(ctx context.Context, reportID uint64, code, summar
 			return err
 		}
 
-		res := tx.Model(&model.FullReport{}).Where("id = ?", reportID).Updates(map[string]any{
+		updates := map[string]any{
 			"status":            model.FullReportStatusFailed,
 			"current_stage":     model.FullReportStatusFailed,
 			"chapter_succeeded": succeeded,
@@ -1088,7 +1231,11 @@ func (r *FullReportRepo) Fail(ctx context.Context, reportID uint64, code, summar
 			"failed_at":         failedAt,
 			"completed_at":      failedAt,
 			"updated_at":        failedAt,
-		})
+		}
+		if refunded {
+			updates["paid"] = false
+		}
+		res := tx.Model(&model.FullReport{}).Where("id = ?", reportID).Updates(updates)
 		return res.Error
 	})
 }

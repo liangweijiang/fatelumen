@@ -20,6 +20,8 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		t.Fatal(err)
 	}
 	if err := db.AutoMigrate(
+		&model.User{},
+		&model.CreditLedger{},
 		&model.BirthProfile{},
 		&model.FullReport{},
 		&model.FullReportExecutionSnapshot{},
@@ -36,6 +38,240 @@ func setupFullReportRepo(t *testing.T) (*FullReportRepo, *gorm.DB) {
 		t.Fatal(err)
 	}
 	return NewFullReportRepo(db), db
+}
+
+func TestCreateWithCreditChargeIsAtomic(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 101, Email: "credit@test.local", Credits: 20, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JCREDITCHARGE00000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); err != nil {
+		t.Fatal(err)
+	}
+	if !report.Paid || report.PayMethod != "credit" || report.ID == 0 {
+		t.Fatalf("report charge metadata = paid:%v method:%q id:%d", report.Paid, report.PayMethod, report.ID)
+	}
+	var storedUser model.User
+	if err := db.First(&storedUser, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedUser.Credits != 10 {
+		t.Fatalf("credits = %d, want 10", storedUser.Credits)
+	}
+	var ledger model.CreditLedger
+	if err := db.Where("user_id = ? AND reason = ? AND ref_id = ?", user.ID, "consume_report", report.ID).First(&ledger).Error; err != nil {
+		t.Fatal(err)
+	}
+	if ledger.Delta != -10 || ledger.BalanceAfter != 10 {
+		t.Fatalf("ledger = %+v", ledger)
+	}
+}
+
+func TestCreateWithCreditChargeRejectsInsufficientBalanceWithoutReport(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 102, Email: "poor@test.local", Credits: 9, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JINSUFFICIENT000000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); !errors.Is(err, ErrInsufficientCredits) {
+		t.Fatalf("error = %v, want ErrInsufficientCredits", err)
+	}
+	var reportCount, ledgerCount int64
+	if err := db.Model(&model.FullReport{}).Where("user_id = ?", user.ID).Count(&reportCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ?", user.ID).Count(&ledgerCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if reportCount != 0 || ledgerCount != 0 {
+		t.Fatalf("rolled back counts = reports:%d ledgers:%d", reportCount, ledgerCount)
+	}
+}
+
+func TestCreateWithCreditChargeKeepsUnlimitedExemption(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 103, Email: "unlimited@test.local", Credits: 0, Unlimited: true, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JUNLIMITED0000000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); err != nil {
+		t.Fatal(err)
+	}
+	if !report.Paid || report.PayMethod != "unlimited" {
+		t.Fatalf("unlimited report = paid:%v method:%q", report.Paid, report.PayMethod)
+	}
+	var ledgerCount int64
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ?", user.ID).Count(&ledgerCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if ledgerCount != 0 {
+		t.Fatalf("unlimited user ledger count = %d, want 0", ledgerCount)
+	}
+}
+
+func TestCancelPendingCreditChargeRefundsExactlyOnce(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 104, Email: "enqueue@test.local", Credits: 20, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JENQUEUEFAIL000000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); err != nil {
+		t.Fatal(err)
+	}
+	failedAt := now.Add(time.Second)
+	if err := repo.CancelPendingCreditCharge(context.Background(), report.ID, "enqueue_failed", "queue unavailable", failedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CancelPendingCreditCharge(context.Background(), report.ID, "enqueue_failed", "queue unavailable", failedAt); err != nil {
+		t.Fatalf("idempotent compensation failed: %v", err)
+	}
+	var storedUser model.User
+	if err := db.First(&storedUser, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedUser.Credits != 20 {
+		t.Fatalf("credits = %d, want restored 20", storedUser.Credits)
+	}
+	var refundCount int64
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ? AND reason = ? AND ref_id = ?", user.ID, "refund_report_creation", report.ID).Count(&refundCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if refundCount != 1 {
+		t.Fatalf("refund ledger count = %d, want 1", refundCount)
+	}
+	var stored model.FullReport
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportStatusFailed || stored.Paid {
+		t.Fatalf("report after compensation = status:%s paid:%v", stored.Status, stored.Paid)
+	}
+}
+
+func TestFailRefundsConsumedReportCreditsExactlyOnce(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 105, Email: "terminal-failure@test.local", Credits: 20, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JTERMINALFAIL00000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	failedAt := now.Add(time.Minute)
+	if err := repo.Fail(context.Background(), report.ID, "generation_failed", "routes exhausted", failedAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Fail(context.Background(), report.ID, "generation_failed", "routes exhausted", failedAt); !errors.Is(err, ErrFullReportTerminal) {
+		t.Fatalf("second terminal failure = %v, want ErrFullReportTerminal", err)
+	}
+	var storedUser model.User
+	if err := db.First(&storedUser, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedUser.Credits != 20 {
+		t.Fatalf("credits = %d, want restored 20", storedUser.Credits)
+	}
+	var consumeCount, refundCount int64
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ? AND reason = ? AND ref_id = ?", user.ID, "consume_report", report.ID).Count(&consumeCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ? AND reason = ? AND ref_id = ?", user.ID, "refund_report", report.ID).Count(&refundCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if consumeCount != 1 || refundCount != 1 {
+		t.Fatalf("ledger counts = consume:%d refund:%d", consumeCount, refundCount)
+	}
+	var stored model.FullReport
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportStatusFailed || stored.Paid {
+		t.Fatalf("failed report = status:%s paid:%v", stored.Status, stored.Paid)
+	}
+	settlement, err := repo.AdminCreditSettlement(context.Background(), &stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settlement.Status != "refunded" || settlement.Charged != 10 || settlement.Refunded != 10 || settlement.Net != 0 || len(settlement.Entries) != 2 {
+		t.Fatalf("credit settlement = %+v", settlement)
+	}
+}
+
+func TestFailDoesNotCreateRefundForUnlimitedReport(t *testing.T) {
+	repo, db := setupFullReportRepo(t)
+	now := time.Now().UTC()
+	user := model.User{ID: 106, Email: "unlimited-failure@test.local", Credits: 0, Unlimited: true, Active: true, CreatedAt: now, UpdatedAt: now}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatal(err)
+	}
+	report := fullReportGraph(now).Report
+	report.PublicID = "01JUNLIMITEDFAIL00000000000"
+	report.UserID = user.ID
+	if err := repo.CreateWithCreditCharge(context.Background(), report, 10); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.FullReport{}).Where("id = ?", report.ID).Updates(map[string]any{
+		"status": model.FullReportStatusGenerating, "current_stage": model.FullReportStatusGenerating,
+	}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Fail(context.Background(), report.ID, "generation_failed", "routes exhausted", now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	var storedUser model.User
+	if err := db.First(&storedUser, user.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if storedUser.Credits != 0 {
+		t.Fatalf("credits = %d, want unchanged 0", storedUser.Credits)
+	}
+	var ledgerCount int64
+	if err := db.Model(&model.CreditLedger{}).Where("user_id = ?", user.ID).Count(&ledgerCount).Error; err != nil {
+		t.Fatal(err)
+	}
+	if ledgerCount != 0 {
+		t.Fatalf("unlimited user ledger count = %d, want 0", ledgerCount)
+	}
+	var stored model.FullReport
+	if err := db.First(&stored, report.ID).Error; err != nil {
+		t.Fatal(err)
+	}
+	if stored.Status != model.FullReportStatusFailed || !stored.Paid || stored.PayMethod != "unlimited" {
+		t.Fatalf("unlimited failed report = status:%s paid:%v method:%q", stored.Status, stored.Paid, stored.PayMethod)
+	}
+	settlement, err := repo.AdminCreditSettlement(context.Background(), &stored)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settlement.Status != "exempt" || settlement.Charged != 0 || settlement.Refunded != 0 || len(settlement.Entries) != 0 {
+		t.Fatalf("unlimited credit settlement = %+v", settlement)
+	}
 }
 
 func TestPrepareAndCompleteRenderingRequiresStoredPDF(t *testing.T) {

@@ -66,7 +66,7 @@ func TestFullReportPDFJobHandlerSuccessAndDuplicateDelivery(t *testing.T) {
 	now := time.Now().UTC()
 	task, _, _ := repo.Ensure(context.Background(), 20, "pdf-v1", 3, now)
 	runner := &renderRunnerStub{}
-	handler := NewFullReportPDFJobHandler(repo, runner, 1)
+	handler := NewFullReportPDFJobHandler(repo, runner, 1, nil)
 	queued := renderQueueJob(t, task.ID)
 	if _, err := handler.Handle(context.Background(), queued); err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func TestFullReportPDFJobHandlerSuccessAndDuplicateDelivery(t *testing.T) {
 func TestFullReportPDFJobHandlerFailureRequeues(t *testing.T) {
 	repo := renderServiceTestRepo(t)
 	task, _, _ := repo.Ensure(context.Background(), 21, "pdf-v1", 2, time.Now().UTC())
-	handler := NewFullReportPDFJobHandler(repo, &renderRunnerStub{err: errors.New("renderer unavailable")}, 1)
+	handler := NewFullReportPDFJobHandler(repo, &renderRunnerStub{err: errors.New("renderer unavailable")}, 1, nil)
 	if _, err := handler.Handle(context.Background(), renderQueueJob(t, task.ID)); err == nil {
 		t.Fatal("expected render error")
 	}
@@ -96,7 +96,7 @@ func TestFullReportPDFJobHandlerFailureRequeues(t *testing.T) {
 func TestFullReportPDFJobHandlerConcurrencyOne(t *testing.T) {
 	repo := renderServiceTestRepo(t)
 	runner := &renderRunnerStub{delay: 25 * time.Millisecond}
-	handler := NewFullReportPDFJobHandler(repo, runner, 1)
+	handler := NewFullReportPDFJobHandler(repo, runner, 1, nil)
 	now := time.Now().UTC()
 	first, _, _ := repo.Ensure(context.Background(), 22, "pdf-v1", 3, now)
 	second, _, _ := repo.Ensure(context.Background(), 23, "pdf-v1", 3, now)

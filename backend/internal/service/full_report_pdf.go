@@ -27,10 +27,15 @@ type fullReportPDFPipeline struct {
 	queue    job.Queue
 	renderer renderer.Renderer
 	storage  storage.Storage
+	outcomes FullReportOutcomeNotifier
 }
 
-func NewFullReportPDFPipeline(reports *repository.FullReportRepo, queue job.Queue, imageRenderer renderer.Renderer, fileStorage storage.Storage) *fullReportPDFPipeline {
-	return &fullReportPDFPipeline{reports: reports, queue: queue, renderer: imageRenderer, storage: fileStorage}
+func NewFullReportPDFPipeline(reports *repository.FullReportRepo, queue job.Queue, imageRenderer renderer.Renderer, fileStorage storage.Storage, outcomes ...FullReportOutcomeNotifier) *fullReportPDFPipeline {
+	var outcomeNotifier FullReportOutcomeNotifier
+	if len(outcomes) > 0 {
+		outcomeNotifier = outcomes[0]
+	}
+	return &fullReportPDFPipeline{reports: reports, queue: queue, renderer: imageRenderer, storage: fileStorage, outcomes: outcomeNotifier}
 }
 
 func (p *fullReportPDFPipeline) PrepareAndEnqueue(ctx context.Context, reportID uint64, result *model.FullReportResult) error {
@@ -88,6 +93,9 @@ func (p *fullReportPDFPipeline) Run(ctx context.Context, task *model.FullReportR
 	}
 	if err := p.reports.CompleteRendering(ctx, task.ReportID, key, url, pdfHash, time.Now().UTC()); err != nil {
 		return err
+	}
+	if p.outcomes != nil {
+		p.outcomes.Completed(context.WithoutCancel(ctx), task.ReportID)
 	}
 	return nil
 }

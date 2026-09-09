@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -25,19 +26,22 @@ type FullReportService struct {
 	reports       *repository.FullReportRepo
 	profiles      *repository.ProfileRepo
 	queue         job.Queue
-	unlockCost    int
+	reportCost    int
 	concurrency   int
 	retentionDays int
 }
 
-func NewFullReportService(reports *repository.FullReportRepo, profiles *repository.ProfileRepo, queue job.Queue, unlockCost, concurrency, retentionDays int) *FullReportService {
+func NewFullReportService(reports *repository.FullReportRepo, profiles *repository.ProfileRepo, queue job.Queue, reportCost, concurrency, retentionDays int) *FullReportService {
+	if reportCost <= 0 {
+		reportCost = 10
+	}
 	if concurrency < 1 || concurrency > 10 {
 		concurrency = 3
 	}
 	if retentionDays < 1 {
 		retentionDays = 30
 	}
-	return &FullReportService{reports: reports, profiles: profiles, queue: queue, unlockCost: unlockCost, concurrency: concurrency, retentionDays: retentionDays}
+	return &FullReportService{reports: reports, profiles: profiles, queue: queue, reportCost: reportCost, concurrency: concurrency, retentionDays: retentionDays}
 }
 
 func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID uint64, locale string) (*model.Report, error) {
@@ -58,8 +62,12 @@ func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID 
 		FactsHash: emptyFullReportFactsHash, RetentionPolicy: fmt.Sprintf("days:%d", s.retentionDays),
 		ExpiresAt: now.AddDate(0, 0, s.retentionDays), CreatedAt: now, UpdatedAt: now,
 	}
-	if err := s.reports.Create(ctx, report); err != nil {
-		logger.FromCtx(ctx).Error("full report create failed", "err", err, "user_id", userID, "profile_id", profileID)
+	if err := s.reports.CreateWithCreditCharge(ctx, report, s.reportCost); err != nil {
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			logger.FromCtx(ctx).Warn("full report create rejected: insufficient credits", "user_id", userID, "profile_id", profileID)
+		} else {
+			logger.FromCtx(ctx).Error("full report create failed", "err", err, "user_id", userID, "profile_id", profileID)
+		}
 		return nil, err
 	}
 	payload, err := json.Marshal(fullReportPayload{ReportID: report.ID, UserID: userID, ProfileID: profileID, Locale: locale})
@@ -69,7 +77,9 @@ func (s *FullReportService) CreateReport(ctx context.Context, userID, profileID 
 	reportJob := &job.Job{Type: FullReportJobType, Lane: job.LaneReportGeneration, Payload: payload, MaxAttempts: 1}
 	if err := s.queue.Enqueue(ctx, reportJob); err != nil {
 		logger.FromCtx(ctx).Error("full report enqueue failed", "err", err, "report_id", report.ID)
-		_ = s.reports.Fail(ctx, report.ID, "enqueue_failed", "report job could not be queued", time.Now().UTC())
+		if refundErr := s.reports.CancelPendingCreditCharge(ctx, report.ID, "enqueue_failed", "report job could not be queued", time.Now().UTC()); refundErr != nil {
+			logger.FromCtx(ctx).Error("full report enqueue compensation failed", "err", refundErr, "report_id", report.ID, "user_id", userID)
+		}
 		return nil, err
 	}
 	logger.FromCtx(ctx).Info("full report created and enqueued", "report_id", report.ID, "user_id", userID, "profile_id", profileID, "job_id", reportJob.ID)
@@ -111,7 +121,7 @@ func (s *FullReportService) ListReports(ctx context.Context, userID uint64, limi
 }
 
 func (s *FullReportService) UnlockWithCredits(ctx context.Context, userID, reportID uint64) error {
-	err := s.reports.UnlockWithCredits(ctx, userID, reportID, s.unlockCost)
+	err := s.reports.UnlockWithCredits(ctx, userID, reportID, s.reportCost)
 	if err != nil {
 		logger.FromCtx(ctx).Error("full report unlock failed", "err", err, "user_id", userID, "report_id", reportID)
 	}

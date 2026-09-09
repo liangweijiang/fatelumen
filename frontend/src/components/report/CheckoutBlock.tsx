@@ -4,7 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { createOrder, unlockReportWithCredits } from "@/lib/api/endpoints";
 
-const UNLOCK_COST = 30;
+const UNLOCK_COST = 10;
 
 const PACKS = [
   { sku: "pack_50", credits: 50, label: "50 命理点", hint: "适合偶尔推演" },

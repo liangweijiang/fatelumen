@@ -94,6 +94,11 @@ func (h *AdminReportTraceHandler) Overview(c *gin.Context) {
 		h.readError(c, err, "report call statistics unavailable", reportID)
 		return
 	}
+	settlement, err := h.reports.AdminCreditSettlement(c.Request.Context(), report)
+	if err != nil {
+		h.readError(c, err, "report credit settlement unavailable", reportID)
+		return
+	}
 	var renderJob *model.FullReportRenderJob
 	if h.renderJobs != nil {
 		renderJob, err = h.renderJobs.GetByReportID(c.Request.Context(), reportID)
@@ -103,7 +108,7 @@ func (h *AdminReportTraceHandler) Overview(c *gin.Context) {
 		}
 	}
 	h.auditRead(c, "view_report_overview", reportID, "")
-	response.OK(c, gin.H{"report": report, "model_stats": stats, "render_job": renderJob})
+	response.OK(c, gin.H{"report": report, "model_stats": stats, "render_job": renderJob, "credit_settlement": settlement})
 }
 
 func (h *AdminReportTraceHandler) Result(c *gin.Context) {

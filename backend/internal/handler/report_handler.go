@@ -118,6 +118,10 @@ func (h *ReportHandler) Create(c *gin.Context) {
 
 	report, err := h.svc.CreateReport(c.Request.Context(), userID, in.ProfileID, in.Locale)
 	if err != nil {
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			response.Fail(c, response.CodeNoCredits, "insufficient credits")
+			return
+		}
 		response.Error(c, err.Error())
 		return
 	}

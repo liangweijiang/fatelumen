@@ -122,6 +122,7 @@
     "submit": "命式を推演する",
     "submitting": "推演中…",
     "error": "エラーが発生しました。再試行してください",
+    "insufficientCredits": "ポイントが不足しています。完全版レポートには10ポイントが必要です。",
     "profileFailed": "プロファイル作成失敗",
     "reportFailed": "レポート作成失敗",
     "profileSource": "誰の鑑定ですか？",

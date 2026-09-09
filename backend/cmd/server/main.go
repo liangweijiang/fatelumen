@@ -20,6 +20,7 @@ import (
 	"fatelumen/backend/internal/llm"
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
+	"fatelumen/backend/internal/notify"
 	"fatelumen/backend/internal/payment"
 	"fatelumen/backend/internal/pkg/logger"
 	"fatelumen/backend/internal/pkg/ratelimit"
@@ -44,6 +45,12 @@ const (
 	shutdownJobTimeout  = 30 * time.Second
 )
 
+type parameterizedGORMLogger struct{ gormLogger.Interface }
+
+func (l parameterizedGORMLogger) ParamsFilter(_ context.Context, sql string, _ ...interface{}) (string, []interface{}) {
+	return sql, nil
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -62,7 +69,7 @@ func main() {
 		dbLogLevel = gormLogger.Info
 	}
 	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{
-		Logger: gormLogger.Default.LogMode(dbLogLevel),
+		Logger: parameterizedGORMLogger{Interface: gormLogger.Default.LogMode(dbLogLevel)},
 	})
 	if err != nil {
 		log.Fatal("failed to connect database", "err", err)
@@ -194,7 +201,8 @@ func main() {
 	reportSvc := service.NewFullReportService(fullReportRepo, profileRepo, jobQueue, cfg.ReportUnlockCredits, cfg.ReportChapterConcurrency, cfg.ReportRetentionDays)
 	fullReportRenderJobRepo := repository.NewFullReportRenderJobRepo(db)
 	fullReportCleanupJobRepo := repository.NewFullReportCleanupJobRepo(db)
-	pdfPipeline := service.NewFullReportPDFPipeline(fullReportRepo, jobQueue, imgRenderer, fileStorage)
+	reportOutcomeNotifier := service.NewFullReportOutcomeNotifier(fullReportRepo, notify.NewNoopNotifier())
+	pdfPipeline := service.NewFullReportPDFPipeline(fullReportRepo, jobQueue, imgRenderer, fileStorage, reportOutcomeNotifier)
 	fileDeleter, ok := fileStorage.(storage.Deleter)
 	if !ok {
 		log.Fatal("storage does not support report cleanup")
@@ -205,12 +213,12 @@ func main() {
 	fullReportExecutor := service.NewFullReportExecutor(profileRepo, chartRepo, fullReportRepo, fullReportRoutes, baseChartEngine, service.FullReportRuntimeConfig{
 		ChapterConcurrency: cfg.ReportChapterConcurrency,
 		ChapterTimeout:     time.Duration(cfg.ReportChapterTimeoutSeconds) * time.Second,
-	}, pdfPipeline)
+	}, pdfPipeline, reportOutcomeNotifier)
 
 	// Handler registry + worker
 	handlerReg := job.NewHandlerRegistry()
 	handlerReg.Register(service.FullReportJobType, fullReportExecutor)
-	handlerReg.Register(service.FullReportPDFJobType, service.NewFullReportPDFJobHandler(fullReportRenderJobRepo, pdfPipeline, 1, fullReportRepo))
+	handlerReg.Register(service.FullReportPDFJobType, service.NewFullReportPDFJobHandler(fullReportRenderJobRepo, pdfPipeline, 1, fullReportRepo, reportOutcomeNotifier))
 	handlerReg.Register(service.FullReportCleanupJobType, service.NewFullReportCleanupJobHandler(fullReportCleanupJobRepo, cleanupRunner))
 	reportWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 3, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, job.LaneDefault, job.LaneReportGeneration)
 	pdfWorker := job.NewLaneWorker(jobQueue, handlerReg, 0, 1, 0, job.LanePDFRender)
@@ -225,7 +233,7 @@ func main() {
 			log.Info("interrupted full reports requeued", "count", recovered)
 		}
 	}
-	service.StartFullReportPDFRecovery(ctx, fullReportRenderJobRepo, fullReportRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Minute)
+	service.StartFullReportPDFRecovery(ctx, fullReportRenderJobRepo, fullReportRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Minute, reportOutcomeNotifier)
 	service.StartFullReportCleanup(ctx, fullReportCleanupJobRepo, jobQueue, time.Duration(cfg.JobStaleThresholdMinutes)*time.Minute, time.Hour)
 	reportWorker.Start(ctx)
 	pdfWorker.Start(ctx)

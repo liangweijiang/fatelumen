@@ -7,6 +7,7 @@ import (
 	"fatelumen/backend/internal/middleware"
 	"fatelumen/backend/internal/model"
 	"fatelumen/backend/internal/pkg/response"
+	"fatelumen/backend/internal/repository"
 	"fatelumen/backend/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -104,6 +105,10 @@ func (h *ReportInputHandler) Create(c *gin.Context) {
 	}
 	report, err := h.reports.CreateReport(c.Request.Context(), userID, profileID, in.Locale)
 	if err != nil {
+		if errors.Is(err, repository.ErrInsufficientCredits) {
+			response.Fail(c, response.CodeNoCredits, "insufficient credits")
+			return
+		}
 		response.Error(c, "report creation failed")
 		return
 	}

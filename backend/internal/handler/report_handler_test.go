@@ -178,6 +178,21 @@ func TestCreateReport_ServiceError(t *testing.T) {
 	}
 }
 
+func TestCreateReport_InsufficientCredits(t *testing.T) {
+	svc := &fakeReportSvc{
+		createFn: func(context.Context, uint64, uint64, string) (*model.Report, error) {
+			return nil, repository.ErrInsufficientCredits
+		},
+	}
+	router := setupAuthedRouter(testHandler(svc))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, newReq(http.MethodPost, "/api/v1/reports", `{"profile_id":1}`))
+	resp := parseResp(t, w)
+	if resp.Code != response.CodeNoCredits {
+		t.Fatalf("code = %d, want %d", resp.Code, response.CodeNoCredits)
+	}
+}
+
 // --- GET /:id ---
 
 func TestGetReport_SuccessDone(t *testing.T) {

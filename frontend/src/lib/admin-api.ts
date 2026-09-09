@@ -183,6 +183,11 @@ export interface AdminFullReportOverview {
     rendering_at?: string; failed_at?: string; expires_at: string; updated_at: string;
   };
   model_stats: ReportModelStats[];
+	credit_settlement: {
+		status: "not_charged" | "charged" | "refunded" | "exempt";
+		charged: number; refunded: number; net: number;
+		entries: Array<{ id: number; delta: number; balance_after: number; reason: string; created_at: string }>;
+	};
 	render_job?: {
 		id: number; report_id: number; render_version: string; status: "queued" | "running" | "succeeded" | "failed";
 		attempt_count: number; max_attempts: number; error_code?: string; error_summary?: string;

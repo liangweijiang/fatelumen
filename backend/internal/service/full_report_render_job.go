@@ -24,21 +24,22 @@ type fullReportPDFJobPayload struct {
 }
 
 type FullReportPDFJobHandler struct {
-	tasks   *repository.FullReportRenderJobRepo
-	reports *repository.FullReportRepo
-	runner  FullReportPDFTaskRunner
-	gate    chan struct{}
+	tasks    *repository.FullReportRenderJobRepo
+	reports  *repository.FullReportRepo
+	runner   FullReportPDFTaskRunner
+	gate     chan struct{}
+	outcomes FullReportOutcomeNotifier
 }
 
-func NewFullReportPDFJobHandler(tasks *repository.FullReportRenderJobRepo, runner FullReportPDFTaskRunner, concurrency int, reports ...*repository.FullReportRepo) *FullReportPDFJobHandler {
+func NewFullReportPDFJobHandler(tasks *repository.FullReportRenderJobRepo, runner FullReportPDFTaskRunner, concurrency int, reports *repository.FullReportRepo, outcomes ...FullReportOutcomeNotifier) *FullReportPDFJobHandler {
 	if concurrency < 1 {
 		concurrency = 1
 	}
-	var reportRepo *repository.FullReportRepo
-	if len(reports) > 0 {
-		reportRepo = reports[0]
+	var outcomeNotifier FullReportOutcomeNotifier
+	if len(outcomes) > 0 {
+		outcomeNotifier = outcomes[0]
 	}
-	return &FullReportPDFJobHandler{tasks: tasks, reports: reportRepo, runner: runner, gate: make(chan struct{}, concurrency)}
+	return &FullReportPDFJobHandler{tasks: tasks, reports: reports, runner: runner, gate: make(chan struct{}, concurrency), outcomes: outcomeNotifier}
 }
 
 func (h *FullReportPDFJobHandler) Handle(ctx context.Context, queued *job.Job) (string, error) {
@@ -81,6 +82,8 @@ func (h *FullReportPDFJobHandler) Handle(ctx context.Context, queued *job.Job) (
 		if terminal && h.reports != nil {
 			if failErr := h.reports.Fail(context.WithoutCancel(ctx), task.ReportID, "pdf_render_failed", truncateError(err), finished); failErr != nil && !errors.Is(failErr, repository.ErrFullReportTerminal) {
 				logger.FromCtx(ctx).Error("mark terminal pdf report failed", "err", failErr, "report_id", task.ReportID)
+			} else if failErr == nil && h.outcomes != nil {
+				h.outcomes.Failed(context.WithoutCancel(ctx), task.ReportID, "pdf_render_failed")
 			}
 		}
 		return "", fmt.Errorf("pdf render attempt: %w", err)
@@ -92,12 +95,16 @@ func (h *FullReportPDFJobHandler) Handle(ctx context.Context, queued *job.Job) (
 	return task.RenderVersion, nil
 }
 
-func StartFullReportPDFRecovery(ctx context.Context, tasks *repository.FullReportRenderJobRepo, reports *repository.FullReportRepo, queue job.Queue, staleAfter, interval time.Duration) {
+func StartFullReportPDFRecovery(ctx context.Context, tasks *repository.FullReportRenderJobRepo, reports *repository.FullReportRepo, queue job.Queue, staleAfter, interval time.Duration, outcomes ...FullReportOutcomeNotifier) {
 	if staleAfter <= 0 {
 		staleAfter = 10 * time.Minute
 	}
 	if interval <= 0 {
 		interval = time.Minute
+	}
+	var outcomeNotifier FullReportOutcomeNotifier
+	if len(outcomes) > 0 {
+		outcomeNotifier = outcomes[0]
 	}
 	run := func() {
 		queued, _, err := RecoverFullReportPDFJobs(ctx, tasks, queue, staleAfter)
@@ -112,6 +119,8 @@ func StartFullReportPDFRecovery(ctx context.Context, tasks *repository.FullRepor
 		for _, task := range failed {
 			if err := reports.Fail(ctx, task.ReportID, "pdf_render_failed", task.ErrorSummary, time.Now().UTC()); err != nil && !errors.Is(err, repository.ErrFullReportTerminal) {
 				logger.FromCtx(ctx).Error("mark recovered pdf report failed", "err", err, "report_id", task.ReportID)
+			} else if err == nil && outcomeNotifier != nil {
+				outcomeNotifier.Failed(ctx, task.ReportID, "pdf_render_failed")
 			}
 		}
 	}

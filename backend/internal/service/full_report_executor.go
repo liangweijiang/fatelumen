@@ -49,9 +49,10 @@ type fullReportExecutor struct {
 	engine   birthchart.Engine
 	runtime  FullReportRuntimeConfig
 	pdf      FullReportPDFScheduler
+	outcomes FullReportOutcomeNotifier
 }
 
-func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig, pdf ...FullReportPDFScheduler) job.JobHandler {
+func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.ChartRepo, reports *repository.FullReportRepo, routes FullReportRouteResolver, engine birthchart.Engine, runtime FullReportRuntimeConfig, pdf FullReportPDFScheduler, outcomes FullReportOutcomeNotifier) job.JobHandler {
 	if engine == nil {
 		engine = birthchart.NewDefaultEngine()
 	}
@@ -61,11 +62,7 @@ func NewFullReportExecutor(profiles *repository.ProfileRepo, charts *repository.
 	if runtime.ChapterTimeout <= 0 {
 		runtime.ChapterTimeout = 180 * time.Second
 	}
-	var scheduler FullReportPDFScheduler
-	if len(pdf) > 0 {
-		scheduler = pdf[0]
-	}
-	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime, pdf: scheduler}
+	return &fullReportExecutor{profiles: profiles, charts: charts, reports: reports, routes: routes, engine: engine, runtime: runtime, pdf: pdf, outcomes: outcomes}
 }
 
 func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result string, err error) {
@@ -85,6 +82,8 @@ func (e *fullReportExecutor) Handle(ctx context.Context, j *job.Job) (result str
 		failureCtx := context.WithoutCancel(ctx)
 		if failErr := e.reports.Fail(failureCtx, payload.ReportID, "generation_failed", truncateError(err), time.Now().UTC()); failErr != nil && !errors.Is(failErr, repository.ErrFullReportTerminal) {
 			logger.FromCtx(ctx).Error("freeze failed full report failed", "err", failErr, "report_id", payload.ReportID)
+		} else if failErr == nil && e.outcomes != nil {
+			e.outcomes.Failed(failureCtx, payload.ReportID, "generation_failed")
 		}
 	}()
 
