@@ -40,15 +40,10 @@ func GenerateJSONDetailed(ctx context.Context, provider LLMProvider, system, use
 
 type callConfig struct {
 	temperature float32
-	maxTokens   int
 }
 
 type Option func(*callConfig)
 
 func WithTemperature(t float32) Option {
 	return func(cc *callConfig) { cc.temperature = t }
-}
-
-func WithMaxTokens(n int) Option {
-	return func(cc *callConfig) { cc.maxTokens = n }
 }

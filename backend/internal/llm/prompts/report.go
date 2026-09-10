@@ -37,7 +37,7 @@ Rules:
 
 Expected JSON structure (all sections required):
 {
-  "summary": "2-3 paragraphs: holistic overview referencing day master, strength level, and elemental balance",
+  "summary": "holistic overview referencing day master, strength level, and elemental balance",
   "summary_line": "one concrete sentence capturing this chart's life theme",
   "personality": "deep personality analysis derived from day master, ten gods, and five elements",
   "career": "career and wealth analysis referencing favorable elements and major luck cycles",
@@ -81,7 +81,7 @@ Write in the requested locale. Start conclusions clearly, then explain the chart
 plain language. Do not invent any fact absent from the chart JSON.
 
 For yearly_fortune, include the current year plus the next 9 years (10 entries total).
-For suggestions, provide 4-6 concrete recommendations.
+For suggestions, provide concrete recommendations.
 
 Additionally produce the "chapters" array with EXACTLY 10 entries (no=1..10) using the exact keys
 and order defined in the system prompt. Every chapter title must be in locale "%[1]s".`, locale, string(chartJSON)), nil
@@ -105,17 +105,15 @@ Rules:
 - Do not split content into "professional version" and "plain version"; blend expertise with plain speech.
 - Do not add openings, prefaces, summaries, disclaimers, or filler such as "for reference only".
 - Each paragraph must tie back to chart facts. Generic template language is not acceptable.
-- Detail target: for zh, each standalone chapter body should be about 1200-1800 Chinese characters; for en/ja/ko,
-  write an equivalent level of detail. The yearly entries should each be concrete, not one-line slogans.
+- Each standalone chapter and yearly entry must fully address its required scope with concrete chart-specific analysis.
 - Tone: experienced, concrete, warm, and direct. No doom, no fatalism, no absolute claims.
 - NO medical diagnosis, NO investment advice, NO life-expectancy predictions, NO guaranteed outcomes.
 - Output STRICT JSON only. No markdown, no code fences, no commentary.
 - NEVER use the word "AI" anywhere.`
 
 type ReportGroup struct {
-	Name      string
-	System    string
-	MaxTokens int
+	Name   string
+	System string
 }
 
 // ReportGroups returns the grouped prompts used by the async report worker.
@@ -131,8 +129,8 @@ func ReportGroups() []ReportGroup {
 Produce ONLY this JSON object (no other keys):
 {
   "summary_line": "one concrete sentence capturing this chart's life theme",
-  "summary": "2-3 substantial paragraphs. Cover chart baseline, day-master strength, five-element climate, favorable/unfavorable logic, current luck rhythm, and the main life theme. Start with the conclusion, then explain why. For zh: 500-800 Chinese characters.",
-  "personality": "Deep personality analysis from day master, ten-gods, element balance, and pillar positions. Explain what every term means in practical behavior. For zh: 500-800 Chinese characters.",
+  "summary": "A substantial analysis covering chart baseline, day-master strength, five-element climate, favorable/unfavorable logic, current luck rhythm, and the main life theme. Start with the conclusion, then explain why.",
+  "personality": "Deep personality analysis from day master, ten-gods, element balance, and pillar positions. Explain what every term means in practical behavior.",
   "suggestions": ["4 to 6 concrete actions tied to favorable elements, current luck cycle, work style, relationships, health habits, or environment"]
 }`,
 		},
@@ -141,9 +139,9 @@ Produce ONLY this JSON object (no other keys):
 			System: reportCommonRules + `
 Produce ONLY this JSON object (no other keys):
 {
-  "career": "Career and wealth baseline. State whether the chart is skill-led, resource-led, platform-led, solo-led, steady-income-led, or volatility-led; then explain with ten-gods, favorable elements, and luck cycles. Directional only, no investment advice. For zh: 600-900 Chinese characters.",
-  "relationship": "Relationship and marriage baseline. State early/late, stable/fluctuating, rational/emotional tendencies; then explain day branch/spouse palace, partner traits, timing signals, and relationship habits. No fear-based language. For zh: 600-900 Chinese characters.",
-  "health": "Wellness baseline through five-element balance. State cold/heat/dry/damp tendency if inferable, connect Wood/Fire/Earth/Metal/Water to general wellness habits, current luck-cycle focus, and emotional regulation. No diagnosis. For zh: 600-900 Chinese characters."
+  "career": "Career and wealth baseline. State whether the chart is skill-led, resource-led, platform-led, solo-led, steady-income-led, or volatility-led; then explain with ten-gods, favorable elements, and luck cycles. Directional only, no investment advice.",
+  "relationship": "Relationship and marriage baseline. State early/late, stable/fluctuating, rational/emotional tendencies; then explain day branch/spouse palace, partner traits, timing signals, and relationship habits. No fear-based language.",
+  "health": "Wellness baseline through five-element balance. State cold/heat/dry/damp tendency if inferable, connect Wood/Fire/Earth/Metal/Water to general wellness habits, current luck-cycle focus, and emotional regulation. No diagnosis."
 }`,
 		},
 		{
@@ -153,8 +151,7 @@ Produce ONLY this JSON object (no other keys). yearly_fortune MUST contain EXACT
 covering the current year and the next 9 years (10 consecutive years). For each year give a
 "note" that within one string covers: total tone, career/main income, side opportunities/risk,
 relationship/family, wellness habits, and 1 concrete action. Cite year stem-branch only if it
-exists in the chart JSON; otherwise discuss trend without inventing it. For zh: each note should
-be about 140-220 Chinese characters:
+exists in the chart JSON; otherwise discuss trend without inventing it:
 {
   "yearly_fortune": [
     {"year": YYYY, "note": "chart-specific yearly reading in plain language"}
@@ -171,21 +168,20 @@ Each "title" must be in the target locale. Each "body" must be detailed and char
 Follow these chapter scopes:
 - destiny_depth: 命格深析. Cover day-master strength, seasonal support, five-element generation/control,
   favorable/unfavorable logic, four-pillar palace meanings, structural mechanics, and key timing windows.
-  Start with the core conclusion, then explain why. For zh: 1000-1500 Chinese characters.
+  Start with the core conclusion, then explain why.
 - ten_gods_full: 十神全览. Cover all ten gods: what each means, whether it appears in stems/hidden stems,
   whether it is strong/weak/absent, and what that means for personality, family, work, money, and action style.
-  Use plain explanations for each ten-god term. For zh: 1000-1500 Chinese characters.
+  Use plain explanations for each ten-god term.
 - luck_cycle: 大运走势. Use only the luck-cycle list from chart JSON. Explain starting luck, current luck,
   next luck, transition years, major life rhythm, and practical preparation. Give each cycle an age span,
-  ganzhi, keyword, and life theme where data is available. For zh: 1000-1500 Chinese characters.
+  ganzhi, keyword, and life theme where data is available.
 - ten_year_years: 未来十年逐流年详批. The body summarizes the ten-year pattern. It MUST ALSO fill "years"
   with EXACTLY 10 entries, one per year (current year + next 9). Each note covers total tone, career/main income,
   side opportunities/risk, relationship/family, wellness habits, key timing, and one action. Set "ganzhi" only
-  when chart JSON contains that exact year ganzhi; otherwise use "". For zh: body 800-1200 Chinese characters,
-  each year note 180-260 Chinese characters.
+  when chart JSON contains that exact year ganzhi; otherwise use "".
 - career_depth: 事业深析. First determine career pattern: skill vs relationship, solo vs platform, stable vs high-variance.
   Then cover industry/role fit, management vs execution, platform vs small team, promotion/job-change/venture timing,
-  workplace people dynamics, collaboration risks, and 2-3 concrete career actions. For zh: 1000-1500 Chinese characters.
+  workplace people dynamics, collaboration risks, and concrete career actions.
 {
   "chapters": [
     {"no": 1, "key": "destiny_depth", "title": "...", "body": "..."},
@@ -204,19 +200,18 @@ Each "title" must be in the target locale. Each "body" must be detailed and char
 Follow these chapter scopes:
 - wealth_depth: 财富格局. Cover wealth capacity, direct wealth vs indirect wealth, earning path, money flow,
   wealth turning points, breakage risks, saving/defense ability, and directional allocation habits. Directional only;
-  no concrete investment advice. For zh: 1000-1500 Chinese characters.
+  no concrete investment advice.
 - love_depth: 情感姻缘. Cover emotional baseline, partner profile, spouse palace/day branch, relationship timeline,
   communication style, risk points, current luck/current year guidance, and practical relationship management.
-  No fear-based language. For zh: 1000-1500 Chinese characters.
+  No fear-based language.
 - health_depth: 健康养生. Cover constitution through cold/heat/dry/damp and five elements, Wood/Fire/Earth/Metal/Water
   wellness correspondences as tendencies only, luck-cycle risk periods, emotion/stress patterns, diet/movement/rest habits,
-  and current 5-10 year focus. No diagnosis. For zh: 1000-1500 Chinese characters.
+  and current 5-10 year focus. No diagnosis.
 - element_tuning: 五行调候. Cover overall climate of the chart: cold/warm, dry/damp, what element is needed to balance,
   how this affects body, temperament, emotions, work environment, city/climate preference, colors, light, humidity,
-  direction, and how luck cycles change the balancing priority. For zh: 1000-1500 Chinese characters.
+  direction, and how luck cycles change the balancing priority.
 - life_plan: 人生规划. Build a life strategy map from the luck cycles: one-sentence life theme, phase strategy,
   golden windows, risk map, career/wealth line, relationship/family line, wellness line, and 1-3 year action priorities.
-  For zh: 1000-1500 Chinese characters.
 {
   "chapters": [
     {"no": 6, "key": "wealth_depth", "title": "...", "body": "..."},
@@ -230,36 +225,33 @@ Follow these chapter scopes:
 func detailedReportGroups() []ReportGroup {
 	groups := []ReportGroup{
 		{
-			Name:      "core",
-			MaxTokens: 4096,
+			Name: "core",
 			System: reportCommonRules + `
 Produce ONLY this JSON object (no other keys):
 {
   "summary_line": "one concrete sentence capturing this chart's life theme",
-  "summary": "A detailed overview. For zh: 700-1000 Chinese characters. Cover chart baseline, day-master strength, five-element climate, favorable/unfavorable logic, current luck rhythm, and the main life theme.",
-  "personality": "A detailed personality analysis. For zh: 700-1000 Chinese characters. Derive behavior, emotional pattern, decision style, social style, and growth edge from day master, ten-gods, elements, and pillar positions.",
+  "summary": "A detailed overview covering chart baseline, day-master strength, five-element climate, favorable/unfavorable logic, current luck rhythm, and the main life theme.",
+  "personality": "A detailed personality analysis deriving behavior, emotional pattern, decision style, social style, and growth edge from day master, ten-gods, elements, and pillar positions.",
   "suggestions": ["5 to 7 concrete actions tied to favorable elements, current luck cycle, work style, relationships, wellness habits, or environment"]
 }`,
 		},
 		{
-			Name:      "life",
-			MaxTokens: 4096,
+			Name: "life",
 			System: reportCommonRules + `
 Produce ONLY this JSON object (no other keys):
 {
-  "career": "Career and wealth baseline. For zh: 800-1100 Chinese characters. State the career pattern, role fit, work rhythm, platform/team preference, and current luck-cycle focus. Directional only, no investment advice.",
-  "relationship": "Relationship and marriage baseline. For zh: 800-1100 Chinese characters. Explain spouse palace/day branch, emotional style, partner profile, stability pattern, timing signals, and relationship habits.",
-  "health": "Wellness baseline through five-element balance. For zh: 800-1100 Chinese characters. Explain cold/heat/dry/damp tendency if inferable, stress pattern, rest/diet/movement habits, and current luck-cycle focus. No diagnosis."
+  "career": "Career and wealth baseline. State the career pattern, role fit, work rhythm, platform/team preference, and current luck-cycle focus. Directional only, no investment advice.",
+  "relationship": "Relationship and marriage baseline. Explain spouse palace/day branch, emotional style, partner profile, stability pattern, timing signals, and relationship habits.",
+  "health": "Wellness baseline through five-element balance. Explain cold/heat/dry/damp tendency if inferable, stress pattern, rest/diet/movement habits, and current luck-cycle focus. No diagnosis."
 }`,
 		},
 		{
-			Name:      "yearly_fortune",
-			MaxTokens: 8192,
+			Name: "yearly_fortune",
 			System: reportCommonRules + `
 Produce ONLY this JSON object (no other keys). yearly_fortune MUST contain EXACTLY the same 10 years
 as chart.annual_fortunes, in the same order. Do not add, remove, reorder, or alter years. Each note
 must interpret that year's actual ganzhi, stem, branch, element, age, and luck-cycle relation from
-chart.annual_fortunes. For zh: each note should be 260-420 Chinese characters and cover total tone,
+chart.annual_fortunes and cover total tone,
 career/main income, side opportunity/risk, relationship/family, wellness habits, key timing, and one action.
 {
   "yearly_fortune": [
@@ -270,7 +262,7 @@ career/main income, side opportunity/risk, relationship/family, wellness habits,
 	}
 
 	for _, ch := range ChapterDefinitions() {
-		groups = append(groups, chapterReportGroup("chapter_"+ch.Key, ch.No, ch.Key, ch.MaxTokens, ch.Name+". "+ch.Purpose))
+		groups = append(groups, chapterReportGroup("chapter_"+ch.Key, ch.No, ch.Key, ch.Name+". "+ch.Purpose))
 	}
 	groups = append(groups,
 		tenYearOverviewReportGroup(),
@@ -282,8 +274,7 @@ career/main income, side opportunity/risk, relationship/family, wellness habits,
 
 func tenYearOverviewReportGroup() ReportGroup {
 	return ReportGroup{
-		Name:      "chapter_ten_year_years_overview",
-		MaxTokens: 4096,
+		Name: "chapter_ten_year_years_overview",
 		System: reportCommonRules + `
 Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
 The entry MUST use no=4 and key="ten_year_years". The title must be in the target locale.
@@ -293,7 +284,6 @@ The body must summarize the full 10-year pattern from chart.annual_fortunes and 
 - how the annual stem/branch sequence interacts with the natal chart
 - career, wealth, relationship/family, wellness, and personal growth rhythm
 - which years require caution, which years are better for consolidation or expansion
-For zh: body should be 1600-2200 Chinese characters.
 {
   "chapters": [
     {"no": 4, "key": "ten_year_years", "title": "...", "body": "..."}
@@ -304,14 +294,13 @@ For zh: body should be 1600-2200 Chinese characters.
 
 func tenYearSliceReportGroup(name, sliceLabel string, startIndex, endIndex int) ReportGroup {
 	return ReportGroup{
-		Name:      name,
-		MaxTokens: 8192,
+		Name: name,
 		System: reportCommonRules + fmt.Sprintf(`
 Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
 The entry MUST use no=4 and key="ten_year_years". Set title and body to empty strings.
 Fill ONLY the years array for the %s, corresponding to positions %d-%d of the 10-year list.
 Copy each year and ganzhi exactly from chart.annual_fortunes. Do not add, remove, reorder, or alter years.
-For each year note, write a very detailed chart-specific reading. For zh: each note should be 650-900 Chinese characters.
+For each year note, write a detailed chart-specific reading.
 Each note must include:
 1. annual conclusion and pressure/opportunity level;
 2. how that year's stem/branch/element interacts with the natal day master, strength, useful/unfavorable elements, and current luck cycle;
@@ -328,7 +317,7 @@ Each note must include:
 	}
 }
 
-func chapterReportGroup(name string, no int, key string, maxTokens int, scope string) ReportGroup {
+func chapterReportGroup(name string, no int, key string, scope string) ReportGroup {
 	extra := ""
 	yearsShape := ""
 	if key == "ten_year_years" {
@@ -338,13 +327,11 @@ For the years array, copy year and ganzhi exactly from chart.annual_fortunes. If
 	}
 
 	return ReportGroup{
-		Name:      name,
-		MaxTokens: maxTokens,
+		Name: name,
 		System: reportCommonRules + fmt.Sprintf(`
 Produce ONLY this JSON object (no other keys). "chapters" MUST contain EXACTLY 1 entry.
 The entry MUST use no=%d and key="%s". The title must be in the target locale.
 Scope: %s
-For zh, body should be 1200-1800 Chinese characters unless this is ten_year_years, which follows its own year-note requirement.
 Use chart facts densely: cite pillars, elements, ten-gods, strength, luck cycles, current_year_fortune, and annual_fortunes where relevant.%s
 {
   "chapters": [

@@ -790,7 +790,6 @@ type LLMProvider interface {
 
 type Option func(*callConfig)
 func WithTemperature(t float32) Option
-func WithMaxTokens(n int) Option
 ```
 
 > **DeepSeek 接入说明(默认实现 `deepseek.go`)**:DeepSeek API **完全兼容 OpenAI Chat Completions 协议**,直接复用 `github.com/sashabaranov/go-openai`,只改 BaseURL 即可:
@@ -1278,7 +1277,8 @@ Constraints:
 | model | `deepseek-chat`(默认,成本优先) / `gpt-4o-mini` / `gpt-4o`(质量优先),配置可切 |
 | temperature | 0.7(解读需要文采，但别太发散) |
 | response_format | `{"type":"json_object"}`(DeepSeek 与 OpenAI 同协议,均支持 JSON 模式) |
-| max_tokens | quick ~600;full 每批 ~2000 |
+
+报告生成不得通过 Prompt 字数要求、调用参数或校验规则干预正文长度；由章节内容范围和 JSON 结构约束完整输出。
 
 ### 9.5 健壮性
 

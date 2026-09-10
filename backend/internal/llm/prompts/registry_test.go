@@ -42,6 +42,25 @@ func TestLocaleRegistry(t *testing.T) {
 	}
 }
 
+func TestChapterPromptsDoNotInterfereWithOutputLength(t *testing.T) {
+	forbidden := []string{"max_tokens", "字数", "字符数", "篇幅", "Chinese characters", "1200-1800", "1000-1500"}
+	facts := model.InterpretationFacts{FactsHash: "length-policy-check"}
+	for _, locale := range []string{"zh", "en", "ja", "ko"} {
+		for _, chapter := range ChapterDefinitions() {
+			preview, err := BuildChapterPromptPreview(locale, chapter.Key, facts)
+			if err != nil {
+				t.Fatalf("build %s/%s prompt: %v", locale, chapter.Key, err)
+			}
+			prompt := preview.SystemPrompt + "\n" + preview.CompleteInstruction
+			for _, token := range forbidden {
+				if strings.Contains(prompt, token) {
+					t.Fatalf("prompt %s/%s contains output-length control %q", locale, chapter.Key, token)
+				}
+			}
+		}
+	}
+}
+
 func TestBuildChapterPromptPreviewFiltersFacts(t *testing.T) {
 	facts := model.InterpretationFacts{FactsHash: "facts-123", Warnings: []string{"private warning"}, Versions: model.InterpretationFactVersions{FactsSchemaVersion: "facts-v3"}}
 	preview, err := BuildChapterPromptPreview("ja", "wealth_depth", facts)

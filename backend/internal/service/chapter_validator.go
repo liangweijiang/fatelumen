@@ -282,9 +282,6 @@ func validateChapterCompleteness(ctx *chapterValidationContext) []chapterRuleRes
 	for i, module := range ctx.Parsed.Modules {
 		path := fmt.Sprintf("output.模块[%d].正文", i)
 		content := strings.TrimSpace(module.Content)
-		if len([]rune(content)) < 20 {
-			rules = append(rules, failedRule("CMP_TOO_SHORT", "正文最低长度", "completeness", true, "不少于20个字符", fmt.Sprintf("%d个字符", len([]rune(content))), []string{path}, "模块正文过短"))
-		}
 		lower := strings.ToLower(content)
 		for _, placeholder := range placeholders {
 			if strings.Contains(lower, strings.ToLower(placeholder)) {

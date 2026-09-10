@@ -19,7 +19,9 @@ func NewSystemSettingRepo(db *gorm.DB) *SystemSettingRepo { return &SystemSettin
 
 func (r *SystemSettingRepo) ReportChapterConcurrency(ctx context.Context, fallback int) (int, error) {
 	var row model.SystemSetting
-	err := r.db.WithContext(ctx).First(&row, "key = ?", ReportChapterConcurrencyKey).Error
+	// `key` is reserved by MySQL, so keep the identifier quoted in explicit
+	// predicates (GORM already quotes it for INSERT/ON CONFLICT clauses).
+	err := r.db.WithContext(ctx).First(&row, "`key` = ?", ReportChapterConcurrencyKey).Error
 	if err == gorm.ErrRecordNotFound {
 		return fallback, nil
 	}

@@ -43,7 +43,7 @@ func (p *openAICompatProvider) GenerateJSON(ctx context.Context, system, user st
 }
 
 func (p *openAICompatProvider) GenerateJSONDetailed(ctx context.Context, system, user string, opts ...Option) (GenerationResult, error) {
-	cc := &callConfig{temperature: 0.7, maxTokens: 600}
+	cc := &callConfig{temperature: 0.7}
 	for _, o := range opts {
 		o(cc)
 	}
@@ -61,7 +61,6 @@ func (p *openAICompatProvider) GenerateJSONDetailed(ctx context.Context, system,
 		Model:          p.model,
 		Messages:       messages,
 		Temperature:    float32(cc.temperature),
-		MaxTokens:      cc.maxTokens,
 		ResponseFormat: &openai.ChatCompletionResponseFormat{Type: openai.ChatCompletionResponseFormatTypeJSONObject},
 	})
 	if err != nil {
@@ -73,12 +72,6 @@ func (p *openAICompatProvider) GenerateJSONDetailed(ctx context.Context, system,
 	if len(resp.Choices) == 0 {
 		logger.FromCtx(ctx).Error("llm returned empty choices", "provider", p.name, "model", p.model)
 		return GenerationResult{}, errors.New("llm returned empty response")
-	}
-	if resp.Choices[0].FinishReason == openai.FinishReasonLength {
-		logger.FromCtx(ctx).Error("llm response truncated by max_tokens",
-			"provider", p.name, "model", p.model,
-			"elapsed_ms", time.Since(start).Milliseconds())
-		return GenerationResult{}, errors.New("llm response truncated by max_tokens")
 	}
 	content := resp.Choices[0].Message.Content
 	if content == "" {

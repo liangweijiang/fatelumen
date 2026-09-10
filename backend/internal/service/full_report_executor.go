@@ -407,7 +407,7 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 			traceID = fmt.Sprintf("%d-%d-%d", reportID, row.Chapter.ID, n)
 		}
 		attempt := &model.FullReportAttempt{ReportID: reportID, ChapterID: row.Chapter.ID, AttemptNo: uint16(n), RouteNo: route.Frozen.RouteNo, Provider: route.Frozen.ProviderCode, Model: route.Frozen.Model, Status: model.FullReportAttemptStatusRunning, ValidationStatus: model.FullReportValidationStatusPending, PromptHash: row.Chapter.PromptHash, TraceID: traceID, StartedAt: started, CreatedAt: started}
-		params, _ := json.Marshal(map[string]any{"temperature": route.Frozen.Temperature, "max_tokens": definition.MaxTokens, "timeout_seconds": route.Frozen.TimeoutSeconds, "route_attempt": routeAttempt, "max_route_attempts": route.Frozen.MaxAttempts})
+		params, _ := json.Marshal(map[string]any{"temperature": route.Frozen.Temperature, "timeout_seconds": route.Frozen.TimeoutSeconds, "route_attempt": routeAttempt, "max_route_attempts": route.Frozen.MaxAttempts})
 		attemptPayload := &model.FullReportAttemptPayload{RequestParameters: params, RequestPrompt: row.Payload.FinalPrompt, CreatedAt: started}
 		if err := e.reports.AppendAttempt(ctx, attempt, attemptPayload); err != nil {
 			return err
@@ -418,7 +418,7 @@ func (e *fullReportExecutor) runChapter(ctx context.Context, reportID uint64, lo
 			logger.FromCtx(ctx).Warn("switching full report model route", "report_id", reportID, "chapter_id", row.Chapter.ID, "route_no", route.Frozen.RouteNo, "provider", route.Frozen.ProviderCode, "model", route.Frozen.Model)
 		}
 		callCtx, cancel := context.WithTimeout(ctx, time.Duration(route.Frozen.TimeoutSeconds)*time.Second)
-		generation, callErr := llm.GenerateJSONDetailed(callCtx, route.Provider, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithMaxTokens(definition.MaxTokens), llm.WithTemperature(float32(route.Frozen.Temperature)))
+		generation, callErr := llm.GenerateJSONDetailed(callCtx, route.Provider, "你只能解释已提供的确定性事实，并严格返回JSON。", row.Payload.FinalPrompt, llm.WithTemperature(float32(route.Frozen.Temperature)))
 		cancel()
 		raw := generation.Content
 		finished := time.Now().UTC()
