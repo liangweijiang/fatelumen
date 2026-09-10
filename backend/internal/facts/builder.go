@@ -304,18 +304,6 @@ func buildTenGodRuleMatches(a model.TenGodAnalysis) []model.RuleMatch {
 	return []model.RuleMatch{{RuleCode: a.RuleVersion, Module: tenGodModule, Matched: true, Priority: 80, Evidence: evidence}}
 }
 
-func buildStrengthEvidence(a model.StrengthAnalysis) []model.FactEvidence {
-	out := make([]model.FactEvidence, 0, len(a.Contributions)+len(a.Relations)+1)
-	out = append(out, model.FactEvidence{RuleCode: a.RuleVersion, Source: "strength_summary", Reason: fmt.Sprintf("support=%.2f restraint=%.2f ratio=%.4f root=%s pattern=%s", a.SupportScore, a.RestraintScore, a.SupportRatio, a.RootLevel, a.Pattern)})
-	for _, c := range a.Contributions {
-		out = append(out, model.FactEvidence{RuleCode: a.RuleVersion + "." + c.Code, Source: c.Source, Pillars: nonEmpty(c.Position), Symbols: nonEmpty(c.Symbol), Reason: fmt.Sprintf("element=%s ten_god=%s category=%s score=%.2f adjustment=%.2f", c.Element, c.TenGod, c.Category, c.Score, c.Adjustment)})
-	}
-	for _, r := range a.Relations {
-		out = append(out, model.FactEvidence{RuleCode: a.RuleVersion + "." + r.Code, Source: "strength_relation", Pillars: append([]string{}, r.Positions...), Symbols: append([]string{}, r.Symbols...), Reason: r.Reason})
-	}
-	return out
-}
-
 func buildStrengthV2Evidence(a model.StrengthV2Analysis) []model.FactEvidence {
 	out := make([]model.FactEvidence, 0, len(a.Trace)+1)
 	out = append(out, model.FactEvidence{RuleCode: a.RuleVersion, Source: "strength_v2_summary", Reason: fmt.Sprintf("score=%.2f confidence=%.4f support=%.2f pressure=%.2f de_ling=%.2f de_di=%.2f de_shi=%.2f", a.Score, a.Confidence, a.Support, a.Pressure, a.DeLing, a.DeDi, a.DeShi)})
@@ -356,14 +344,6 @@ func projectV2Relations(relations []model.ElementStructureEvidence) ([]model.Rel
 	return stems, branches
 }
 
-func buildPatternFacts(level string, a model.StrengthAnalysis) []model.ScoredFact {
-	values := []string{a.Pattern}
-	if a.PatternSubtype != "" {
-		values = append(values, a.PatternSubtype)
-	}
-	score := a.SupportRatio * 100
-	return []model.ScoredFact{{Code: "pattern." + a.Pattern, Level: level, Score: &score, Values: values, Evidence: []model.FactEvidence{{RuleCode: a.RuleVersion, Source: "strength_analysis", Reason: fmt.Sprintf("root=%s false_following=%t", a.RootLevel, a.FalseFollowing)}}, Conflicts: []string{}}}
-}
 func buildPatternFactsV2(a model.StrengthV2Analysis) []model.ScoredFact {
 	out := []model.ScoredFact{}
 	for _, p := range a.Patterns {
@@ -380,29 +360,12 @@ func buildPatternFactsV2(a model.StrengthV2Analysis) []model.ScoredFact {
 	}
 	return out
 }
-func buildRuleMatches(a model.StrengthAnalysis) []model.RuleMatch {
-	out := []model.RuleMatch{{RuleCode: a.RuleVersion, Module: strengthModule, Matched: true, Priority: 100, Evidence: []model.FactEvidence{{RuleCode: a.RuleVersion, Source: "strength_analysis", Reason: "day-master strength classification completed"}}}}
-	for i, r := range a.Relations {
-		out = append(out, model.RuleMatch{RuleCode: r.Code, Module: strengthModule, Matched: true, Priority: 90 - i, Evidence: []model.FactEvidence{{RuleCode: r.Code, Source: "strength_analysis", Pillars: append([]string{}, r.Positions...), Symbols: append([]string{}, r.Symbols...), Reason: r.Reason}}})
-	}
-	return out
-}
 func buildStrengthV2RuleMatches(a model.StrengthV2Analysis, structures []model.ElementStructureEvidence) []model.RuleMatch {
 	out := []model.RuleMatch{{RuleCode: a.RuleVersion, Module: strengthModule, Matched: true, Priority: 100, Evidence: buildStrengthV2Evidence(a)}}
 	for i, r := range structures {
 		out = append(out, model.RuleMatch{RuleCode: r.Code, Module: "element_structure", Matched: true, Priority: 90 - i, Evidence: []model.FactEvidence{{RuleCode: r.Code, Source: "element_power_structure", Pillars: append([]string{}, r.Positions...), Symbols: append([]string{}, r.Symbols...), Reason: r.Reason}}})
 	}
 	return out
-}
-func strengthValues(a model.StrengthAnalysis) []string {
-	v := []string{a.DayElement, a.RootLevel, a.Pattern}
-	if a.PatternSubtype != "" {
-		v = append(v, a.PatternSubtype)
-	}
-	if a.FalseFollowing {
-		v = append(v, "false_following")
-	}
-	return v
 }
 func strengthV2Values(a model.StrengthV2Analysis) []string {
 	v := []string{a.Level, fmt.Sprintf("score=%.2f", a.Score), fmt.Sprintf("confidence=%.4f", a.Confidence)}

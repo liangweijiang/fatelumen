@@ -3,7 +3,6 @@ package bazi
 import (
 	"container/list"
 	"fmt"
-	"math"
 	"time"
 
 	"fatelumen/backend/internal/bazi/annualcalendar"
@@ -167,7 +166,7 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 	}
 	chartData.ElementPower = toModelElementPower(elementResult)
 
-	// 身强身弱是独立的版本化确定性算法，不参与喜用神推导。
+	// 先计算位置、藏干与关系贡献，供十神和唯一的最终身强弱流水线消费。
 	strengthResult, err := strengthcalc.Evaluate(strengthcalc.Input{
 		Year:  strengthcalc.Pillar{Stem: yearStem, Branch: yearBranch},
 		Month: strengthcalc.Pillar{Stem: monthStem, Branch: monthBranch},
@@ -193,6 +192,10 @@ func Calculate(in BirthInput) (*model.ChartData, error) {
 		return nil, fmt.Errorf("evaluate day-master strength v2: %w", err)
 	}
 	chartData.StrengthV2 = toModelStrengthV2(strengthV2)
+	// 对外只存在一套当前身强弱结论。保留 Strength.Analysis 作为上游
+	// 贡献依据，但正式 level/score 必须与当前最终计算完全一致。
+	chartData.Strength.Level = strengthV2.Level
+	chartData.Strength.Score = strengthV2.Score
 	if err := evaluatePreanalysis(chartData); err != nil {
 		return nil, fmt.Errorf("evaluate deterministic preanalysis: %w", err)
 	}
@@ -325,10 +328,10 @@ func toModelStrength(in strengthcalc.Result) model.Strength {
 	for _, r := range in.Relations {
 		relations = append(relations, model.StrengthRelation{Code: r.Code, Type: r.Type, Positions: r.Positions, Symbols: r.Symbols, Element: r.Element, Score: r.Score, Transformed: r.Transformed, Reason: r.Reason})
 	}
-	return model.Strength{Level: in.Level, Score: int(math.Round(in.SupportRatio * 100)), Analysis: &model.StrengthAnalysis{
+	return model.Strength{Analysis: &model.StrengthAnalysis{
 		RuleVersion: in.RuleVersion, DayElement: in.DayElement, MonthScore: in.MonthScore, SupportScore: in.SupportScore,
-		RestraintScore: in.RestraintScore, SupportRatio: in.SupportRatio, RootLevel: in.RootLevel, Pattern: in.Pattern,
-		PatternSubtype: in.PatternSubtype, FalseFollowing: in.FalseFollowing, Contributions: contributions, Relations: relations, Warnings: in.Warnings,
+		RestraintScore: in.RestraintScore, SupportRatio: in.SupportRatio, RootLevel: in.RootLevel,
+		Contributions: contributions, Relations: relations, Warnings: in.Warnings,
 	}}
 }
 

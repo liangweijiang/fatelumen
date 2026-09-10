@@ -45,16 +45,20 @@ type DayMaster struct {
 
 // Strength 身强身弱判定。
 type Strength struct {
-	Level       string            `json:"level"` // "strong" / "weak" / "balanced"
-	Score       int               `json:"score"`
-	Favorable   []string          `json:"favorable"`
-	Unfavorable []string          `json:"unfavorable"`
-	Analysis    *StrengthAnalysis `json:"analysis,omitempty"`
+	Level       string   `json:"level"` // "strong" / "weak" / "balanced"
+	Score       float64  `json:"score"`
+	Favorable   []string `json:"favorable"`
+	Unfavorable []string `json:"unfavorable"`
+	// Analysis is the upstream contribution/relationship basis consumed by the
+	// current strength pipeline. Level and Score above are the only final
+	// strength conclusion exposed by ChartData.
+	Analysis *StrengthAnalysis `json:"analysis,omitempty"`
 }
 
-// StrengthAnalysis records the deterministic evidence behind a strength result.
-// It is versioned independently so historical charts remain explainable when
-// weights or thresholds are adjusted later.
+// StrengthAnalysis stores upstream contribution evidence consumed by the
+// current strength pipeline. Legacy classification fields remain only so
+// historical report snapshots can still be decoded; new calculations leave
+// them empty and never treat them as a second conclusion.
 type StrengthAnalysis struct {
 	RuleVersion    string                 `json:"rule_version"`
 	DayElement     string                 `json:"day_element"`
@@ -63,9 +67,9 @@ type StrengthAnalysis struct {
 	RestraintScore float64                `json:"restraint_score"`
 	SupportRatio   float64                `json:"support_ratio"`
 	RootLevel      string                 `json:"root_level"`
-	Pattern        string                 `json:"pattern"`
+	Pattern        string                 `json:"pattern,omitempty"`
 	PatternSubtype string                 `json:"pattern_subtype,omitempty"`
-	FalseFollowing bool                   `json:"false_following"`
+	FalseFollowing bool                   `json:"false_following,omitempty"`
 	Contributions  []StrengthContribution `json:"contributions"`
 	Relations      []StrengthRelation     `json:"relations"`
 	Warnings       []string               `json:"warnings,omitempty"`

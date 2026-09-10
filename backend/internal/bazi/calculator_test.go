@@ -80,13 +80,13 @@ func TestCalculate_Case1(t *testing.T) {
 	if chart.Strength.Level == "" {
 		t.Error("Strength.Level should not be empty")
 	}
-	if chart.Strength.Score < 0 || chart.Strength.Score > 100 {
-		t.Errorf("Strength.Score should be a percentage, got %d", chart.Strength.Score)
+	if chart.Strength.Score < -100 || chart.Strength.Score > 100 {
+		t.Errorf("Strength.Score should be the current normalized score, got %.2f", chart.Strength.Score)
 	}
 	if chart.Strength.Analysis == nil {
 		t.Fatal("Strength.Analysis should contain traceable evidence")
 	}
-	if chart.Strength.Analysis.RuleVersion != "strength-rule-v1" {
+	if chart.Strength.Analysis.RuleVersion != "strength-basis-v1" {
 		t.Errorf("unexpected strength rule version: %s", chart.Strength.Analysis.RuleVersion)
 	}
 	if len(chart.Strength.Analysis.Contributions) == 0 {
@@ -112,6 +112,12 @@ func TestCalculate_Case1(t *testing.T) {
 	}
 	if chart.StrengthV2 == nil || chart.StrengthV2.RuleVersion != "day-master-strength-v2.0" {
 		t.Fatalf("strength V2 missing: %+v", chart.StrengthV2)
+	}
+	if chart.Strength.Level != chart.StrengthV2.Level || chart.Strength.Score != chart.StrengthV2.Score {
+		t.Fatalf("public strength conclusion drifted from current calculation: summary=%+v detail=%+v", chart.Strength, chart.StrengthV2)
+	}
+	if chart.Strength.Analysis.Pattern != "" || chart.Strength.Analysis.PatternSubtype != "" || chart.Strength.Analysis.FalseFollowing {
+		t.Fatalf("basis analysis must not publish a legacy classification: %+v", chart.Strength.Analysis)
 	}
 	ratioTotal := chart.ElementPower.EffectiveRatio.Wood + chart.ElementPower.EffectiveRatio.Fire + chart.ElementPower.EffectiveRatio.Earth + chart.ElementPower.EffectiveRatio.Metal + chart.ElementPower.EffectiveRatio.Water
 	if math.Abs(ratioTotal-100) > .001 {

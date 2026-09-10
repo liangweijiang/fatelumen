@@ -132,6 +132,9 @@ func TestReportPDFTemplate_HidesLegacyYearlyFortuneWhenTenYearChapterExists(t *t
 func TestBuildReportPDFData_Locales(t *testing.T) {
 	chart := sampleReportChart(t)
 	chart.Strength.Level = "balanced"
+	if chart.StrengthV2 != nil {
+		chart.StrengthV2.Level = "balanced"
+	}
 	wantStrength := map[string]string{"en": "Balanced", "zh": "中和", "ja": "中和", "ko": "중화"}
 	for _, loc := range []string{"en", "zh", "ja", "ko"} {
 		content := sampleReportContent()
@@ -143,6 +146,19 @@ func TestBuildReportPDFData_Locales(t *testing.T) {
 		if data.StrengthLevel != wantStrength[loc] {
 			t.Errorf("locale %s: expected strength %s, got %s", loc, wantStrength[loc], data.StrengthLevel)
 		}
+	}
+}
+
+func TestBuildReportPDFData_HistoricalSnapshotUsesCurrentStrengthDetail(t *testing.T) {
+	chart := sampleReportChart(t)
+	chart.Strength.Level = "balanced"
+	chart.StrengthV2 = &model.StrengthV2Analysis{Level: "slightly_strong"}
+	content := sampleReportContent()
+	content.Locale = "zh"
+
+	data := BuildReportPDFData(chart, content, "2026-06-11")
+	if data.StrengthLevel != "身偏强" {
+		t.Fatalf("historical PDF used obsolete strength summary: %s", data.StrengthLevel)
 	}
 }
 

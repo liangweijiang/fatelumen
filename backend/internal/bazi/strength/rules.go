@@ -8,11 +8,10 @@ type hiddenStem struct {
 }
 
 type RuleSet struct {
-	Version                                                                    string
-	PositionWeight                                                             map[string]float64
-	MonthScore                                                                 map[string]map[string]float64
-	HiddenStems                                                                map[string][]hiddenStem
-	StrongThreshold, WeakThreshold, FollowStrongThreshold, FollowWeakThreshold float64
+	Version        string
+	PositionWeight map[string]float64
+	MonthScore     map[string]map[string]float64
+	HiddenStems    map[string][]hiddenStem
 }
 
 func RuleV1() RuleSet {
@@ -30,6 +29,5 @@ func RuleV1() RuleSet {
 	return RuleSet{
 		Version:        RuleVersionV1,
 		PositionWeight: weights, MonthScore: base.MonthScores, HiddenStems: hidden,
-		StrongThreshold: base.Threshold("strong"), WeakThreshold: base.Threshold("weak"), FollowStrongThreshold: base.Threshold("follow_strong"), FollowWeakThreshold: base.Threshold("follow_weak"),
 	}
 }

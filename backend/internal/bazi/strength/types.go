@@ -1,6 +1,6 @@
 package strength
 
-const RuleVersionV1 = "strength-rule-v1"
+const RuleVersionV1 = "strength-basis-v1"
 
 type Pillar struct{ Stem, Branch string }
 type Input struct{ Year, Month, Day, Hour Pillar }
@@ -18,10 +18,9 @@ type Relation struct {
 }
 
 type Result struct {
-	RuleVersion, Level, DayElement, RootLevel, Pattern, PatternSubtype string
-	MonthScore, SupportScore, RestraintScore, SupportRatio             float64
-	FalseFollowing                                                     bool
-	Contributions                                                      []Contribution
-	Relations                                                          []Relation
-	Warnings                                                           []string
+	RuleVersion, DayElement, RootLevel                     string
+	MonthScore, SupportScore, RestraintScore, SupportRatio float64
+	Contributions                                          []Contribution
+	Relations                                              []Relation
+	Warnings                                               []string
 }

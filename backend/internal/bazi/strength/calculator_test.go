@@ -20,8 +20,8 @@ func TestEvaluateV1ProducesTraceableResult(t *testing.T) {
 	if len(r.Contributions) != 14 {
 		t.Fatalf("contributions=%d want 14", len(r.Contributions))
 	}
-	if r.RootLevel == "" || r.Level == "" {
-		t.Fatalf("missing classification: %+v", r)
+	if r.RootLevel == "" {
+		t.Fatalf("missing root evidence: %+v", r)
 	}
 }
 
@@ -35,7 +35,7 @@ func TestEvaluateDeterministic(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	if a.SupportScore != b.SupportScore || a.RestraintScore != b.RestraintScore || a.Level != b.Level {
+	if a.SupportScore != b.SupportScore || a.RestraintScore != b.RestraintScore || a.SupportRatio != b.SupportRatio {
 		t.Fatalf("non-deterministic: %+v / %+v", a, b)
 	}
 }
@@ -69,16 +69,5 @@ func TestRelationsUseDistinctPositions(t *testing.T) {
 		if len(rel.Positions) != len(rel.Symbols) {
 			t.Fatalf("bad evidence: %+v", rel)
 		}
-	}
-}
-
-func TestFalseFollowingEvidenceHelpers(t *testing.T) {
-	in := Input{Year: Pillar{"甲", "未"}, Month: Pillar{"己", "丑"}, Day: Pillar{"甲", "午"}, Hour: Pillar{"戊", "申"}}
-	l := &ledger{relations: []Relation{{Type: "stem_combination", Transformed: true, Positions: []string{"year_stem", "month_stem"}}, {Type: "clash", Positions: []string{"year_branch", "month_branch"}}}}
-	if !allVisibleMatchedByTransformation(in, l, func(g string) bool { return category(g) == "support" }) {
-		t.Fatal("expected visible support to be transformed")
-	}
-	if !weakRootWasClashed(in, RuleV1(), l) {
-		t.Fatal("expected weak root to be clashed")
 	}
 }

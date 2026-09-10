@@ -297,7 +297,7 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 		Locale:            locale,
 		ReportTitle:       labels["report_title"],
 		DayMasterLabel:    dayMasterLabel,
-		StrengthLevel:     localizedStrength(chart.Strength.Level, locale),
+		StrengthLevel:     localizedStrength(currentStrengthLevel(chart), locale),
 		ElementBalance:    summarizeElements(chart.FiveElementsCount),
 		GenDate:           genDate,
 		SolarDate:         chart.Meta.SolarDate,
@@ -311,6 +311,16 @@ func BuildReportPDFData(chart *model.ChartData, content model.ReportContent, gen
 		Chapters:          chapters,
 		SectionLabels:     labels,
 	}
+}
+
+func currentStrengthLevel(chart *model.ChartData) string {
+	// New charts keep the current conclusion in Strength. StrengthV2 is read
+	// first so historical snapshots created before that unification still render
+	// the same conclusion that their report facts and prompts consumed.
+	if chart.StrengthV2 != nil && chart.StrengthV2.Level != "" {
+		return chart.StrengthV2.Level
+	}
+	return chart.Strength.Level
 }
 
 func localizedStrength(level, locale string) string {
